@@ -32,6 +32,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/campaigns/$id")({
+  ssr: false,
   component: () => (
     <AuthGate>
       <CampaignDetailPage />

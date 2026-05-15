@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/settings")({
+  ssr: false,
   component: () => (<AuthGate><SettingsPage /></AuthGate>),
 });
 
