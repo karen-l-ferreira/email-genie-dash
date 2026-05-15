@@ -189,7 +189,7 @@ function CampaignDetailPage() {
               <Download className="mr-1.5 h-4 w-4" />CSV
             </Button>
             <Button asChild variant="outline" size="sm">
-              <Link to="/"><ArrowLeft className="mr-1.5 h-4 w-4" />Campanhas</Link>
+              <Link to="/campanhas"><ArrowLeft className="mr-1.5 h-4 w-4" />Campanhas</Link>
             </Button>
           </div>
         </div>
