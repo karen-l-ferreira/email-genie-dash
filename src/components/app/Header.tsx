@@ -2,7 +2,7 @@ import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
-import { Activity, GitBranch, LogOut, Mail, Settings as SettingsIcon } from "lucide-react";
+import { Activity, BarChart3, GitBranch, LogOut, Mail, Settings as SettingsIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Props = { campaignCount?: number };
@@ -15,7 +15,7 @@ export function AppHeader({ campaignCount }: Props) {
     <header className="sticky top-0 z-30 border-b border-border bg-surface/80 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-[1400px] items-center justify-between px-6">
         <div className="flex items-center gap-6">
-          <Link to="/" className="flex items-center gap-3">
+          <Link to="/dashboard" className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-lg shadow-primary/30">
               <Activity className="h-5 w-5" />
             </div>
@@ -27,10 +27,20 @@ export function AppHeader({ campaignCount }: Props) {
 
           <nav className="flex items-center gap-1">
             <Link
-              to="/"
+              to="/dashboard"
               className={cn(
                 "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors",
-                pathname === "/" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground",
+                pathname === "/dashboard" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <BarChart3 className="h-3.5 w-3.5" />
+              Dashboard
+            </Link>
+            <Link
+              to="/campanhas"
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors",
+                pathname.startsWith("/campanhas") || pathname.startsWith("/campaigns") ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground",
               )}
             >
               <Mail className="h-3.5 w-3.5" />

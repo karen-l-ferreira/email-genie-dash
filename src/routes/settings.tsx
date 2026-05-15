@@ -50,7 +50,7 @@ function SettingsPage() {
       toast.success("Configurações salvas");
       setApiKey("");
       await refetch();
-      navigate({ to: "/" });
+      navigate({ to: "/dashboard" });
     } catch (e: any) {
       toast.error(e.message ?? "Não foi possível salvar");
     } finally {
