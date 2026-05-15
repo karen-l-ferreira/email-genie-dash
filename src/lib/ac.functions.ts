@@ -70,6 +70,11 @@ export type CampaignMessage = {
   fromemail: string;
 };
 
+function parseAcDate(s: string | null | undefined): string | null {
+  if (!s || s.startsWith("0000")) return null;
+  return s;
+}
+
 function mapCampaign(c: any): Campaign {
   const send = Number(c.send_amt ?? c.total_amt ?? 0);
   const uo = Number(c.uniqueopens ?? 0);
@@ -84,13 +89,16 @@ function mapCampaign(c: any): Campaign {
   }
   if (ids.length === 0 && c.message_id) ids.push(String(c.message_id));
 
+  // sdate = scheduled send date; ldate = last activity date. Prefer sdate, fall back to ldate.
+  const sdate = parseAcDate(c.sdate) ?? parseAcDate(c.ldate);
+
   return {
     id: String(c.id),
     name: c.name ?? "(untitled)",
     status: String(c.status ?? "0"),
     type: c.type ?? "single",
-    sdate: c.sdate ?? null,
-    ldate: c.ldate ?? null,
+    sdate,
+    ldate: parseAcDate(c.ldate),
     send_amt: send,
     total_amt: Number(c.total_amt ?? 0),
     opens: Number(c.opens ?? 0),
@@ -239,4 +247,66 @@ export const getAutomation = createServerFn({ method: "GET" })
     const json = await acFetch(creds, `automations/${data.id}`);
     const automation = mapAutomation(json.automation);
     return { automation };
+  });
+
+// ─── Contacts / Influence Analysis ───────────────────────────────────────────
+
+export type ContactField = {
+  id: string;
+  title: string;
+  type: string;
+};
+
+export type ContactSummary = {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  fieldValues: Record<string, string>; // fieldId → value
+};
+
+export const listContactFields = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const creds = await getCreds(context.supabase, context.userId);
+    const json = await acFetch(creds, "fields", { limit: "100" });
+    const fields: ContactField[] = (json.fields ?? []).map((f: any) => ({
+      id: String(f.id),
+      title: f.title ?? f.perstag ?? `Campo ${f.id}`,
+      type: f.type ?? "text",
+    }));
+    return { fields };
+  });
+
+export const listContactsForAnalysis = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ offset: z.number().int().min(0).optional() }).parse(d ?? {}))
+  .handler(async ({ data, context }) => {
+    const creds = await getCreds(context.supabase, context.userId);
+    const json = await acFetch(creds, "contacts", {
+      limit: "100",
+      offset: String(data.offset ?? 0),
+      include: "fieldValues",
+      "orders[id]": "DESC",
+    });
+
+    // fieldValues is a separate top-level array in the AC response
+    const fvMap: Record<string, Record<string, string>> = {};
+    const fieldValuesArr: any[] = json.fieldValues ?? [];
+    for (const fv of fieldValuesArr) {
+      if (!fv.contact || !fv.field || fv.value == null || fv.value === "") continue;
+      const cid = String(fv.contact);
+      if (!fvMap[cid]) fvMap[cid] = {};
+      fvMap[cid][String(fv.field)] = String(fv.value);
+    }
+
+    const contacts: ContactSummary[] = (json.contacts ?? []).map((c: any) => ({
+      id: String(c.id),
+      email: c.email ?? "",
+      firstName: c.firstName ?? c.firstname ?? "",
+      lastName: c.lastName ?? c.lastname ?? "",
+      fieldValues: fvMap[String(c.id)] ?? {},
+    }));
+
+    return { contacts, total: Number(json.meta?.total ?? contacts.length) };
   });

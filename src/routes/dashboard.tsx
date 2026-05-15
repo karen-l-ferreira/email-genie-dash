@@ -106,10 +106,12 @@ function DashboardPage() {
 
   const filtered = useMemo(() => {
     const cutoff = periodStart(period);
+    if (!cutoff) return allCampaigns;
     return allCampaigns.filter((c) => {
-      if (!cutoff) return true;
-      if (!c.sdate) return false;
-      return new Date(c.sdate) >= cutoff;
+      const dateStr = c.sdate ?? c.ldate;
+      if (!dateStr) return false;
+      const d = new Date(dateStr.replace(" ", "T"));
+      return !isNaN(d.getTime()) && d >= cutoff;
     });
   }, [allCampaigns, period]);
 
