@@ -23,7 +23,9 @@ export function useTheme() {
   }, [theme, setTheme]);
 
   useEffect(() => {
-    document.documentElement.classList.toggle("dark", theme === "dark");
+    const actual = readTheme();
+    setThemeState(actual);
+    document.documentElement.classList.toggle("dark", actual === "dark");
   }, []);
 
   return { theme, toggle };
