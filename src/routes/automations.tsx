@@ -9,10 +9,31 @@ import { AppHeader } from "@/components/app/Header";
 import { AutomationStatusBadge } from "@/components/app/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ChevronRight, GitBranch, RefreshCw, Search, Settings as SettingsIcon } from "lucide-react";
+import { ChevronRight, Download, GitBranch, RefreshCw, Search, Settings as SettingsIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+
+function exportAutomationsCSV(automations: Automation[]) {
+  const header = ["Nome", "Status", "Entrou", "Ativo", "Saiu", "Conclusão %", "Últ. Modificação"];
+  const rows = automations.map((a) => [
+    `"${a.name.replace(/"/g, '""')}"`,
+    a.status,
+    a.entered,
+    a.active,
+    a.exited,
+    a.completion_rate.toFixed(2),
+    a.mdate ? format(new Date(a.mdate), "dd/MM/yyyy", { locale: ptBR }) : "",
+  ]);
+  const csv = [header, ...rows].map((r) => r.join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `automacoes_${format(new Date(), "yyyy-MM-dd")}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export const Route = createFileRoute("/automations")({
   ssr: false,
@@ -104,6 +125,12 @@ function AutomationsPage() {
             <RefreshCw className={cn("mr-1.5 h-4 w-4", automationsQ.isFetching && "animate-spin")} />
             Atualizar
           </Button>
+          {all.length > 0 && (
+            <Button variant="outline" size="sm" onClick={() => exportAutomationsCSV(all)}>
+              <Download className="mr-1.5 h-3.5 w-3.5" />
+              CSV
+            </Button>
+          )}
         </div>
 
         <div className="mt-5 overflow-hidden rounded-xl border border-border bg-card">
