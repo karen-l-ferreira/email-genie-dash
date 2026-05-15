@@ -33,11 +33,14 @@ export const saveSettings = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const patch: Record<string, unknown> = { user_id: userId, updated_at: new Date().toISOString() };
-    if (data.ac_api_key) patch.ac_api_key = data.ac_api_key;
-    if (data.ac_base_url) patch.ac_base_url = data.ac_base_url;
-    if (data.benchmark_open_rate !== undefined) patch.benchmark_open_rate = data.benchmark_open_rate;
-    if (data.benchmark_ctr !== undefined) patch.benchmark_ctr = data.benchmark_ctr;
+    const patch = {
+      user_id: userId,
+      updated_at: new Date().toISOString(),
+      ...(data.ac_api_key ? { ac_api_key: data.ac_api_key } : {}),
+      ...(data.ac_base_url ? { ac_base_url: data.ac_base_url } : {}),
+      ...(data.benchmark_open_rate !== undefined ? { benchmark_open_rate: data.benchmark_open_rate } : {}),
+      ...(data.benchmark_ctr !== undefined ? { benchmark_ctr: data.benchmark_ctr } : {}),
+    };
     const { error } = await supabase.from("user_settings").upsert(patch, { onConflict: "user_id" });
     if (error) throw new Error(error.message);
     return { ok: true };
