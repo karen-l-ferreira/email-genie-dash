@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
@@ -15,15 +15,15 @@ import { AppHeader } from "@/components/app/Header";
 import { Button } from "@/components/ui/button";
 import {
   ChevronRight,
+  Clock,
   Download,
-  HelpCircle,
   RefreshCw,
   TrendingUp,
   Users,
   Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { format, differenceInDays } from "date-fns";
+import { format, differenceInMinutes } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 export const Route = createFileRoute("/influencia")({
@@ -35,16 +35,23 @@ export const Route = createFileRoute("/influencia")({
   ),
 });
 
-const ATTR_WINDOWS = [7, 15, 30, 60, 90];
+// Attribution window options in MINUTES
+const ATTR_WINDOWS = [
+  { value: 15, label: "15min" },
+  { value: 30, label: "30min" },
+  { value: 60, label: "1h" },
+  { value: 120, label: "2h" },
+  { value: 240, label: "4h" },
+  { value: 1440, label: "24h" },
+];
 
 type InfluenceStatus = "influenced" | "not_influenced" | "no_operation";
 
 type ContactRow = {
   contact: ContactSummary;
   operationDate: Date | null;
-  campaignsBeforeOp: Campaign[]; // campaigns sent before the operation
-  firstRelevantCampaign: Campaign | null; // earliest campaign within window
-  daysDelta: number | null; // days from nearest campaign send to operation
+  closestCampaign: Campaign | null;
+  minutesDelta: number | null;
   status: InfluenceStatus;
 };
 
@@ -54,18 +61,27 @@ function parseDateSafe(s: string | undefined | null): Date | null {
   return isNaN(d.getTime()) ? null : d;
 }
 
-function exportInfluenceCSV(rows: ContactRow[], fieldTitle: string) {
+function fmtMinutes(min: number): string {
+  if (min < 60) return `${min}min`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m === 0 ? `${h}h` : `${h}h ${m}min`;
+}
+
+function exportInfluenceCSV(rows: ContactRow[]) {
   const header = [
-    "Nome", "E-mail", "Data da Operação", "Campanha mais próxima",
-    "Data da campanha", "Δ dias", "Status",
+    "Nome", "E-mail", "Data/hora da operação",
+    "Campanha mais próxima", "Envio da campanha", "Δ minutos", "Status",
   ];
   const data = rows.map((r) => [
-    `"${(r.contact.firstName + " " + r.contact.lastName).trim().replace(/"/g, '""')}"`,
+    `"${[r.contact.firstName, r.contact.lastName].filter(Boolean).join(" ").replace(/"/g, '""') || ""}"`,
     r.contact.email,
-    r.operationDate ? format(r.operationDate, "dd/MM/yyyy") : "",
-    r.firstRelevantCampaign ? `"${r.firstRelevantCampaign.name.replace(/"/g, '""')}"` : "",
-    r.firstRelevantCampaign?.sdate ? format(new Date(r.firstRelevantCampaign.sdate), "dd/MM/yyyy") : "",
-    r.daysDelta !== null ? r.daysDelta : "",
+    r.operationDate ? format(r.operationDate, "dd/MM/yyyy HH:mm") : "",
+    r.closestCampaign ? `"${r.closestCampaign.name.replace(/"/g, '""')}"` : "",
+    r.closestCampaign?.sdate
+      ? format(new Date(r.closestCampaign.sdate.replace(" ", "T")), "dd/MM/yyyy HH:mm")
+      : "",
+    r.minutesDelta !== null ? r.minutesDelta : "",
     r.status === "influenced" ? "Influenciado" : r.status === "not_influenced" ? "Não influenciado" : "Sem operação",
   ]);
   const csv = [header, ...data].map((r) => r.join(",")).join("\n");
@@ -99,7 +115,7 @@ function InfluenciaPage() {
 
   const [selectedFieldId, setSelectedFieldId] = useState<string>("");
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>("all");
-  const [attrWindow, setAttrWindow] = useState(30);
+  const [attrWindow, setAttrWindow] = useState(30); // minutes
   const [contacts, setContacts] = useState<ContactSummary[]>([]);
   const [total, setTotal] = useState(0);
   const [loadingContacts, setLoadingContacts] = useState(false);
@@ -127,6 +143,9 @@ function InfluenciaPage() {
   }, [fetchContacts]);
 
   // ─── Attribution analysis ─────────────────────────────────────────────────
+  // Logic: contact has an operation datetime stored in a custom field.
+  // For each contact, find campaigns that were sent BEFORE the operation and
+  // within attrWindow MINUTES of it. If any match → "influenced".
 
   const analysisRows: ContactRow[] = useMemo(() => {
     if (!selectedFieldId || !loaded) return [];
@@ -141,42 +160,47 @@ function InfluenciaPage() {
       const operationDate = parseDateSafe(rawValue);
 
       if (!operationDate) {
-        return { contact, operationDate: null, campaignsBeforeOp: [], firstRelevantCampaign: null, daysDelta: null, status: "no_operation" as InfluenceStatus };
+        return {
+          contact,
+          operationDate: null,
+          closestCampaign: null,
+          minutesDelta: null,
+          status: "no_operation" as InfluenceStatus,
+        };
       }
 
-      // Find campaigns sent BEFORE the operation date
-      const before = campaignsToAnalyze.filter((c) => {
-        const cd = parseDateSafe(c.sdate);
-        return cd && cd <= operationDate;
-      });
-
-      // Among those, find ones within the attribution window
-      const withinWindow = before.filter((c) => {
+      // Campaigns sent before the operation, within the minute window
+      const withinWindow = campaignsToAnalyze.filter((c) => {
         const cd = parseDateSafe(c.sdate);
         if (!cd) return false;
-        const delta = differenceInDays(operationDate, cd);
+        const delta = differenceInMinutes(operationDate, cd);
         return delta >= 0 && delta <= attrWindow;
       });
 
       if (withinWindow.length === 0) {
-        return { contact, operationDate, campaignsBeforeOp: before, firstRelevantCampaign: null, daysDelta: null, status: "not_influenced" as InfluenceStatus };
+        return {
+          contact,
+          operationDate,
+          closestCampaign: null,
+          minutesDelta: null,
+          status: "not_influenced" as InfluenceStatus,
+        };
       }
 
-      // Find the campaign closest (most recent) before the operation
+      // Closest campaign = most recent send before the operation
       const closest = withinWindow.reduce((best, c) => {
-        const dBest = differenceInDays(operationDate, parseDateSafe(best.sdate)!);
-        const dC = differenceInDays(operationDate, parseDateSafe(c.sdate)!);
+        const dBest = differenceInMinutes(operationDate, parseDateSafe(best.sdate)!);
+        const dC = differenceInMinutes(operationDate, parseDateSafe(c.sdate)!);
         return dC < dBest ? c : best;
       });
 
-      const delta = differenceInDays(operationDate, parseDateSafe(closest.sdate)!);
+      const delta = differenceInMinutes(operationDate, parseDateSafe(closest.sdate)!);
 
       return {
         contact,
         operationDate,
-        campaignsBeforeOp: before,
-        firstRelevantCampaign: closest,
-        daysDelta: delta,
+        closestCampaign: closest,
+        minutesDelta: delta,
         status: "influenced" as InfluenceStatus,
       };
     });
@@ -185,13 +209,14 @@ function InfluenciaPage() {
   const withOp = analysisRows.filter((r) => r.operationDate !== null);
   const influenced = analysisRows.filter((r) => r.status === "influenced");
   const influenceRate = withOp.length > 0 ? (influenced.length / withOp.length) * 100 : 0;
-  const avgDays =
+  const avgMinutes =
     influenced.length > 0
-      ? influenced.reduce((s, r) => s + (r.daysDelta ?? 0), 0) / influenced.length
+      ? influenced.reduce((s, r) => s + (r.minutesDelta ?? 0), 0) / influenced.length
       : 0;
 
   const selectedField = fieldsQ.data?.fields.find((f) => f.id === selectedFieldId);
   const hasMore = contacts.length < total;
+  const windowLabel = ATTR_WINDOWS.find((w) => w.value === attrWindow)?.label ?? `${attrWindow}min`;
 
   return (
     <div className="min-h-screen bg-background">
@@ -204,7 +229,7 @@ function InfluenciaPage() {
           <div>
             <h1 className="text-2xl font-semibold">Análise de Influência</h1>
             <p className="text-sm text-muted-foreground">
-              Veja se os e-mails enviados influenciaram operações dos clientes.
+              O cliente recebeu a campanha e operou nos próximos minutos?
             </p>
           </div>
         </div>
@@ -216,7 +241,7 @@ function InfluenciaPage() {
             {/* Campo de operação */}
             <div>
               <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                Campo "Data da Operação" (AC)
+                Campo "Data/hora da Operação" (AC)
               </label>
               {fieldsQ.isLoading ? (
                 <div className="h-9 animate-pulse rounded-lg bg-surface" />
@@ -234,7 +259,9 @@ function InfluenciaPage() {
                   ))}
                 </select>
               )}
-              <p className="mt-1 text-[11px] text-muted-foreground">Campo personalizado que armazena a data da última operação do contato.</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Campo que armazena a data <strong>e hora</strong> da última operação.
+              </p>
             </div>
 
             {/* Campanha */}
@@ -251,13 +278,13 @@ function InfluenciaPage() {
                 {sentCampaigns.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name.slice(0, 50)}
-                    {c.sdate ? ` (${format(new Date(c.sdate.replace(" ", "T")), "dd/MM/yy")})` : ""}
+                    {c.sdate ? ` (${format(new Date(c.sdate.replace(" ", "T")), "dd/MM/yy HH:mm")})` : ""}
                   </option>
                 ))}
               </select>
             </div>
 
-            {/* Janela de atribuição */}
+            {/* Janela de atribuição (minutos) */}
             <div>
               <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
                 Janela de atribuição
@@ -265,20 +292,22 @@ function InfluenciaPage() {
               <div className="flex gap-1 flex-wrap">
                 {ATTR_WINDOWS.map((w) => (
                   <button
-                    key={w}
-                    onClick={() => setAttrWindow(w)}
+                    key={w.value}
+                    onClick={() => setAttrWindow(w.value)}
                     className={cn(
                       "rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
-                      attrWindow === w
+                      attrWindow === w.value
                         ? "bg-primary text-primary-foreground"
                         : "border border-border bg-surface text-muted-foreground hover:text-foreground",
                     )}
                   >
-                    {w}d
+                    {w.label}
                   </button>
                 ))}
               </div>
-              <p className="mt-1 text-[11px] text-muted-foreground">Dias após o e-mail para considerar influência.</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Minutos após o envio para considerar influência.
+              </p>
             </div>
 
             {/* Carregar contatos */}
@@ -304,10 +333,32 @@ function InfluenciaPage() {
         {loaded && selectedFieldId && (
           <>
             <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <KpiCard icon={<Users className="h-4 w-4 text-primary" />} label="Contatos analisados" value={contacts.length.toLocaleString("pt-BR")} sub={`${withOp.length} com data de operação`} />
-              <KpiCard icon={<Zap className="h-4 w-4 text-primary" />} label="Potencialmente influenciados" value={influenced.length.toLocaleString("pt-BR")} sub={`dentro de ${attrWindow} dias`} good={influenced.length > 0} />
-              <KpiCard icon={<TrendingUp className="h-4 w-4 text-primary" />} label="Taxa de influência" value={withOp.length > 0 ? `${influenceRate.toFixed(1)}%` : "—"} sub="sobre quem tem op. registrada" good={withOp.length > 0 ? influenceRate >= 20 : undefined} />
-              <KpiCard icon={<HelpCircle className="h-4 w-4 text-primary" />} label="Média de dias até operar" value={influenced.length > 0 ? `${avgDays.toFixed(0)} dias` : "—"} sub="após receber o e-mail" />
+              <KpiCard
+                icon={<Users className="h-4 w-4 text-primary" />}
+                label="Contatos analisados"
+                value={contacts.length.toLocaleString("pt-BR")}
+                sub={`${withOp.length} com data/hora de operação`}
+              />
+              <KpiCard
+                icon={<Zap className="h-4 w-4 text-primary" />}
+                label="Influenciados"
+                value={influenced.length.toLocaleString("pt-BR")}
+                sub={`operaram em até ${windowLabel} do e-mail`}
+                good={influenced.length > 0}
+              />
+              <KpiCard
+                icon={<TrendingUp className="h-4 w-4 text-primary" />}
+                label="Taxa de influência"
+                value={withOp.length > 0 ? `${influenceRate.toFixed(1)}%` : "—"}
+                sub="sobre quem tem op. registrada"
+                good={withOp.length > 0 ? influenceRate >= 10 : undefined}
+              />
+              <KpiCard
+                icon={<Clock className="h-4 w-4 text-primary" />}
+                label="Tempo médio até operar"
+                value={influenced.length > 0 ? fmtMinutes(Math.round(avgMinutes)) : "—"}
+                sub="após receber o e-mail"
+              />
             </div>
 
             {/* Results table */}
@@ -316,14 +367,12 @@ function InfluenciaPage() {
                 <h2 className="text-sm font-semibold">
                   Contatos com campo "{selectedField?.title ?? selectedFieldId}"
                 </h2>
-                <div className="flex gap-2">
-                  {analysisRows.length > 0 && (
-                    <Button variant="outline" size="sm" onClick={() => exportInfluenceCSV(analysisRows, selectedField?.title ?? "")}>
-                      <Download className="mr-1.5 h-3.5 w-3.5" />
-                      CSV
-                    </Button>
-                  )}
-                </div>
+                {analysisRows.length > 0 && (
+                  <Button variant="outline" size="sm" onClick={() => exportInfluenceCSV(analysisRows)}>
+                    <Download className="mr-1.5 h-3.5 w-3.5" />
+                    CSV
+                  </Button>
+                )}
               </div>
 
               <div className="overflow-hidden rounded-xl border border-border bg-card">
@@ -332,9 +381,9 @@ function InfluenciaPage() {
                     <tr>
                       <th className="px-5 py-3 text-left font-medium">Contato</th>
                       <th className="px-3 py-3 text-left font-medium">E-mail</th>
-                      <th className="px-3 py-3 text-left font-medium">Data da operação</th>
+                      <th className="px-3 py-3 text-left font-medium">Data/hora da operação</th>
                       <th className="px-3 py-3 text-left font-medium">Campanha mais próxima</th>
-                      <th className="px-3 py-3 text-right font-medium">Δ dias</th>
+                      <th className="px-3 py-3 text-right font-medium">Δ tempo</th>
                       <th className="px-3 py-3 text-center font-medium">Status</th>
                       <th className="w-8 px-3 py-3" />
                     </tr>
@@ -348,7 +397,7 @@ function InfluenciaPage() {
                       </tr>
                     ) : (
                       analysisRows.map((row) => (
-                        <ContactRow key={row.contact.id} row={row} />
+                        <InfluenceRow key={row.contact.id} row={row} />
                       ))
                     )}
                   </tbody>
@@ -360,7 +409,12 @@ function InfluenciaPage() {
                   <span className="text-xs text-muted-foreground">
                     {contacts.length} de {total} contatos
                   </span>
-                  <Button variant="outline" size="sm" onClick={() => loadContacts(contacts.length)} disabled={loadingContacts}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => loadContacts(contacts.length)}
+                    disabled={loadingContacts}
+                  >
                     <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", loadingContacts && "animate-spin")} />
                     {loadingContacts ? "Carregando…" : `Carregar mais ${Math.min(100, total - contacts.length)}`}
                   </Button>
@@ -374,10 +428,10 @@ function InfluenciaPage() {
           <div className="mt-8 rounded-xl border border-dashed border-border p-12 text-center">
             <Zap className="mx-auto mb-3 h-10 w-10 text-muted-foreground/30" />
             <p className="text-sm font-medium text-muted-foreground">
-              Selecione o campo de data de operação e clique em "Carregar contatos" para iniciar a análise.
+              Selecione o campo de data/hora da operação e clique em "Carregar contatos".
             </p>
             <p className="mt-2 text-xs text-muted-foreground">
-              O sistema cruzará os contatos do ActiveCampaign com as campanhas enviadas para calcular a influência.
+              O sistema verifica se o contato operou dentro da janela de tempo após receber cada campanha.
             </p>
           </div>
         )}
@@ -386,8 +440,8 @@ function InfluenciaPage() {
   );
 }
 
-function ContactRow({ row }: { row: ContactRow }) {
-  const { contact, operationDate, firstRelevantCampaign, daysDelta, status } = row;
+function InfluenceRow({ row }: { row: ContactRow }) {
+  const { contact, operationDate, closestCampaign, minutesDelta, status } = row;
   const name = [contact.firstName, contact.lastName].filter(Boolean).join(" ") || "—";
 
   return (
@@ -395,17 +449,19 @@ function ContactRow({ row }: { row: ContactRow }) {
       <td className="px-5 py-3 font-medium">{name}</td>
       <td className="px-3 py-3 font-mono text-xs text-muted-foreground">{contact.email || "—"}</td>
       <td className="px-3 py-3 font-mono text-xs">
-        {operationDate ? format(operationDate, "dd/MM/yyyy", { locale: ptBR }) : (
+        {operationDate ? (
+          format(operationDate, "dd/MM/yyyy HH:mm", { locale: ptBR })
+        ) : (
           <span className="text-muted-foreground">—</span>
         )}
       </td>
       <td className="px-3 py-3 text-xs">
-        {firstRelevantCampaign ? (
+        {closestCampaign ? (
           <div>
-            <div className="max-w-[200px] truncate font-medium">{firstRelevantCampaign.name}</div>
-            {firstRelevantCampaign.sdate && (
+            <div className="max-w-[200px] truncate font-medium">{closestCampaign.name}</div>
+            {closestCampaign.sdate && (
               <div className="font-mono text-[11px] text-muted-foreground">
-                {format(new Date(firstRelevantCampaign.sdate.replace(" ", "T")), "dd/MM/yyyy", { locale: ptBR })}
+                {format(new Date(closestCampaign.sdate.replace(" ", "T")), "dd/MM/yyyy HH:mm", { locale: ptBR })}
               </div>
             )}
           </div>
@@ -414,11 +470,16 @@ function ContactRow({ row }: { row: ContactRow }) {
         )}
       </td>
       <td className="px-3 py-3 text-right font-mono text-xs">
-        {daysDelta !== null ? (
-          <span className={cn(daysDelta <= 7 ? "text-success font-semibold" : daysDelta <= 30 ? "text-warning" : "text-muted-foreground")}>
-            {daysDelta}d
+        {minutesDelta !== null ? (
+          <span className={cn(
+            "font-semibold",
+            minutesDelta <= 30 ? "text-success" : minutesDelta <= 120 ? "text-warning" : "text-muted-foreground",
+          )}>
+            {fmtMinutes(minutesDelta)}
           </span>
-        ) : "—"}
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        )}
       </td>
       <td className="px-3 py-3 text-center">
         <StatusBadge status={status} />
@@ -438,11 +499,20 @@ function StatusBadge({ status }: { status: InfluenceStatus }) {
   return <span className="inline-flex items-center rounded-full bg-surface px-2.5 py-0.5 text-[10px] font-medium text-muted-foreground">Sem operação</span>;
 }
 
-function KpiCard({ icon, label, value, sub, good }: { icon: React.ReactNode; label: string; value: string; sub: string; good?: boolean }) {
+function KpiCard({ icon, label, value, sub, good }: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  sub: string;
+  good?: boolean;
+}) {
   return (
     <div className="rounded-xl border border-border bg-card p-5">
       <div className="flex items-center gap-2 text-xs text-muted-foreground">{icon}{label}</div>
-      <div className={cn("mt-2 font-mono text-3xl font-semibold", good === true ? "text-success" : good === false ? "text-destructive" : "text-foreground")}>
+      <div className={cn(
+        "mt-2 font-mono text-3xl font-semibold",
+        good === true ? "text-success" : good === false ? "text-destructive" : "text-foreground",
+      )}>
         {value}
       </div>
       <div className="mt-1 text-xs text-muted-foreground">{sub}</div>
