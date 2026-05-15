@@ -47,12 +47,12 @@ function SettingsPage() {
           benchmark_ctr: Number(ctr),
         },
       });
-      toast.success("Settings saved");
+      toast.success("Configurações salvas");
       setApiKey("");
       await refetch();
       navigate({ to: "/" });
     } catch (e: any) {
-      toast.error(e.message ?? "Could not save");
+      toast.error(e.message ?? "Não foi possível salvar");
     } finally {
       setBusy(false);
     }
@@ -62,34 +62,34 @@ function SettingsPage() {
     <div className="min-h-screen bg-background">
       <AppHeader />
       <main className="mx-auto max-w-2xl px-6 py-10">
-        <h1 className="text-2xl font-semibold">Settings</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Configure your ActiveCampaign access and benchmarks.</p>
+        <h1 className="text-2xl font-semibold">Configurações</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Configure seu acesso ao ActiveCampaign e os benchmarks.</p>
         {isLoading ? (
           <div className="mt-8 h-40 animate-pulse rounded-xl bg-surface" />
         ) : (
           <form onSubmit={submit} className="mt-8 space-y-6 rounded-2xl border border-border bg-card p-7">
             <div>
-              <Label htmlFor="api">ActiveCampaign API Key</Label>
+              <Label htmlFor="api">Chave de API do ActiveCampaign</Label>
               <Input id="api" type="password" value={apiKey}
-                placeholder={data?.hasApiKey ? "•••••••••• (saved — leave empty to keep)" : "Paste your Api-Token"}
+                placeholder={data?.hasApiKey ? "•••••••••• (salva — deixe em branco para manter)" : "Cole seu Api-Token"}
                 onChange={(e) => setApiKey(e.target.value)} />
-              <p className="mt-1.5 text-xs text-muted-foreground">Stored on the server. Never sent to the browser.</p>
+              <p className="mt-1.5 text-xs text-muted-foreground">Armazenada no servidor. Nunca enviada ao navegador.</p>
             </div>
             <div>
-              <Label htmlFor="base">API Base URL</Label>
+              <Label htmlFor="base">URL Base da API</Label>
               <Input id="base" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="or">Open Rate Benchmark (%)</Label>
+                <Label htmlFor="or">Benchmark de Taxa de Abertura (%)</Label>
                 <Input id="or" type="number" step="0.1" value={openR} onChange={(e) => setOpenR(e.target.value)} />
               </div>
               <div>
-                <Label htmlFor="ctr">CTR Benchmark (%)</Label>
+                <Label htmlFor="ctr">Benchmark de CTR (%)</Label>
                 <Input id="ctr" type="number" step="0.1" value={ctr} onChange={(e) => setCtr(e.target.value)} />
               </div>
             </div>
-            <Button type="submit" disabled={busy} className="w-full">{busy ? "Saving…" : "Save settings"}</Button>
+            <Button type="submit" disabled={busy} className="w-full">{busy ? "Salvando…" : "Salvar configurações"}</Button>
           </form>
         )}
       </main>

@@ -27,10 +27,10 @@ function LoginPage() {
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
-      toast.success("Welcome back");
+      toast.success("Bem-vindo de volta");
       navigate({ to: "/" });
     } catch (e: any) {
-      toast.error(e.message ?? "Authentication failed");
+      toast.error(e.message ?? "Falha na autenticação");
     } finally {
       setBusy(false);
     }
@@ -49,24 +49,24 @@ function LoginPage() {
           </div>
         </div>
         <div className="rounded-2xl border border-border bg-card p-7">
-          <h2 className="text-xl font-semibold">Private sign in</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Owner access for your campaign intelligence dashboard.</p>
+          <h2 className="text-xl font-semibold">Acesso privado</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Acesso de administrador ao painel de inteligência de campanhas.</p>
           <form onSubmit={submit} className="space-y-4">
             <div>
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">E-mail</Label>
               <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
             </div>
             <div>
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">Senha</Label>
               <Input id="password" type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} />
             </div>
             <Button type="submit" disabled={busy} className="w-full">
-              {busy ? "Please wait…" : "Sign in"}
+              {busy ? "Aguarde…" : "Entrar"}
             </Button>
           </form>
         </div>
         <p className="mt-6 text-center text-xs text-muted-foreground">
-          <Link to="/" className="hover:text-foreground">← back</Link>
+          <Link to="/" className="hover:text-foreground">← voltar</Link>
         </p>
       </div>
     </div>

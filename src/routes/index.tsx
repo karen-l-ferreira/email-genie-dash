@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, formatDistanceToNow } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { readCampaignHistory, type HistoryEntry } from "@/hooks/use-campaign-history";
 
 export const Route = createFileRoute("/")({
@@ -43,7 +44,6 @@ function CampaignListPage() {
 
   const settingsQ = useQuery({ queryKey: ["settings"], queryFn: () => fetchSettings() });
 
-  // Accumulated campaigns across pages
   const [allCampaigns, setAllCampaigns] = useState<Campaign[]>([]);
   const [total, setTotal] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -93,7 +93,6 @@ function CampaignListPage() {
     dir: "desc",
   });
 
-  // History state (read from localStorage on tab switch)
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const onHistoryTab = useCallback(() => {
     setHistory(readCampaignHistory());
@@ -135,14 +134,14 @@ function CampaignListPage() {
           }}
         >
           <TabsList className="bg-surface">
-            <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
+            <TabsTrigger value="campaigns">Campanhas</TabsTrigger>
             <TabsTrigger value="history">
               <Clock className="mr-1.5 h-3.5 w-3.5" />
-              History
+              Histórico
             </TabsTrigger>
           </TabsList>
 
-          {/* ── Campaigns tab ── */}
+          {/* ── Aba Campanhas ── */}
           <TabsContent value="campaigns" className="mt-6">
             <div className="flex flex-wrap items-center gap-3">
               <button
@@ -154,7 +153,7 @@ function CampaignListPage() {
                     : "border-border bg-surface text-muted-foreground hover:text-foreground",
                 )}
               >
-                Sent ({sentCount})
+                Enviadas ({sentCount})
               </button>
               <button
                 onClick={() => setFilter("drafts")}
@@ -165,20 +164,20 @@ function CampaignListPage() {
                     : "border-border bg-surface text-muted-foreground hover:text-foreground",
                 )}
               >
-                Drafts ({draftCount})
+                Rascunhos ({draftCount})
               </button>
               <div className="relative ml-auto w-72">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search by name…"
+                  placeholder="Buscar por nome…"
                   className="pl-9"
                 />
               </div>
               <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading}>
                 <RefreshCw className={cn("mr-1.5 h-4 w-4", (campaignsQ.isFetching || loadingMore) && "animate-spin")} />
-                Refresh
+                Atualizar
               </Button>
             </div>
 
@@ -186,10 +185,10 @@ function CampaignListPage() {
               <table className="w-full text-sm">
                 <thead className="bg-surface text-[11px] uppercase tracking-wider text-muted-foreground">
                   <tr>
-                    <th className="px-5 py-3 text-left font-medium">Campaign</th>
-                    <th className="px-3 py-3 text-left font-medium">Date</th>
-                    <SortHeader k="send_amt" sort={sort} setSort={setSort}>Sends</SortHeader>
-                    <SortHeader k="open_rate" sort={sort} setSort={setSort}>Open Rate</SortHeader>
+                    <th className="px-5 py-3 text-left font-medium">Campanha</th>
+                    <th className="px-3 py-3 text-left font-medium">Data</th>
+                    <SortHeader k="send_amt" sort={sort} setSort={setSort}>Envios</SortHeader>
+                    <SortHeader k="open_rate" sort={sort} setSort={setSort}>T. Abertura</SortHeader>
                     <SortHeader k="ctr" sort={sort} setSort={setSort}>CTR</SortHeader>
                     <th className="w-12 px-3 py-3" />
                   </tr>
@@ -198,7 +197,7 @@ function CampaignListPage() {
                   {isLoading ? (
                     <tr>
                       <td colSpan={6} className="px-5 py-16 text-center text-muted-foreground">
-                        Loading campaigns…
+                        Carregando campanhas…
                       </td>
                     </tr>
                   ) : isError ? (
@@ -207,7 +206,7 @@ function CampaignListPage() {
                         <p className="text-sm text-destructive">{(campaignsQ.error as Error).message}</p>
                         <Button asChild variant="outline" size="sm" className="mt-3">
                           <Link to="/settings">
-                            <SettingsIcon className="mr-1.5 h-4 w-4" />Check API key
+                            <SettingsIcon className="mr-1.5 h-4 w-4" />Verificar chave de API
                           </Link>
                         </Button>
                       </td>
@@ -215,7 +214,7 @@ function CampaignListPage() {
                   ) : rows.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="px-5 py-16 text-center text-muted-foreground">
-                        No campaigns.
+                        Nenhuma campanha encontrada.
                       </td>
                     </tr>
                   ) : (
@@ -232,9 +231,9 @@ function CampaignListPage() {
                           </div>
                         </td>
                         <td className="px-3 py-4 font-mono text-xs text-muted-foreground">
-                          {c.sdate ? format(new Date(c.sdate), "MMM d, yyyy") : "—"}
+                          {c.sdate ? format(new Date(c.sdate), "d 'de' MMM, yyyy", { locale: ptBR }) : "—"}
                         </td>
-                        <td className="px-3 py-4 font-mono tabular-nums">{c.send_amt.toLocaleString()}</td>
+                        <td className="px-3 py-4 font-mono tabular-nums">{c.send_amt.toLocaleString("pt-BR")}</td>
                         <td className="px-3 py-4">
                           <RateCell value={c.open_rate} bench={benchOR} />
                         </td>
@@ -251,33 +250,32 @@ function CampaignListPage() {
               </table>
             </div>
 
-            {/* Load more */}
             {hasMore && !isLoading && !isError && (
               <div className="mt-4 flex items-center justify-center gap-3">
                 <span className="text-xs text-muted-foreground">
-                  Showing {allCampaigns.length} of {total}
+                  Exibindo {allCampaigns.length} de {total}
                 </span>
                 <Button variant="outline" size="sm" onClick={loadMore} disabled={loadingMore}>
                   <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", loadingMore && "animate-spin")} />
-                  {loadingMore ? "Loading…" : `Load ${Math.min(100, total - allCampaigns.length)} more`}
+                  {loadingMore ? "Carregando…" : `Carregar mais ${Math.min(100, total - allCampaigns.length)}`}
                 </Button>
               </div>
             )}
           </TabsContent>
 
-          {/* ── History tab ── */}
+          {/* ── Aba Histórico ── */}
           <TabsContent value="history" className="mt-6">
             {history.length === 0 ? (
               <div className="rounded-xl border border-border bg-card p-10 text-center">
                 <Clock className="mx-auto mb-3 h-8 w-8 text-muted-foreground/40" />
                 <p className="text-sm text-muted-foreground">
-                  No campaign views yet. Open a campaign detail to start building your history.
+                  Nenhuma campanha visualizada ainda. Abra o detalhe de uma campanha para começar seu histórico.
                 </p>
               </div>
             ) : (
               <>
                 <div className="mb-3 flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">{history.length} recently viewed</span>
+                  <span className="text-xs text-muted-foreground">{history.length} visualizadas recentemente</span>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -288,18 +286,18 @@ function CampaignListPage() {
                     }}
                   >
                     <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                    Clear history
+                    Limpar histórico
                   </Button>
                 </div>
                 <div className="overflow-hidden rounded-xl border border-border bg-card">
                   <table className="w-full text-sm">
                     <thead className="bg-surface text-[11px] uppercase tracking-wider text-muted-foreground">
                       <tr>
-                        <th className="px-5 py-3 text-left font-medium">Campaign</th>
-                        <th className="px-3 py-3 text-left font-medium">Sent</th>
-                        <th className="px-3 py-3 text-right font-medium">Open Rate</th>
+                        <th className="px-5 py-3 text-left font-medium">Campanha</th>
+                        <th className="px-3 py-3 text-left font-medium">Enviada</th>
+                        <th className="px-3 py-3 text-right font-medium">T. Abertura</th>
                         <th className="px-3 py-3 text-right font-medium">CTR</th>
-                        <th className="px-3 py-3 text-right font-medium">Viewed</th>
+                        <th className="px-3 py-3 text-right font-medium">Visualizada</th>
                         <th className="w-12 px-3 py-3" />
                       </tr>
                     </thead>
@@ -312,7 +310,7 @@ function CampaignListPage() {
                         >
                           <td className="px-5 py-4 font-medium">{h.name}</td>
                           <td className="px-3 py-4 font-mono text-xs text-muted-foreground">
-                            {h.sdate ? format(new Date(h.sdate), "MMM d, yyyy") : "—"}
+                            {h.sdate ? format(new Date(h.sdate), "d 'de' MMM, yyyy", { locale: ptBR }) : "—"}
                           </td>
                           <td className="px-3 py-4 text-right">
                             <RateCell value={h.open_rate} bench={benchOR} />
@@ -321,7 +319,7 @@ function CampaignListPage() {
                             <RateCell value={h.ctr} bench={benchCTR} />
                           </td>
                           <td className="px-3 py-4 text-right font-mono text-xs text-muted-foreground">
-                            {formatDistanceToNow(new Date(h.viewedAt), { addSuffix: true })}
+                            {formatDistanceToNow(new Date(h.viewedAt), { addSuffix: true, locale: ptBR })}
                           </td>
                           <td className="px-3 py-4 text-muted-foreground">
                             <ChevronRight className="h-4 w-4" />
@@ -362,11 +360,7 @@ function SortHeader({
       <span className="inline-flex items-center gap-1">
         {children}
         {active ? (
-          sort.dir === "asc" ? (
-            <ArrowUp className="h-3 w-3" />
-          ) : (
-            <ArrowDown className="h-3 w-3" />
-          )
+          sort.dir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
         ) : (
           <ArrowUpDown className="h-3 w-3 opacity-40" />
         )}

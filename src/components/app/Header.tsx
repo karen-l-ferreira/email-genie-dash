@@ -34,7 +34,7 @@ export function AppHeader({ campaignCount }: Props) {
               )}
             >
               <Mail className="h-3.5 w-3.5" />
-              Campaigns
+              Campanhas
             </Link>
             <Link
               to="/automations"
@@ -44,7 +44,7 @@ export function AppHeader({ campaignCount }: Props) {
               )}
             >
               <GitBranch className="h-3.5 w-3.5" />
-              Automations
+              Automações
             </Link>
           </nav>
         </div>
@@ -52,7 +52,7 @@ export function AppHeader({ campaignCount }: Props) {
         <div className="flex items-center gap-3">
           {typeof campaignCount === "number" && (
             <Badge className="border-success/30 bg-success/15 font-mono text-success hover:bg-success/15">
-              ● {campaignCount} loaded
+              ● {campaignCount} carregadas
             </Badge>
           )}
           <Button asChild variant="ghost" size="sm">
@@ -66,7 +66,7 @@ export function AppHeader({ campaignCount }: Props) {
               navigate({ to: "/login" });
             }}
           >
-            <LogOut className="mr-1.5 h-4 w-4" /> Sign Out
+            <LogOut className="mr-1.5 h-4 w-4" /> Sair
           </Button>
         </div>
       </div>

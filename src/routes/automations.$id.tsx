@@ -10,6 +10,7 @@ import { AutomationStatusBadge } from "@/components/app/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Sparkles } from "lucide-react";
 import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/automations/$id")({
@@ -91,7 +92,7 @@ function AutomationDetailPage() {
         <div className="mx-auto max-w-[1400px] px-6 py-10">
           <p className="text-sm text-destructive">{(autoQ.error as Error).message}</p>
           <Button asChild variant="outline" size="sm" className="mt-3">
-            <Link to="/automations"><ArrowLeft className="mr-1.5 h-4 w-4" />Back</Link>
+            <Link to="/automations"><ArrowLeft className="mr-1.5 h-4 w-4" />Voltar</Link>
           </Button>
         </div>
       </div>
@@ -102,7 +103,7 @@ function AutomationDetailPage() {
     <div className="min-h-screen bg-background">
       <AppHeader />
       <main className="mx-auto max-w-[1400px] px-6 py-8">
-        {/* Header */}
+        {/* Cabeçalho */}
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-3">
@@ -114,66 +115,66 @@ function AutomationDetailPage() {
               {a.createdate && (
                 <>
                   <span>•</span>
-                  <span>Created {format(new Date(a.createdate), "MMM d, yyyy")}</span>
+                  <span>Criado em {format(new Date(a.createdate), "d 'de' MMM, yyyy", { locale: ptBR })}</span>
                 </>
               )}
               {a.mdate && (
                 <>
                   <span>•</span>
-                  <span>Modified {format(new Date(a.mdate), "MMM d, yyyy")}</span>
+                  <span>Modificado em {format(new Date(a.mdate), "d 'de' MMM, yyyy", { locale: ptBR })}</span>
                 </>
               )}
             </div>
           </div>
           <Button asChild variant="outline" size="sm">
             <Link to="/automations">
-              <ArrowLeft className="mr-1.5 h-4 w-4" />Automations
+              <ArrowLeft className="mr-1.5 h-4 w-4" />Automações
             </Link>
           </Button>
         </div>
 
-        {/* Metric cards */}
+        {/* Cards de métricas */}
         <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-4">
           <MetricCard
-            label="Total Entered"
-            value={a.entered.toLocaleString()}
-            detail="contacts who started"
+            label="Total de Entradas"
+            value={a.entered.toLocaleString("pt-BR")}
+            detail="contatos que iniciaram"
           />
           <MetricCard
-            label="Active Now"
-            value={a.active.toLocaleString()}
-            detail="currently in flow"
+            label="Ativos Agora"
+            value={a.active.toLocaleString("pt-BR")}
+            detail="atualmente no fluxo"
           />
           <MetricCard
-            label="Total Exited"
-            value={a.exited.toLocaleString()}
-            detail="completed or removed"
+            label="Total de Saídas"
+            value={a.exited.toLocaleString("pt-BR")}
+            detail="concluídos ou removidos"
           />
           <MetricCard
-            label="Completion Rate"
+            label="Taxa de Conclusão"
             value={`${a.completion_rate.toFixed(1)}%`}
-            detail={`${a.exited.toLocaleString()} / ${a.entered.toLocaleString()}`}
+            detail={`${a.exited.toLocaleString("pt-BR")} / ${a.entered.toLocaleString("pt-BR")}`}
             variance={a.completion_rate - 50}
           />
         </div>
 
-        {/* Funnel bar */}
+        {/* Funil de contatos */}
         {a.entered > 0 && (
           <div className="mt-6 rounded-xl border border-border bg-card p-5">
-            <h3 className="mb-4 text-sm font-semibold">Contact Funnel</h3>
+            <h3 className="mb-4 text-sm font-semibold">Funil de Contatos</h3>
             <div className="space-y-3">
-              <FunnelBar label="Entered" value={a.entered} max={a.entered} color="bg-primary" />
-              <FunnelBar label="Active" value={a.active} max={a.entered} color="bg-chart-4" />
-              <FunnelBar label="Exited" value={a.exited} max={a.entered} color="bg-success" />
+              <FunnelBar label="Entraram" value={a.entered} max={a.entered} color="bg-primary" />
+              <FunnelBar label="Ativos" value={a.active} max={a.entered} color="bg-chart-4" />
+              <FunnelBar label="Saíram" value={a.exited} max={a.entered} color="bg-success" />
             </div>
           </div>
         )}
 
-        {/* AI Recommendations */}
+        {/* Recomendações de IA */}
         <section className="mt-8">
           <div className="mb-3 flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-primary" />
-            <h2 className="text-base font-semibold">AI Improvement Recommendations</h2>
+            <h2 className="text-base font-semibold">Recomendações de Melhoria por IA</h2>
           </div>
           {recsQ.isLoading ? (
             <div className="grid gap-3 md:grid-cols-2">
@@ -217,8 +218,8 @@ function FunnelBar({ label, value, max, color }: { label: string; value: number;
       <div className="flex-1 overflow-hidden rounded-full bg-surface">
         <div className={cn("h-2 rounded-full transition-all", color)} style={{ width: `${pct}%` }} />
       </div>
-      <div className="w-24 text-right font-mono text-xs tabular-nums">
-        {value.toLocaleString()} <span className="text-muted-foreground">({pct.toFixed(0)}%)</span>
+      <div className="w-28 text-right font-mono text-xs tabular-nums">
+        {value.toLocaleString("pt-BR")} <span className="text-muted-foreground">({pct.toFixed(0)}%)</span>
       </div>
     </div>
   );
