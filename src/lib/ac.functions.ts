@@ -28,6 +28,8 @@ async function acFetch(creds: Settings, path: string, params?: Record<string, st
   return res.json();
 }
 
+// ─── Campaign ─────────────────────────────────────────────────────────────────
+
 export type Campaign = {
   id: string;
   name: string;
@@ -44,10 +46,18 @@ export type Campaign = {
   hardbounces: number;
   softbounces: number;
   unsubscribes: number;
-  message_id: string | null;
+  message_ids: string[];
   open_rate: number;
   ctr: number;
   score: number;
+};
+
+export type CampaignMessage = {
+  id: string;
+  subject: string;
+  html: string;
+  fromname: string;
+  fromemail: string;
 };
 
 function mapCampaign(c: any): Campaign {
@@ -57,7 +67,13 @@ function mapCampaign(c: any): Campaign {
   const open_rate = send > 0 ? (uo / send) * 100 : 0;
   const ctr = uo > 0 ? (ulc / uo) * 100 : 0;
   const score = Math.min(100, Math.round(open_rate * 2 + ctr * 8));
-  const messageId = c.relmessages?.[0] ?? c.message_id ?? null;
+
+  const ids: string[] = [];
+  if (Array.isArray(c.relmessages)) {
+    c.relmessages.forEach((id: any) => { if (id) ids.push(String(id)); });
+  }
+  if (ids.length === 0 && c.message_id) ids.push(String(c.message_id));
+
   return {
     id: String(c.id),
     name: c.name ?? "(untitled)",
@@ -74,7 +90,7 @@ function mapCampaign(c: any): Campaign {
     hardbounces: Number(c.hardbounces ?? 0),
     softbounces: Number(c.softbounces ?? 0),
     unsubscribes: Number(c.unsubscribes ?? 0),
-    message_id: messageId ? String(messageId) : null,
+    message_ids: ids,
     open_rate,
     ctr,
     score,
@@ -83,15 +99,17 @@ function mapCampaign(c: any): Campaign {
 
 export const listCampaigns = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .inputValidator((d) => z.object({ offset: z.number().int().min(0).optional() }).parse(d ?? {}))
+  .handler(async ({ data, context }) => {
     const creds = await getCreds(context.supabase, context.userId);
     const json = await acFetch(creds, "campaigns", {
       limit: "100",
+      offset: String(data.offset ?? 0),
       orders: "sdate",
       "orders[sdate]": "DESC",
     });
     const campaigns: Campaign[] = (json.campaigns ?? []).map(mapCampaign);
-    return { campaigns };
+    return { campaigns, total: Number(json.meta?.total ?? campaigns.length) };
   });
 
 export const getCampaign = createServerFn({ method: "GET" })
@@ -104,9 +122,10 @@ export const getCampaign = createServerFn({ method: "GET" })
 
     let html = "";
     let subject = "";
-    if (campaign.message_id) {
+    const firstId = campaign.message_ids[0];
+    if (firstId) {
       try {
-        const m = await acFetch(creds, `messages/${campaign.message_id}`);
+        const m = await acFetch(creds, `messages/${firstId}`);
         html = m.message?.html ?? "";
         subject = m.message?.subject ?? "";
       } catch (e) {
@@ -123,4 +142,91 @@ export const getEmailHtml = createServerFn({ method: "GET" })
     const creds = await getCreds(context.supabase, context.userId);
     const m = await acFetch(creds, `messages/${data.messageId}`);
     return { html: m.message?.html ?? "", subject: m.message?.subject ?? "" };
+  });
+
+export const getCampaignMessages = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ id: z.string().min(1).max(64) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const creds = await getCreds(context.supabase, context.userId);
+    const json = await acFetch(creds, `campaigns/${data.id}`);
+    const campaign = mapCampaign(json.campaign);
+
+    const messages: CampaignMessage[] = [];
+    await Promise.all(
+      campaign.message_ids.map(async (mid) => {
+        try {
+          const m = await acFetch(creds, `messages/${mid}`);
+          if (m.message) {
+            messages.push({
+              id: String(m.message.id ?? mid),
+              subject: m.message.subject ?? "",
+              html: m.message.html ?? "",
+              fromname: m.message.fromname ?? "",
+              fromemail: m.message.fromemail ?? "",
+            });
+          }
+        } catch {
+          // skip messages that fail to load
+        }
+      }),
+    );
+    return { messages };
+  });
+
+// ─── Automation ───────────────────────────────────────────────────────────────
+
+export type Automation = {
+  id: string;
+  name: string;
+  status: string;
+  entered: number;
+  exited: number;
+  active: number;
+  completion_rate: number;
+  hidden: boolean;
+  createdate: string | null;
+  mdate: string | null;
+};
+
+function mapAutomation(a: any): Automation {
+  const entered = Number(a.entered ?? 0);
+  const exited = Number(a.exited ?? 0);
+  return {
+    id: String(a.id),
+    name: a.name ?? "(untitled)",
+    status: a.status ?? "draft",
+    entered,
+    exited,
+    active: Math.max(0, entered - exited),
+    completion_rate: entered > 0 ? (exited / entered) * 100 : 0,
+    hidden: a.hidden === "1" || a.hidden === true,
+    createdate: a.createdate ?? null,
+    mdate: a.mdate ?? null,
+  };
+}
+
+export const listAutomations = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const creds = await getCreds(context.supabase, context.userId);
+    const json = await acFetch(creds, "automations", {
+      limit: "100",
+      orders: "mdate",
+      "orders[mdate]": "DESC",
+    });
+    const automations: Automation[] = (json.automations ?? [])
+      .filter((a: any) => a.hidden !== "1" && a.hidden !== true)
+      .map(mapAutomation);
+    return { automations, total: Number(json.meta?.total ?? automations.length) };
+  });
+
+export const getAutomation = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ id: z.string().min(1).max(64) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const creds = await getCreds(context.supabase, context.userId);
+    const json = await acFetch(creds, `automations/${data.id}`);
+    const automation = mapAutomation(json.automation);
+    return { automation };
   });
