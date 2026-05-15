@@ -1,0 +1,44 @@
+import { createServerFn } from "@tanstack/react-start";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { z } from "zod";
+
+export const getSettings = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+    const { data } = await supabase
+      .from("user_settings")
+      .select("ac_api_key, ac_base_url, benchmark_open_rate, benchmark_ctr")
+      .eq("user_id", userId)
+      .maybeSingle();
+    return {
+      hasApiKey: Boolean(data?.ac_api_key),
+      ac_base_url: data?.ac_base_url ?? "https://gcbinvestimentos.api-us1.com/api/3/",
+      benchmark_open_rate: Number(data?.benchmark_open_rate ?? 22),
+      benchmark_ctr: Number(data?.benchmark_ctr ?? 2.9),
+    };
+  });
+
+export const saveSettings = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) =>
+    z
+      .object({
+        ac_api_key: z.string().min(10).max(500).optional(),
+        ac_base_url: z.string().url().max(300).optional(),
+        benchmark_open_rate: z.number().min(0).max(100).optional(),
+        benchmark_ctr: z.number().min(0).max(100).optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const patch: Record<string, unknown> = { user_id: userId, updated_at: new Date().toISOString() };
+    if (data.ac_api_key) patch.ac_api_key = data.ac_api_key;
+    if (data.ac_base_url) patch.ac_base_url = data.ac_base_url;
+    if (data.benchmark_open_rate !== undefined) patch.benchmark_open_rate = data.benchmark_open_rate;
+    if (data.benchmark_ctr !== undefined) patch.benchmark_ctr = data.benchmark_ctr;
+    const { error } = await supabase.from("user_settings").upsert(patch, { onConflict: "user_id" });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
