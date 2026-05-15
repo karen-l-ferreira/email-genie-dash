@@ -1,0 +1,97 @@
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { useQuery } from "@tanstack/react-query";
+import { getSettings, saveSettings } from "@/lib/settings.functions";
+import { AuthGate } from "@/components/app/AuthGate";
+import { AppHeader } from "@/components/app/Header";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
+
+export const Route = createFileRoute("/settings")({
+  component: () => (<AuthGate><SettingsPage /></AuthGate>),
+});
+
+function SettingsPage() {
+  const navigate = useNavigate();
+  const fetchSettings = useServerFn(getSettings);
+  const save = useServerFn(saveSettings);
+  const { data, isLoading, refetch } = useQuery({ queryKey: ["settings"], queryFn: () => fetchSettings() });
+
+  const [apiKey, setApiKey] = useState("");
+  const [baseUrl, setBaseUrl] = useState("");
+  const [openR, setOpenR] = useState("22");
+  const [ctr, setCtr] = useState("2.9");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (data) {
+      setBaseUrl(data.ac_base_url);
+      setOpenR(String(data.benchmark_open_rate));
+      setCtr(String(data.benchmark_ctr));
+    }
+  }, [data]);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await save({
+        data: {
+          ...(apiKey ? { ac_api_key: apiKey } : {}),
+          ac_base_url: baseUrl,
+          benchmark_open_rate: Number(openR),
+          benchmark_ctr: Number(ctr),
+        },
+      });
+      toast.success("Settings saved");
+      setApiKey("");
+      await refetch();
+      navigate({ to: "/" });
+    } catch (e: any) {
+      toast.error(e.message ?? "Could not save");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      <AppHeader />
+      <main className="mx-auto max-w-2xl px-6 py-10">
+        <h1 className="text-2xl font-semibold">Settings</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Configure your ActiveCampaign access and benchmarks.</p>
+        {isLoading ? (
+          <div className="mt-8 h-40 animate-pulse rounded-xl bg-surface" />
+        ) : (
+          <form onSubmit={submit} className="mt-8 space-y-6 rounded-2xl border border-border bg-card p-7">
+            <div>
+              <Label htmlFor="api">ActiveCampaign API Key</Label>
+              <Input id="api" type="password" value={apiKey}
+                placeholder={data?.hasApiKey ? "•••••••••• (saved — leave empty to keep)" : "Paste your Api-Token"}
+                onChange={(e) => setApiKey(e.target.value)} />
+              <p className="mt-1.5 text-xs text-muted-foreground">Stored on the server. Never sent to the browser.</p>
+            </div>
+            <div>
+              <Label htmlFor="base">API Base URL</Label>
+              <Input id="base" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="or">Open Rate Benchmark (%)</Label>
+                <Input id="or" type="number" step="0.1" value={openR} onChange={(e) => setOpenR(e.target.value)} />
+              </div>
+              <div>
+                <Label htmlFor="ctr">CTR Benchmark (%)</Label>
+                <Input id="ctr" type="number" step="0.1" value={ctr} onChange={(e) => setCtr(e.target.value)} />
+              </div>
+            </div>
+            <Button type="submit" disabled={busy} className="w-full">{busy ? "Saving…" : "Save settings"}</Button>
+          </form>
+        )}
+      </main>
+    </div>
+  );
+}
