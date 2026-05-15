@@ -10,7 +10,8 @@ function readTheme(): Theme {
 }
 
 export function useTheme() {
-  const [theme, setThemeState] = useState<Theme>(readTheme);
+  // Start with "dark" to match SSR; useEffect corrects to actual saved preference
+  const [theme, setThemeState] = useState<Theme>("dark");
 
   const setTheme = useCallback((t: Theme) => {
     setThemeState(t);
