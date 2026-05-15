@@ -11,8 +11,10 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as AutomationsRouteImport } from './routes/automations'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CampaignsIdRouteImport } from './routes/campaigns.$id'
+import { Route as AutomationsIdRouteImport } from './routes/automations.$id'
 
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
@@ -22,6 +24,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AutomationsRoute = AutomationsRouteImport.update({
+  id: '/automations',
+  path: '/automations',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -34,36 +41,67 @@ const CampaignsIdRoute = CampaignsIdRouteImport.update({
   path: '/campaigns/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AutomationsIdRoute = AutomationsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AutomationsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/automations': typeof AutomationsRouteWithChildren
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRoute
+  '/automations/$id': typeof AutomationsIdRoute
   '/campaigns/$id': typeof CampaignsIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/automations': typeof AutomationsRouteWithChildren
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRoute
+  '/automations/$id': typeof AutomationsIdRoute
   '/campaigns/$id': typeof CampaignsIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/automations': typeof AutomationsRouteWithChildren
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRoute
+  '/automations/$id': typeof AutomationsIdRoute
   '/campaigns/$id': typeof CampaignsIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/settings' | '/campaigns/$id'
+  fullPaths:
+    | '/'
+    | '/automations'
+    | '/login'
+    | '/settings'
+    | '/automations/$id'
+    | '/campaigns/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/settings' | '/campaigns/$id'
-  id: '__root__' | '/' | '/login' | '/settings' | '/campaigns/$id'
+  to:
+    | '/'
+    | '/automations'
+    | '/login'
+    | '/settings'
+    | '/automations/$id'
+    | '/campaigns/$id'
+  id:
+    | '__root__'
+    | '/'
+    | '/automations'
+    | '/login'
+    | '/settings'
+    | '/automations/$id'
+    | '/campaigns/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AutomationsRoute: typeof AutomationsRouteWithChildren
   LoginRoute: typeof LoginRoute
   SettingsRoute: typeof SettingsRoute
   CampaignsIdRoute: typeof CampaignsIdRoute
@@ -85,6 +123,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/automations': {
+      id: '/automations'
+      path: '/automations'
+      fullPath: '/automations'
+      preLoaderRoute: typeof AutomationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -99,11 +144,31 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CampaignsIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/automations/$id': {
+      id: '/automations/$id'
+      path: '/$id'
+      fullPath: '/automations/$id'
+      preLoaderRoute: typeof AutomationsIdRouteImport
+      parentRoute: typeof AutomationsRoute
+    }
   }
 }
 
+interface AutomationsRouteChildren {
+  AutomationsIdRoute: typeof AutomationsIdRoute
+}
+
+const AutomationsRouteChildren: AutomationsRouteChildren = {
+  AutomationsIdRoute: AutomationsIdRoute,
+}
+
+const AutomationsRouteWithChildren = AutomationsRoute._addFileChildren(
+  AutomationsRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AutomationsRoute: AutomationsRouteWithChildren,
   LoginRoute: LoginRoute,
   SettingsRoute: SettingsRoute,
   CampaignsIdRoute: CampaignsIdRoute,
