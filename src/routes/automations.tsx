@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { ChevronRight, GitBranch, RefreshCw, Search, Settings as SettingsIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 export const Route = createFileRoute("/automations")({
   ssr: false,
@@ -56,9 +57,9 @@ function AutomationsPage() {
   }, [all, filter, search]);
 
   const filters: { key: FilterType; label: string }[] = [
-    { key: "all", label: `All (${all.length})` },
-    { key: "active", label: `Active (${activeCount})` },
-    { key: "inactive", label: `Inactive (${inactiveCount})` },
+    { key: "all", label: `Todas (${all.length})` },
+    { key: "active", label: `Ativas (${activeCount})` },
+    { key: "inactive", label: `Inativas (${inactiveCount})` },
   ];
 
   return (
@@ -70,8 +71,8 @@ function AutomationsPage() {
             <GitBranch className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h1 className="text-2xl font-semibold">Automations</h1>
-            <p className="text-sm text-muted-foreground">Analyze your ActiveCampaign automation flows</p>
+            <h1 className="text-2xl font-semibold">Automações</h1>
+            <p className="text-sm text-muted-foreground">Analise os fluxos de automação do ActiveCampaign</p>
           </div>
         </div>
 
@@ -95,13 +96,13 @@ function AutomationsPage() {
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search automations…"
+              placeholder="Buscar automações…"
               className="pl-9"
             />
           </div>
           <Button variant="outline" size="sm" onClick={() => automationsQ.refetch()}>
             <RefreshCw className={cn("mr-1.5 h-4 w-4", automationsQ.isFetching && "animate-spin")} />
-            Refresh
+            Atualizar
           </Button>
         </div>
 
@@ -109,13 +110,13 @@ function AutomationsPage() {
           <table className="w-full text-sm">
             <thead className="bg-surface text-[11px] uppercase tracking-wider text-muted-foreground">
               <tr>
-                <th className="px-5 py-3 text-left font-medium">Automation</th>
+                <th className="px-5 py-3 text-left font-medium">Automação</th>
                 <th className="px-3 py-3 text-left font-medium">Status</th>
-                <th className="px-3 py-3 text-right font-medium">Entered</th>
-                <th className="px-3 py-3 text-right font-medium">Active</th>
-                <th className="px-3 py-3 text-right font-medium">Exited</th>
-                <th className="px-3 py-3 text-right font-medium">Completion</th>
-                <th className="px-3 py-3 text-right font-medium">Last Modified</th>
+                <th className="px-3 py-3 text-right font-medium">Entrou</th>
+                <th className="px-3 py-3 text-right font-medium">Ativo</th>
+                <th className="px-3 py-3 text-right font-medium">Saiu</th>
+                <th className="px-3 py-3 text-right font-medium">Conclusão</th>
+                <th className="px-3 py-3 text-right font-medium">Últ. Modificação</th>
                 <th className="w-12 px-3 py-3" />
               </tr>
             </thead>
@@ -123,7 +124,7 @@ function AutomationsPage() {
               {automationsQ.isLoading ? (
                 <tr>
                   <td colSpan={8} className="px-5 py-16 text-center text-muted-foreground">
-                    Loading automations…
+                    Carregando automações…
                   </td>
                 </tr>
               ) : automationsQ.isError ? (
@@ -132,7 +133,7 @@ function AutomationsPage() {
                     <p className="text-sm text-destructive">{(automationsQ.error as Error).message}</p>
                     <Button asChild variant="outline" size="sm" className="mt-3">
                       <Link to="/settings">
-                        <SettingsIcon className="mr-1.5 h-4 w-4" />Check API key
+                        <SettingsIcon className="mr-1.5 h-4 w-4" />Verificar chave de API
                       </Link>
                     </Button>
                   </td>
@@ -140,7 +141,7 @@ function AutomationsPage() {
               ) : rows.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-5 py-16 text-center text-muted-foreground">
-                    No automations found.
+                    Nenhuma automação encontrada.
                   </td>
                 </tr>
               ) : (
@@ -154,18 +155,18 @@ function AutomationsPage() {
                     <td className="px-3 py-4">
                       <AutomationStatusBadge status={a.status} />
                     </td>
-                    <td className="px-3 py-4 text-right font-mono tabular-nums">{a.entered.toLocaleString()}</td>
+                    <td className="px-3 py-4 text-right font-mono tabular-nums">{a.entered.toLocaleString("pt-BR")}</td>
                     <td className="px-3 py-4 text-right font-mono tabular-nums text-primary">
-                      {a.active.toLocaleString()}
+                      {a.active.toLocaleString("pt-BR")}
                     </td>
                     <td className="px-3 py-4 text-right font-mono tabular-nums text-muted-foreground">
-                      {a.exited.toLocaleString()}
+                      {a.exited.toLocaleString("pt-BR")}
                     </td>
                     <td className="px-3 py-4 text-right font-mono tabular-nums">
                       <CompletionCell rate={a.completion_rate} />
                     </td>
                     <td className="px-3 py-4 text-right font-mono text-xs text-muted-foreground">
-                      {a.mdate ? format(new Date(a.mdate), "MMM d, yyyy") : "—"}
+                      {a.mdate ? format(new Date(a.mdate), "d 'de' MMM, yyyy", { locale: ptBR }) : "—"}
                     </td>
                     <td className="px-3 py-4 text-muted-foreground">
                       <ChevronRight className="h-4 w-4" />
