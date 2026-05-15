@@ -7,6 +7,7 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
+import { GlobalSearch } from "@/components/app/GlobalSearch";
 
 import appCss from "../styles.css?url";
 
@@ -99,9 +100,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="pt-BR" className="dark">
       <head>
         <HeadContent />
+        {/* Prevent flash of wrong theme */}
+        <script dangerouslySetInnerHTML={{ __html: `try{const t=localStorage.getItem('crm_theme');if(t==='light')document.documentElement.classList.remove('dark');else document.documentElement.classList.add('dark');}catch{}` }} />
       </head>
       <body className="bg-background text-foreground antialiased">
         {children}
@@ -116,6 +119,7 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <GlobalSearch />
       <Outlet />
     </QueryClientProvider>
   );

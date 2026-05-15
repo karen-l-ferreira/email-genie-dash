@@ -16,6 +16,7 @@ import {
   ArrowUpDown,
   ChevronRight,
   Clock,
+  Download,
   RefreshCw,
   Search,
   Settings as SettingsIcon,
@@ -25,6 +26,28 @@ import { cn } from "@/lib/utils";
 import { format, formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { readCampaignHistory, type HistoryEntry } from "@/hooks/use-campaign-history";
+
+function exportCSV(campaigns: Campaign[]) {
+  const header = ["Nome", "Data", "Envios", "T. Abertura %", "CTR %", "Score", "Bounces", "Descadastros"];
+  const rows = campaigns.map((c) => [
+    `"${c.name.replace(/"/g, '""')}"`,
+    c.sdate ? format(new Date(c.sdate), "dd/MM/yyyy", { locale: ptBR }) : "",
+    c.send_amt,
+    c.open_rate.toFixed(2),
+    c.ctr.toFixed(2),
+    c.score,
+    c.hardbounces + c.softbounces,
+    c.unsubscribes,
+  ]);
+  const csv = [header, ...rows].map((r) => r.join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `campanhas_${format(new Date(), "yyyy-MM-dd")}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export const Route = createFileRoute("/campanhas")({
   ssr: false,
@@ -179,6 +202,12 @@ function CampaignListPage() {
                 <RefreshCw className={cn("mr-1.5 h-4 w-4", (campaignsQ.isFetching || loadingMore) && "animate-spin")} />
                 Atualizar
               </Button>
+              {allCampaigns.length > 0 && (
+                <Button variant="outline" size="sm" onClick={() => exportCSV(allCampaigns.filter((c) => c.send_amt > 0))}>
+                  <Download className="mr-1.5 h-3.5 w-3.5" />
+                  CSV
+                </Button>
+              )}
             </div>
 
             <div className="mt-5 overflow-hidden rounded-xl border border-border bg-card">

@@ -18,14 +18,24 @@ async function acFetch(creds: Settings, path: string, params?: Record<string, st
   const base = creds.ac_base_url.endsWith("/") ? creds.ac_base_url : creds.ac_base_url + "/";
   const url = new URL(path.replace(/^\//, ""), base);
   if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-  const res = await fetch(url.toString(), {
-    headers: { "Api-Token": creds.ac_api_key, Accept: "application/json" },
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`ActiveCampaign ${res.status}: ${text.slice(0, 200)}`);
+
+  let lastErr: Error = new Error("ActiveCampaign: request failed");
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 1500 * attempt));
+    const res = await fetch(url.toString(), {
+      headers: { "Api-Token": creds.ac_api_key, Accept: "application/json" },
+    });
+    if (res.status === 429) {
+      lastErr = new Error("ActiveCampaign 429: limite de requisições atingido. Tente novamente em instantes.");
+      continue;
+    }
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`ActiveCampaign ${res.status}: ${text.slice(0, 200)}`);
+    }
+    return res.json();
   }
-  return res.json();
+  throw lastErr;
 }
 
 // ─── Campaign ─────────────────────────────────────────────────────────────────
