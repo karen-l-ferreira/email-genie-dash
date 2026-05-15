@@ -14,7 +14,63 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      campaign_ai_cache: {
+        Row: {
+          campaign_id: string
+          created_at: string
+          id: string
+          kind: string
+          payload: Json
+          user_id: string
+        }
+        Insert: {
+          campaign_id: string
+          created_at?: string
+          id?: string
+          kind: string
+          payload: Json
+          user_id: string
+        }
+        Update: {
+          campaign_id?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          payload?: Json
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_settings: {
+        Row: {
+          ac_api_key: string | null
+          ac_base_url: string
+          benchmark_ctr: number
+          benchmark_open_rate: number
+          created_at: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ac_api_key?: string | null
+          ac_base_url?: string
+          benchmark_ctr?: number
+          benchmark_open_rate?: number
+          created_at?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ac_api_key?: string | null
+          ac_base_url?: string
+          benchmark_ctr?: number
+          benchmark_open_rate?: number
+          created_at?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
