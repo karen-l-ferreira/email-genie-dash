@@ -25,7 +25,19 @@ export const saveSettings = createServerFn({ method: "POST" })
     z
       .object({
         ac_api_key: z.string().min(10).max(500).optional(),
-        ac_base_url: z.string().url().max(300).optional(),
+        ac_base_url: z
+          .string()
+          .url()
+          .max(300)
+          .refine((v) => {
+            try {
+              const u = new URL(v);
+              return u.protocol === "https:" && /^[\w-]+\.api-[a-z0-9]+\.com$/i.test(u.hostname);
+            } catch {
+              return false;
+            }
+          }, "Must be an https ActiveCampaign URL (e.g. https://your-account.api-us1.com/api/3/)")
+          .optional(),
         benchmark_open_rate: z.number().min(0).max(100).optional(),
         benchmark_ctr: z.number().min(0).max(100).optional(),
       })
