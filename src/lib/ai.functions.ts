@@ -6,7 +6,7 @@ const MODEL = "google/gemini-2.5-flash";
 
 async function callGemini(messages: Array<{ role: string; content: string }>) {
   const key = process.env.LOVABLE_API_KEY;
-  if (!key) throw new Error("LOVABLE_API_KEY not configured");
+  if (!key) throw new Error("LOVABLE_API_KEY não configurada");
   const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -17,21 +17,46 @@ async function callGemini(messages: Array<{ role: string; content: string }>) {
       model: MODEL,
       messages,
       response_format: { type: "json_object" },
+      max_tokens: 8192,
     }),
   });
-  if (res.status === 429) throw new Error("AI rate limit reached. Try again shortly.");
-  if (res.status === 402) throw new Error("AI credits exhausted. Add credits in Workspace settings.");
+  if (res.status === 429) throw new Error("Limite de requisições de IA atingido. Tente novamente em instantes.");
+  if (res.status === 402) throw new Error("Créditos de IA esgotados. Adicione créditos nas configurações do Workspace.");
   if (!res.ok) {
     const t = await res.text().catch(() => "");
-    throw new Error(`AI gateway ${res.status}: ${t.slice(0, 200)}`);
+    throw new Error(`Gateway de IA ${res.status}: ${t.slice(0, 200)}`);
   }
   const json = await res.json();
   const content = json.choices?.[0]?.message?.content ?? "{}";
-  try {
-    return JSON.parse(content);
-  } catch {
-    return { raw: content };
-  }
+  return parseJSON(content);
+}
+
+function parseJSON(content: string): any {
+  try { return JSON.parse(content); } catch {}
+  // Try to extract JSON block from response
+  const match = content.match(/\{[\s\S]*\}/);
+  if (match) { try { return JSON.parse(match[0]); } catch {} }
+  return { raw: content };
+}
+
+// Strip <style> and <script> tags from HTML to reduce token count.
+// Returns the cleaned HTML and the extracted style blocks separately.
+function stripStyles(html: string): { clean: string; styles: string } {
+  const styleTags: string[] = [];
+  const clean = html
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, (m) => { styleTags.push(m); return ""; })
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+  return { clean, styles: styleTags.join("\n") };
+}
+
+// Re-inject extracted style blocks into a variation HTML before </head>.
+function reinjectStyles(html: string, styles: string): string {
+  if (!styles) return html;
+  const idx = html.indexOf("</head>");
+  if (idx !== -1) return html.slice(0, idx) + styles + html.slice(idx);
+  return styles + html;
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -78,6 +103,7 @@ const CampaignInput = z.object({
   unsubscribes: z.number(),
   benchmark_open_rate: z.number(),
   benchmark_ctr: z.number(),
+  refresh: z.boolean().optional(),
 });
 
 export const getRecommendations = createServerFn({ method: "POST" })
@@ -85,24 +111,28 @@ export const getRecommendations = createServerFn({ method: "POST" })
   .inputValidator((d) => CampaignInput.parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const { data: cached } = await supabase
-      .from("campaign_ai_cache")
-      .select("payload")
-      .eq("user_id", userId)
-      .eq("campaign_id", data.campaign_id)
-      .eq("kind", "recommendations")
-      .maybeSingle();
-    if (cached?.payload) return cached.payload as { recommendations: Recommendation[] };
+    if (!data.refresh) {
+      const { data: cached } = await supabase
+        .from("campaign_ai_cache")
+        .select("payload")
+        .eq("user_id", userId)
+        .eq("campaign_id", data.campaign_id)
+        .eq("kind", "recommendations")
+        .maybeSingle();
+      if (cached?.payload) return cached.payload as { recommendations: Recommendation[] };
+    }
 
-    const sys = `You are an email marketing analyst. Given a campaign's performance vs benchmarks, output 3-5 prioritized improvement recommendations as strict JSON: {"recommendations":[{"priority":"P1"|"P2"|"P3","category":"CONTENT"|"SEGMENTATION"|"TIMING"|"CHANNEL","title":"short title","description":"one-line action with a concrete data point"}]}. Use the actual numbers in descriptions.`;
-    const user = `Campaign: ${data.name}
-Subject: ${data.subject ?? "(unknown)"}
-Sends: ${data.send_amt}
-Unique opens: ${data.uniqueopens} (Open rate ${data.open_rate.toFixed(1)}% vs benchmark ${data.benchmark_open_rate}%)
-Unique link clicks: ${data.uniquelinkclicks} (CTR ${data.ctr.toFixed(2)}% vs benchmark ${data.benchmark_ctr}%)
+    const sys = `Você é um analista de e-mail marketing especialista. Responda SEMPRE em português do Brasil (PT-BR). Dado o desempenho de uma campanha em relação aos benchmarks, gere de 3 a 5 recomendações priorizadas de melhoria no formato JSON estrito: {"recommendations":[{"priority":"P1"|"P2"|"P3","category":"CONTENT"|"SEGMENTATION"|"TIMING"|"CHANNEL","title":"título curto em PT-BR","description":"ação concreta em uma linha com dados numéricos reais, em PT-BR"}]}. Use os números reais nas descrições.`;
+
+    const user = `Campanha: ${data.name}
+Assunto: ${data.subject ?? "(desconhecido)"}
+Envios: ${data.send_amt}
+Aberturas únicas: ${data.uniqueopens} (Taxa de abertura ${data.open_rate.toFixed(1)}% vs benchmark ${data.benchmark_open_rate}%)
+Cliques únicos: ${data.uniquelinkclicks} (CTR ${data.ctr.toFixed(2)}% vs benchmark ${data.benchmark_ctr}%)
 Hard bounces: ${data.hardbounces}
-Unsubscribes: ${data.unsubscribes}
-Return JSON only.`;
+Descadastros: ${data.unsubscribes}
+Retorne apenas JSON.`;
+
     const result = await callGemini([
       { role: "system", content: sys },
       { role: "user", content: user },
@@ -142,21 +172,37 @@ export const getVariations = createServerFn({ method: "POST" })
       if (cached?.payload) return cached.payload as { variations: Variation[] };
     }
 
-    const sys = `You are an email copywriter. Given an original email and improvement recommendations, produce 3 distinct improved variations. Each variation MUST keep the original HTML structure intact (same layout, images, links, footer) but rewrite the copy. Return strict JSON: {"variations":[{"subject":"new subject","changes":["bullet of what changed and why"],"html":"<full email html>"}]} - exactly 3 entries. Do not add markdown fences.`;
-    const recsText = JSON.stringify(data.recommendations).slice(0, 4000);
-    const htmlClipped = data.html.slice(0, 60000);
-    const user = `Original subject: ${data.subject}
-Recommendations to apply: ${recsText}
+    // Strip CSS to reduce input size; we'll re-inject after generation
+    const { clean: htmlClean, styles } = stripStyles(data.html);
+    const htmlClipped = htmlClean.slice(0, 40000);
 
-Original HTML:
+    const sys = `Você é um copywriter especialista em e-mail marketing. Responda SEMPRE em português do Brasil (PT-BR). Dado um e-mail original e recomendações de melhoria, produza exatamente 3 variações melhoradas. Regras:
+- Mantenha a mesma estrutura HTML (layout, links, imagens, rodapé)
+- Reescreva apenas o copy: títulos, corpo do texto e CTAs
+- Assunto, alterações e copy devem estar em PT-BR
+- Retorne JSON estrito sem markdown: {"variations":[{"subject":"novo assunto","changes":["o que mudou e por quê"],"html":"<html completo da variação>"}]} com exatamente 3 entradas.`;
+
+    const recsText = JSON.stringify(data.recommendations).slice(0, 2000);
+    const user = `Assunto original: ${data.subject}
+Recomendações a aplicar: ${recsText}
+
+HTML original (estilos CSS removidos para economizar espaço — mantenha a estrutura):
 ${htmlClipped}
 
-Return JSON only with exactly 3 variations.`;
+Retorne apenas JSON com exatamente 3 variações.`;
+
     const result = await callGemini([
       { role: "system", content: sys },
       { role: "user", content: user },
     ]);
-    const variations: Variation[] = Array.isArray(result.variations) ? result.variations.slice(0, 3) : [];
+
+    let variations: Variation[] = Array.isArray(result.variations) ? result.variations.slice(0, 3) : [];
+
+    // Re-inject original CSS into each generated variation
+    if (styles) {
+      variations = variations.map((v) => ({ ...v, html: reinjectStyles(v.html, styles) }));
+    }
+
     const payload = { variations };
     await supabase.from("campaign_ai_cache").upsert(
       { user_id: userId, campaign_id: data.campaign_id, kind: "variations", payload },
@@ -175,6 +221,7 @@ const AutomationInput = z.object({
   exited: z.number(),
   active: z.number(),
   completion_rate: z.number(),
+  refresh: z.boolean().optional(),
 });
 
 export const getAutomationRecommendations = createServerFn({ method: "POST" })
@@ -183,23 +230,27 @@ export const getAutomationRecommendations = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const cacheId = `auto_${data.automation_id}`;
-    const { data: cached } = await supabase
-      .from("campaign_ai_cache")
-      .select("payload")
-      .eq("user_id", userId)
-      .eq("campaign_id", cacheId)
-      .eq("kind", "recommendations")
-      .maybeSingle();
-    if (cached?.payload) return cached.payload as { recommendations: AutomationRecommendation[] };
+    if (!data.refresh) {
+      const { data: cached } = await supabase
+        .from("campaign_ai_cache")
+        .select("payload")
+        .eq("user_id", userId)
+        .eq("campaign_id", cacheId)
+        .eq("kind", "recommendations")
+        .maybeSingle();
+      if (cached?.payload) return cached.payload as { recommendations: AutomationRecommendation[] };
+    }
 
-    const sys = `You are an email marketing automation analyst. Given an ActiveCampaign automation's performance, output 3-5 prioritized improvement recommendations as strict JSON: {"recommendations":[{"priority":"P1"|"P2"|"P3","category":"FLOW"|"SEGMENTATION"|"TIMING"|"CONTENT","title":"short title","description":"one-line action with concrete data points"}]}. Focus on automation-specific issues like drop-off, re-engagement, and flow logic.`;
-    const user = `Automation: ${data.name}
+    const sys = `Você é um especialista em automações de e-mail marketing. Responda SEMPRE em português do Brasil (PT-BR). Dado o desempenho de uma automação do ActiveCampaign, gere de 3 a 5 recomendações priorizadas no formato JSON estrito: {"recommendations":[{"priority":"P1"|"P2"|"P3","category":"FLOW"|"SEGMENTATION"|"TIMING"|"CONTENT","title":"título curto em PT-BR","description":"ação concreta com dados numéricos reais, em PT-BR"}]}. Foque em problemas de abandono, reengajamento e lógica de fluxo.`;
+
+    const user = `Automação: ${data.name}
 Status: ${data.status}
-Total contacts entered: ${data.entered}
-Total contacts exited: ${data.exited}
-Currently active contacts: ${data.active}
-Completion rate: ${data.completion_rate.toFixed(1)}%
-Return JSON only.`;
+Total de contatos que entraram: ${data.entered}
+Total de contatos que saíram: ${data.exited}
+Contatos ativos no momento: ${data.active}
+Taxa de conclusão: ${data.completion_rate.toFixed(1)}%
+Retorne apenas JSON.`;
+
     const result = await callGemini([
       { role: "system", content: sys },
       { role: "user", content: user },
@@ -239,14 +290,18 @@ export const getMessageAnalysis = createServerFn({ method: "POST" })
       .maybeSingle();
     if (cached?.payload) return cached.payload as { analysis: MessageAnalysis };
 
-    const sys = `You are an email copywriting expert. Analyze this email and return strict JSON: {"analysis":{"score":0-100,"strengths":["..."],"weaknesses":["..."],"suggestions":[{"priority":"P1"|"P2"|"P3","category":"CONTENT"|"SEGMENTATION"|"TIMING"|"CHANNEL","title":"...","description":"..."}]}}. Score based on: subject line quality, personalization, CTA clarity, copy length, readability, mobile-friendliness. Give 2-4 strengths, 2-4 weaknesses, and 2-4 suggestions.`;
-    const htmlClipped = data.html.slice(0, 60000);
-    const user = `Subject: ${data.subject}
+    const sys = `Você é um especialista em copywriting de e-mail marketing. Responda SEMPRE em português do Brasil (PT-BR). Analise o e-mail fornecido e retorne JSON estrito: {"analysis":{"score":0-100,"strengths":["ponto forte em PT-BR"],"weaknesses":["ponto fraco em PT-BR"],"suggestions":[{"priority":"P1"|"P2"|"P3","category":"CONTENT"|"SEGMENTATION"|"TIMING"|"CHANNEL","title":"título em PT-BR","description":"sugestão concreta em PT-BR"}]}}. Avalie: qualidade do assunto, personalização, clareza do CTA, tamanho do copy, legibilidade e responsividade mobile. Dê 2 a 4 pontos fortes, 2 a 4 pontos fracos e 2 a 4 sugestões.`;
 
-HTML:
+    const { clean: htmlClean } = stripStyles(data.html);
+    const htmlClipped = htmlClean.slice(0, 40000);
+
+    const user = `Assunto: ${data.subject}
+
+HTML do e-mail:
 ${htmlClipped}
 
-Return JSON only.`;
+Retorne apenas JSON.`;
+
     const result = await callGemini([
       { role: "system", content: sys },
       { role: "user", content: user },

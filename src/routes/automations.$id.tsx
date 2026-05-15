@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { getAutomation } from "@/lib/ac.functions";
 import { getAutomationRecommendations, type AutomationRecommendation } from "@/lib/ai.functions";
 import { AuthGate } from "@/components/app/AuthGate";
@@ -47,8 +48,9 @@ function AutomationDetailPage() {
 
   const a = autoQ.data?.automation;
 
+  const [recsRefresh, setRecsRefresh] = useState(false);
   const recsQ = useQuery({
-    queryKey: ["automation-recs", id],
+    queryKey: ["automation-recs", id, recsRefresh],
     enabled: !!a,
     queryFn: () =>
       fetchRecs({
@@ -60,6 +62,7 @@ function AutomationDetailPage() {
           exited: a!.exited,
           active: a!.active,
           completion_rate: a!.completion_rate,
+          refresh: recsRefresh,
         },
       }),
   });
@@ -172,9 +175,16 @@ function AutomationDetailPage() {
 
         {/* Recomendações de IA */}
         <section className="mt-8">
-          <div className="mb-3 flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-primary" />
-            <h2 className="text-base font-semibold">Recomendações de Melhoria por IA</h2>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-primary" />
+              <h2 className="text-base font-semibold">Recomendações de Melhoria por IA</h2>
+            </div>
+            {recsQ.data && !recsQ.isLoading && (
+              <Button variant="outline" size="sm" onClick={() => setRecsRefresh((v) => !v)} disabled={recsQ.isLoading}>
+                Reanalisar
+              </Button>
+            )}
           </div>
           {recsQ.isLoading ? (
             <div className="grid gap-3 md:grid-cols-2">

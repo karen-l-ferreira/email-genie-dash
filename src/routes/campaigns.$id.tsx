@@ -70,8 +70,9 @@ function CampaignDetailPage() {
     }
   }, [c]);
 
+  const [recsRefresh, setRecsRefresh] = useState(false);
   const recsQ = useQuery({
-    queryKey: ["recs", id],
+    queryKey: ["recs", id, recsRefresh],
     enabled: !!c && !!settingsQ.data,
     queryFn: () =>
       fetchRecs({
@@ -88,6 +89,7 @@ function CampaignDetailPage() {
           unsubscribes: c!.unsubscribes,
           benchmark_open_rate: benchOR,
           benchmark_ctr: benchCTR,
+          refresh: recsRefresh,
         },
       }),
   });
@@ -276,9 +278,16 @@ function CampaignDetailPage() {
 
             {/* Recomendações de IA */}
             <section className="mt-8">
-              <div className="mb-3 flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-primary" />
-                <h2 className="text-base font-semibold">Recomendações de Melhoria por IA</h2>
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                  <h2 className="text-base font-semibold">Recomendações de Melhoria por IA</h2>
+                </div>
+                {recsQ.data && !recsQ.isLoading && (
+                  <Button variant="outline" size="sm" onClick={() => setRecsRefresh((v) => !v)} disabled={recsQ.isLoading}>
+                    Reanalisar
+                  </Button>
+                )}
               </div>
               {recsQ.isLoading ? (
                 <div className="grid gap-3 md:grid-cols-2">
