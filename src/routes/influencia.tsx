@@ -144,6 +144,10 @@ function InfluenciaPage() {
 
   const selectedCampaign = sentCampaigns.find((c) => c.id === selectedCampaignId) ?? null;
 
+  // Detect date-only mode from field type — available before loading contacts
+  const selectedFieldType = fieldsQ.data?.fields.find((f) => f.id === selectedFieldId)?.type ?? "";
+  const fieldTypeIsDateOnly = selectedFieldType === "date";
+
   // Load ALL contacts at once (paginated in parallel)
   const loadAllContacts = useCallback(async () => {
     if (!selectedFieldId || !selectedCampaignId) return;
@@ -182,9 +186,9 @@ function InfluenciaPage() {
     const emailReceivedAt = parseDateSafe(selectedCampaign.sdate);
     if (!emailReceivedAt) return [];
 
-    // Detect field mode from first contact that has a value
+    // Detect field mode: type-based (from AC field metadata) OR value-based fallback
     const sampleValue = contacts.find((c) => c.fieldValues[selectedFieldId])?.fieldValues[selectedFieldId];
-    const fieldIsDateOnly = isDateOnly(sampleValue);
+    const fieldIsDateOnly = fieldTypeIsDateOnly || isDateOnly(sampleValue);
 
     const emailDay = startOfDay(emailReceivedAt);
 
@@ -219,9 +223,12 @@ function InfluenciaPage() {
         const order = { influenced: 0, not_influenced: 1, no_operation: 2 };
         return order[a.status] - order[b.status];
       });
-  }, [contacts, selectedCampaign, selectedFieldId, attrWindowMinutes, attrWindowDays, loaded]);
+  }, [contacts, selectedCampaign, selectedFieldId, fieldTypeIsDateOnly, attrWindowMinutes, attrWindowDays, loaded]);
 
-  const fieldIsDateOnly = rows[0]?.fieldIsDateOnly ?? false;
+  // fieldTypeIsDateOnly: from AC field type (available immediately on field select)
+  // rows[0]?.fieldIsDateOnly: from actual value format (available after load)
+  // Use whichever we have — type-based wins when available
+  const fieldIsDateOnly = fieldTypeIsDateOnly || (rows[0]?.fieldIsDateOnly ?? false);
 
   const influenced = rows.filter((r) => r.status === "influenced");
   const notInfluenced = rows.filter((r) => r.status === "not_influenced");
