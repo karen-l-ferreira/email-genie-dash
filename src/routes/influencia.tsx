@@ -15,7 +15,7 @@ import { AppHeader } from "@/components/app/Header";
 import { Button } from "@/components/ui/button";
 import { Clock, Download, Loader2, TrendingUp, Users, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { format, differenceInMinutes } from "date-fns";
+import { format, differenceInMinutes, differenceInCalendarDays, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 export const Route = createFileRoute("/influencia")({
@@ -27,29 +27,54 @@ export const Route = createFileRoute("/influencia")({
   ),
 });
 
-const ATTR_WINDOWS = [
+// Windows for datetime fields (in minutes)
+const WINDOWS_MINUTES = [
   { value: 30, label: "30min" },
   { value: 60, label: "1h" },
   { value: 120, label: "2h" },
   { value: 240, label: "4h" },
   { value: 1440, label: "1 dia" },
-  { value: 4320, label: "3 dias" },
+];
+
+// Windows for date-only fields (in days)
+const WINDOWS_DAYS = [
+  { value: 0, label: "mesmo dia" },
+  { value: 1, label: "1 dia" },
+  { value: 3, label: "3 dias" },
+  { value: 7, label: "7 dias" },
+  { value: 30, label: "30 dias" },
 ];
 
 type InfluenceStatus = "influenced" | "not_influenced" | "no_operation";
 
 type ContactRow = {
   contact: ContactSummary;
-  emailReceivedAt: Date;    // campaign sdate = when the email was sent/received
-  operationDate: Date | null; // value from the AC custom field
-  minutesDelta: number | null;
+  emailReceivedAt: Date;
+  operationDate: Date | null;
+  rawOperationValue: string | undefined;
+  minutesDelta: number | null; // null when field is date-only
+  daysDelta: number | null;    // null when field is datetime
+  fieldIsDateOnly: boolean;
   status: InfluenceStatus;
 };
 
 function parseDateSafe(s: string | undefined | null): Date | null {
   if (!s || s.startsWith("0000") || s.trim() === "") return null;
+  // ISO date-only "YYYY-MM-DD" — parse as LOCAL midnight to avoid UTC offset
+  const dateOnly = s.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dateOnly) {
+    return new Date(+dateOnly[1], +dateOnly[2] - 1, +dateOnly[3]);
+  }
   const d = new Date(s.replace(" ", "T"));
   return isNaN(d.getTime()) ? null : d;
+}
+
+// Whether a raw AC field value has no meaningful time (date-only field)
+function isDateOnly(s: string | undefined): boolean {
+  if (!s) return false;
+  return /^\d{4}-\d{2}-\d{2}$/.test(s.trim()) ||
+    /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}$/.test(s.trim()) &&
+    s.trim().endsWith("00:00:00");
 }
 
 function fmtDate(d: Date | null, withTime = true): string {
@@ -105,7 +130,8 @@ function InfluenciaPage() {
 
   const [selectedFieldId, setSelectedFieldId] = useState<string>("");
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>("");
-  const [attrWindow, setAttrWindow] = useState(30);
+  const [attrWindowMinutes, setAttrWindowMinutes] = useState(30);
+  const [attrWindowDays, setAttrWindowDays] = useState(0);
   const [contacts, setContacts] = useState<ContactSummary[]>([]);
   const [total, setTotal] = useState(0);
   const [loadingAll, setLoadingAll] = useState(false);
@@ -129,16 +155,18 @@ function InfluenciaPage() {
       const totalCount = first.total;
       setTotal(totalCount);
 
-      let all = [...first.contacts];
       const pages = Math.ceil(totalCount / 100);
       const offsets = Array.from({ length: pages - 1 }, (_, i) => (i + 1) * 100);
 
-      await Promise.all(
-        offsets.map(async (offset) => {
-          const res = await fetchContacts({ data: { offset } });
-          all = [...all, ...res.contacts];
-        }),
+      // Collect each page result independently — no race condition
+      const pageResults = await Promise.all(
+        offsets.map((offset) => fetchContacts({ data: { offset } })),
       );
+
+      const all = [
+        ...first.contacts,
+        ...pageResults.flatMap((r) => r.contacts),
+      ];
 
       setContacts(all);
       setLoaded(true);
@@ -148,50 +176,67 @@ function InfluenciaPage() {
   }, [fetchContacts, selectedFieldId, selectedCampaignId]);
 
   // ─── Main analysis ──────────────────────────────────────────────────────────
-  // For each contact:
-  //   emailReceivedAt = selected campaign sdate (when the email was sent)
-  //   operationDate   = contact's custom field value (last operation date)
-  //   delta           = operationDate - emailReceivedAt (in minutes)
-  //   influenced      = delta >= 0 AND delta <= attrWindow
-
   const rows: ContactRow[] = useMemo(() => {
     if (!loaded || !selectedCampaign || !selectedFieldId) return [];
 
     const emailReceivedAt = parseDateSafe(selectedCampaign.sdate);
     if (!emailReceivedAt) return [];
 
+    // Detect field mode from first contact that has a value
+    const sampleValue = contacts.find((c) => c.fieldValues[selectedFieldId])?.fieldValues[selectedFieldId];
+    const fieldIsDateOnly = isDateOnly(sampleValue);
+
+    const emailDay = startOfDay(emailReceivedAt);
+
     return contacts
       .map((contact): ContactRow => {
         const rawValue = contact.fieldValues[selectedFieldId];
         const operationDate = parseDateSafe(rawValue);
 
+        const base: Omit<ContactRow, "minutesDelta" | "daysDelta" | "status"> = {
+          contact, emailReceivedAt, operationDate, rawOperationValue: rawValue, fieldIsDateOnly,
+        };
+
         if (!operationDate) {
-          return { contact, emailReceivedAt, operationDate: null, minutesDelta: null, status: "no_operation" };
+          return { ...base, minutesDelta: null, daysDelta: null, status: "no_operation" };
         }
 
-        const delta = differenceInMinutes(operationDate, emailReceivedAt);
-
-        if (delta >= 0 && delta <= attrWindow) {
-          return { contact, emailReceivedAt, operationDate, minutesDelta: delta, status: "influenced" };
+        if (fieldIsDateOnly) {
+          // Compare calendar days only — no time involved
+          const opDay = startOfDay(operationDate);
+          const daysDelta = differenceInCalendarDays(opDay, emailDay);
+          const influenced = daysDelta >= 0 && daysDelta <= attrWindowDays;
+          return { ...base, minutesDelta: null, daysDelta, status: influenced ? "influenced" : "not_influenced" };
+        } else {
+          // Compare exact minutes
+          const minutesDelta = differenceInMinutes(operationDate, emailReceivedAt);
+          const influenced = minutesDelta >= 0 && minutesDelta <= attrWindowMinutes;
+          return { ...base, minutesDelta, daysDelta: null, status: influenced ? "influenced" : "not_influenced" };
         }
-
-        return { contact, emailReceivedAt, operationDate, minutesDelta: delta, status: "not_influenced" };
       })
-      .filter((r) => r.operationDate !== null) // only show contacts that have the field filled
+      .filter((r) => r.operationDate !== null)
       .sort((a, b) => {
         const order = { influenced: 0, not_influenced: 1, no_operation: 2 };
         return order[a.status] - order[b.status];
       });
-  }, [contacts, selectedCampaign, selectedFieldId, attrWindow, loaded]);
+  }, [contacts, selectedCampaign, selectedFieldId, attrWindowMinutes, attrWindowDays, loaded]);
+
+  const fieldIsDateOnly = rows[0]?.fieldIsDateOnly ?? false;
 
   const influenced = rows.filter((r) => r.status === "influenced");
   const notInfluenced = rows.filter((r) => r.status === "not_influenced");
   const influenceRate = rows.length > 0 ? (influenced.length / rows.length) * 100 : 0;
-  const avgDelta = influenced.length > 0
+
+  const avgDeltaMinutes = !fieldIsDateOnly && influenced.length > 0
     ? influenced.reduce((s, r) => s + (r.minutesDelta ?? 0), 0) / influenced.length
     : null;
+  const avgDeltaDays = fieldIsDateOnly && influenced.length > 0
+    ? influenced.reduce((s, r) => s + (r.daysDelta ?? 0), 0) / influenced.length
+    : null;
 
-  const windowLabel = ATTR_WINDOWS.find((w) => w.value === attrWindow)?.label ?? `${attrWindow}min`;
+  const windows = fieldIsDateOnly ? WINDOWS_DAYS : WINDOWS_MINUTES;
+  const currentWindow = fieldIsDateOnly ? attrWindowDays : attrWindowMinutes;
+  const windowLabel = windows.find((w) => w.value === currentWindow)?.label ?? String(currentWindow);
   const canRun = !!selectedFieldId && !!selectedCampaignId;
 
   return (
@@ -266,15 +311,18 @@ function InfluenciaPage() {
             <div>
               <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
                 Janela após o e-mail
+                {loaded && fieldIsDateOnly && (
+                  <span className="ml-2 rounded bg-warning/20 px-1.5 py-0.5 text-[10px] text-warning">campo date — sem hora</span>
+                )}
               </label>
               <div className="flex flex-wrap gap-1">
-                {ATTR_WINDOWS.map((w) => (
+                {(loaded && fieldIsDateOnly ? WINDOWS_DAYS : WINDOWS_MINUTES).map((w) => (
                   <button
                     key={w.value}
-                    onClick={() => setAttrWindow(w.value)}
+                    onClick={() => fieldIsDateOnly ? setAttrWindowDays(w.value) : setAttrWindowMinutes(w.value)}
                     className={cn(
                       "rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
-                      attrWindow === w.value
+                      currentWindow === w.value
                         ? "bg-primary text-primary-foreground"
                         : "border border-border bg-surface text-muted-foreground hover:text-foreground",
                     )}
@@ -284,7 +332,9 @@ function InfluenciaPage() {
                 ))}
               </div>
               <p className="mt-1 text-[11px] text-muted-foreground">
-                Tempo máximo entre receber o e-mail e operar.
+                {loaded && fieldIsDateOnly
+                  ? "Campo armazena só data — comparação por dia de calendário."
+                  : "Tempo máximo entre receber o e-mail e operar."}
               </p>
             </div>
 
@@ -335,7 +385,11 @@ function InfluenciaPage() {
               <KpiCard
                 icon={<Clock className="h-4 w-4 text-primary" />}
                 label="Tempo médio até operar"
-                value={avgDelta !== null ? fmtDelta(Math.round(avgDelta)) : "—"}
+                value={
+                  avgDeltaMinutes !== null ? fmtDelta(Math.round(avgDeltaMinutes)) :
+                  avgDeltaDays !== null ? (avgDeltaDays === 0 ? "mesmo dia" : `${avgDeltaDays.toFixed(1)} dias`) :
+                  "—"
+                }
                 sub="após receber o e-mail"
               />
             </div>
@@ -380,7 +434,7 @@ function InfluenciaPage() {
                         </td>
                       </tr>
                     ) : (
-                      rows.map((row) => <InfluenceRow key={row.contact.id} row={row} attrWindow={attrWindow} />)
+                      rows.map((row) => <InfluenceRow key={row.contact.id} row={row} />)
                     )}
                   </tbody>
                 </table>
@@ -415,31 +469,37 @@ function InfluenciaPage() {
   );
 }
 
-function InfluenceRow({ row, attrWindow }: { row: ContactRow; attrWindow: number }) {
-  const { contact, emailReceivedAt, operationDate, minutesDelta, status } = row;
+function InfluenceRow({ row }: { row: ContactRow }) {
+  const { contact, emailReceivedAt, operationDate, minutesDelta, daysDelta, fieldIsDateOnly, status } = row;
   const name = [contact.firstName, contact.lastName].filter(Boolean).join(" ") || "—";
-
-  // Determine if operation happened BEFORE the email (negative delta)
-  const isBeforeEmail = minutesDelta !== null && minutesDelta < 0;
   const isWithinWindow = status === "influenced";
+
+  // Format delta string
+  let deltaStr = "—";
+  let deltaNegative = false;
+  if (fieldIsDateOnly && daysDelta !== null) {
+    deltaNegative = daysDelta < 0;
+    deltaStr = daysDelta === 0 ? "mesmo dia" : `${daysDelta < 0 ? "−" : "+"}${Math.abs(daysDelta)}d`;
+  } else if (!fieldIsDateOnly && minutesDelta !== null) {
+    deltaNegative = minutesDelta < 0;
+    deltaStr = `${minutesDelta < 0 ? "−" : "+"}${fmtDelta(Math.abs(minutesDelta))}`;
+  }
 
   return (
     <tr className="border-t border-border transition-colors hover:bg-surface-2">
-      <td className="px-5 py-3">
-        <div className="font-medium">{name}</div>
-      </td>
+      <td className="px-5 py-3 font-medium">{name}</td>
       <td className="px-3 py-3 font-mono text-xs text-muted-foreground">{contact.email || "—"}</td>
 
-      {/* Recebeu o e-mail */}
+      {/* Recebeu o e-mail — always show with time */}
       <td className="px-3 py-3 font-mono text-xs">
-        <span className="text-foreground">{fmtDate(emailReceivedAt)}</span>
+        {fmtDate(emailReceivedAt, true)}
       </td>
 
-      {/* Data da Operação */}
+      {/* Data da Operação — date-only field: show without fake time */}
       <td className="px-3 py-3 font-mono text-xs">
         {operationDate ? (
           <span className={cn(isWithinWindow ? "text-success font-semibold" : "text-foreground")}>
-            {fmtDate(operationDate)}
+            {fmtDate(operationDate, !fieldIsDateOnly)}
           </span>
         ) : (
           <span className="text-muted-foreground">—</span>
@@ -448,20 +508,12 @@ function InfluenceRow({ row, attrWindow }: { row: ContactRow; attrWindow: number
 
       {/* Delta */}
       <td className="px-3 py-3 text-right font-mono text-xs">
-        {minutesDelta !== null ? (
-          <span className={cn(
-            "font-semibold",
-            isBeforeEmail ? "text-muted-foreground" :
-            isWithinWindow ? "text-success" : "text-muted-foreground",
-          )}>
-            {isBeforeEmail ? `−${fmtDelta(Math.abs(minutesDelta))}` : `+${fmtDelta(minutesDelta)}`}
-          </span>
-        ) : "—"}
+        <span className={cn("font-semibold", deltaNegative ? "text-muted-foreground" : isWithinWindow ? "text-success" : "text-muted-foreground")}>
+          {deltaStr}
+        </span>
       </td>
 
-      <td className="px-3 py-3 text-center">
-        <StatusBadge status={status} />
-      </td>
+      <td className="px-3 py-3 text-center"><StatusBadge status={status} /></td>
     </tr>
   );
 }
