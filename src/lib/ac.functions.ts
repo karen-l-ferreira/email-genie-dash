@@ -52,8 +52,12 @@ async function acFetch(creds: Settings, path: string, params?: Record<string, st
     if (attempt > 0) await new Promise((r) => setTimeout(r, 1500 * attempt));
     const res = await fetch(url.toString(), {
       headers: { "Api-Token": creds.ac_api_key, Accept: "application/json" },
-      redirect: "error",
+      redirect: "manual",
     });
+    if (res.status >= 300 && res.status < 400) {
+      console.error("[acFetch] blocked redirect", { status: res.status });
+      throw new Error("INVALID_AC_BASE_URL");
+    }
     if (res.status === 429) {
       lastErr = friendlyAcError(429);
       continue;
