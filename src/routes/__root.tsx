@@ -82,8 +82,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:site", content: "@Lovable" },
       { name: "twitter:title", content: "CRM Analytica — ActiveCampaign Intelligence" },
       { name: "twitter:description", content: "Campaign analytics and AI-powered optimization for ActiveCampaign." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/a02bb928-dddb-4a08-b95e-9f707b3c5314/id-preview-2d256665--ac44534f-16ca-40a4-a0f8-c8385e08d58d.lovable.app-1778867187771.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/a02bb928-dddb-4a08-b95e-9f707b3c5314/id-preview-2d256665--ac44534f-16ca-40a4-a0f8-c8385e08d58d.lovable.app-1778867187771.png" },
+      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/d2c75584-0d98-4cc5-b3d4-4308c21f0cea" },
+      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/d2c75584-0d98-4cc5-b3d4-4308c21f0cea" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
