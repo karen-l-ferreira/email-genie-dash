@@ -2,6 +2,17 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
+const AC_HOST_RE = /^[a-z0-9-]+\.(api-[a-z0-9]+\.com|activehosted\.com)$/i;
+
+function isAllowedAcUrl(u: string): boolean {
+  try {
+    const parsed = new URL(u);
+    return parsed.protocol === "https:" && AC_HOST_RE.test(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
+
 export const getSettings = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -25,7 +36,14 @@ export const saveSettings = createServerFn({ method: "POST" })
     z
       .object({
         ac_api_key: z.string().min(10).max(500).optional(),
-        ac_base_url: z.string().url().max(300).optional(),
+        ac_base_url: z
+          .string()
+          .url()
+          .max(300)
+          .refine(isAllowedAcUrl, {
+            message: "URL inválida. Use https://<conta>.api-us1.com/api/3/",
+          })
+          .optional(),
         benchmark_open_rate: z.number().min(0).max(100).optional(),
         benchmark_ctr: z.number().min(0).max(100).optional(),
       })
