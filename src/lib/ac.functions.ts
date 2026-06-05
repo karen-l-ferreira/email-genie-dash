@@ -4,6 +4,29 @@ import { z } from "zod";
 
 type Settings = { ac_api_key: string; ac_base_url: string };
 
+const AC_HOST_RE = /^[a-z0-9-]+\.(api-[a-z0-9]+\.com|activehosted\.com)$/i;
+
+function assertAllowedAcUrl(u: string): URL {
+  let parsed: URL;
+  try {
+    parsed = new URL(u);
+  } catch {
+    throw new Error("INVALID_AC_BASE_URL");
+  }
+  if (parsed.protocol !== "https:" || !AC_HOST_RE.test(parsed.hostname)) {
+    throw new Error("INVALID_AC_BASE_URL");
+  }
+  return parsed;
+}
+
+function friendlyAcError(status: number): Error {
+  if (status === 401 || status === 403) return new Error("ActiveCampaign: verifique sua chave de API.");
+  if (status === 404) return new Error("ActiveCampaign: recurso não encontrado.");
+  if (status === 429) return new Error("ActiveCampaign: limite de requisições atingido. Tente novamente em instantes.");
+  if (status >= 500) return new Error("ActiveCampaign: serviço indisponível no momento.");
+  return new Error("ActiveCampaign: falha na requisição.");
+}
+
 async function getCreds(supabase: any, userId: string): Promise<Settings> {
   const { data } = await supabase
     .from("user_settings")
@@ -15,8 +38,13 @@ async function getCreds(supabase: any, userId: string): Promise<Settings> {
 }
 
 async function acFetch(creds: Settings, path: string, params?: Record<string, string>) {
-  const base = creds.ac_base_url.endsWith("/") ? creds.ac_base_url : creds.ac_base_url + "/";
-  const url = new URL(path.replace(/^\//, ""), base);
+  const baseParsed = assertAllowedAcUrl(creds.ac_base_url);
+  const baseStr = baseParsed.toString().endsWith("/") ? baseParsed.toString() : baseParsed.toString() + "/";
+  const url = new URL(path.replace(/^\//, ""), baseStr);
+  // Defense-in-depth: ensure resolved URL still matches the allowlisted host/protocol.
+  if (url.protocol !== "https:" || url.hostname !== baseParsed.hostname) {
+    throw new Error("INVALID_AC_BASE_URL");
+  }
   if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
 
   let lastErr: Error = new Error("ActiveCampaign: request failed");
@@ -24,14 +52,16 @@ async function acFetch(creds: Settings, path: string, params?: Record<string, st
     if (attempt > 0) await new Promise((r) => setTimeout(r, 1500 * attempt));
     const res = await fetch(url.toString(), {
       headers: { "Api-Token": creds.ac_api_key, Accept: "application/json" },
+      redirect: "error",
     });
     if (res.status === 429) {
-      lastErr = new Error("ActiveCampaign 429: limite de requisições atingido. Tente novamente em instantes.");
+      lastErr = friendlyAcError(429);
       continue;
     }
     if (!res.ok) {
       const text = await res.text().catch(() => "");
-      throw new Error(`ActiveCampaign ${res.status}: ${text.slice(0, 200)}`);
+      console.error("[acFetch] upstream error", { status: res.status, body: text.slice(0, 500) });
+      throw friendlyAcError(res.status);
     }
     return res.json();
   }
