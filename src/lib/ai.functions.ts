@@ -316,7 +316,7 @@ export const getMessageAnalysis = createServerFn({ method: "POST" })
 Analise o e-mail de forma completa e honesta. Avalie cada dimensão abaixo:
 - ASSUNTO: clareza, curiosidade, urgência, tamanho (ideal: 40-60 caracteres), uso de emojis ou personalização
 - CORPO DO TEXTO: headline, hierarquia visual, tamanho do copy, tom de voz, clareza da mensagem principal
-- IMAGENS: presença, relevância, alt text, proporção texto/imagem
+- IMAGENS: presença de tags <img>, alt text preenchido, proporção texto/imagem. IMPORTANTE: você não consegue ver o conteúdo visual das imagens — não critique nem suponha ausência de logo, branding ou elementos visuais se houver tags <img> no HTML. Só comente imagens se o alt text estiver vazio ou se não houver nenhuma imagem.
 - CTA: clareza, quantidade (1 principal é o ideal), posicionamento, texto do botão
 - ESTRUTURA: header, footer, link de descadastro, preheader
 - MOBILE: responsividade, tamanho de fonte, botões clicáveis
