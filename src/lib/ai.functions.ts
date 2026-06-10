@@ -2,32 +2,50 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
-const MODEL = "google/gemini-2.5-flash";
+const MODEL = "gemini-2.5-flash";
 
 async function callGemini(messages: Array<{ role: string; content: string }>) {
-  const key = process.env.LOVABLE_API_KEY;
-  if (!key) throw new Error("LOVABLE_API_KEY não configurada");
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json",
+  const key = process.env.GOOGLE_AI_API_KEY;
+  if (!key) throw new Error("GOOGLE_AI_API_KEY não configurada");
+
+  // Convert OpenAI-style messages to Gemini format
+  const systemMsg = messages.find((m) => m.role === "system");
+  const userMessages = messages.filter((m) => m.role !== "system");
+
+  const contents = userMessages.map((m) => ({
+    role: m.role === "assistant" ? "model" : "user",
+    parts: [{ text: m.content }],
+  }));
+
+  const body: Record<string, unknown> = {
+    contents,
+    generationConfig: {
+      responseMimeType: "application/json",
+      maxOutputTokens: 8192,
     },
-    body: JSON.stringify({
-      model: MODEL,
-      messages,
-      response_format: { type: "json_object" },
-      max_tokens: 8192,
-    }),
-  });
+  };
+
+  if (systemMsg) {
+    body.systemInstruction = { parts: [{ text: systemMsg.content }] };
+  }
+
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${key}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  );
+
   if (res.status === 429) throw new Error("Limite de requisições de IA atingido. Tente novamente em instantes.");
-  if (res.status === 402) throw new Error("Créditos de IA esgotados. Adicione créditos nas configurações do Workspace.");
   if (!res.ok) {
     const t = await res.text().catch(() => "");
-    throw new Error(`Gateway de IA ${res.status}: ${t.slice(0, 200)}`);
+    throw new Error(`API do Google ${res.status}: ${t.slice(0, 200)}`);
   }
+
   const json = await res.json();
-  const content = json.choices?.[0]?.message?.content ?? "{}";
+  const content = json.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
   return parseJSON(content);
 }
 
