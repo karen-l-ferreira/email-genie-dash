@@ -12,7 +12,7 @@ import { CampaignStatusBadge } from "@/components/app/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { ArrowLeft, CheckCircle2, Copy, Download, Mail, Sparkles, XCircle } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Copy, Download, Mail, RefreshCw, Sparkles, XCircle } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -103,8 +103,8 @@ function CampaignDetailPage() {
   const [pageTab, setPageTab] = useState<"overview" | "messages">("overview");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const varsM = useMutation({
-    mutationFn: () =>
-      fetchVars({ data: { campaign_id: id, subject, html, recommendations: recsQ.data?.recommendations ?? [] } }),
+    mutationFn: (refresh = false) =>
+      fetchVars({ data: { campaign_id: id, subject, html, recommendations: recsQ.data?.recommendations ?? [], refresh } }),
   });
 
   const trend = useMemo(() => {
@@ -305,7 +305,7 @@ function CampaignDetailPage() {
                 </div>
               )}
               <div className="mt-6">
-                <Button size="lg" disabled={!recsQ.data || varsM.isPending} onClick={() => { setDrawerOpen(true); if (!varsM.data) varsM.mutate(); }}>
+                <Button size="lg" disabled={!recsQ.data || varsM.isPending} onClick={() => { setDrawerOpen(true); varsM.mutate(false); }}>
                   <Sparkles className="mr-2 h-4 w-4" />
                   {varsM.isPending ? "Gerando…" : "Gerar 3 Variações com IA"}
                 </Button>
@@ -330,8 +330,11 @@ function CampaignDetailPage() {
       {/* Drawer de variações */}
       <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
         <SheetContent className="w-full overflow-y-auto bg-background sm:max-w-3xl">
-          <SheetHeader>
+          <SheetHeader className="flex flex-row items-center justify-between">
             <SheetTitle>Variações de E-mail por IA</SheetTitle>
+            <Button size="sm" variant="outline" disabled={varsM.isPending} onClick={() => varsM.mutate(true)}>
+              <RefreshCw className="mr-1.5 h-3.5 w-3.5" />Gerar novamente
+            </Button>
           </SheetHeader>
           {varsM.isPending ? (
             <div className="mt-8 space-y-3">
