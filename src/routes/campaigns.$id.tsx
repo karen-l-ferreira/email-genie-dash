@@ -393,7 +393,7 @@ function CampaignDetailPage() {
 // ─── Aba Mensagens ────────────────────────────────────────────────────────────
 
 type FetchAnalysis = (opts: {
-  data: { campaign_id: string; message_id: string; subject: string; html: string };
+  data: { campaign_id: string; message_id: string; subject: string; html: string; refresh?: boolean };
 }) => Promise<{ analysis: MessageAnalysis }>;
 
 function MessagesTab({ campaignId, messages, isLoading, isError, error, fetchAnalysis }: {
