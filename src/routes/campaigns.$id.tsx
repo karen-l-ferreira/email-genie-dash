@@ -410,11 +410,11 @@ function MessagesTab({ campaignId, messages, isLoading, isError, error, fetchAna
 
   const msg = messages[selectedIdx];
 
-  async function analyzeMessage(m: CampaignMessage) {
-    if (analyses[m.id] || loading[m.id]) return;
+  async function analyzeMessage(m: CampaignMessage, refresh = false) {
+    if (!refresh && (analyses[m.id] || loading[m.id])) return;
     setLoading((prev) => ({ ...prev, [m.id]: true }));
     try {
-      const res = await fetchAnalysis({ data: { campaign_id: campaignId, message_id: m.id, subject: m.subject, html: m.html } });
+      const res = await fetchAnalysis({ data: { campaign_id: campaignId, message_id: m.id, subject: m.subject, html: m.html, refresh } });
       setAnalyses((prev) => ({ ...prev, [m.id]: res.analysis }));
     } catch (e) {
       toast.error((e as Error).message);
@@ -557,10 +557,7 @@ function MessagesTab({ campaignId, messages, isLoading, isError, error, fetchAna
                   </div>
                 )}
 
-                <Button variant="outline" size="sm" onClick={() => {
-                  setAnalyses((prev) => { const next = { ...prev }; delete next[msg.id]; return next; });
-                  analyzeMessage(msg);
-                }}>
+                <Button variant="outline" size="sm" onClick={() => analyzeMessage(msg, true)}>
                   Reanalisar
                 </Button>
               </>

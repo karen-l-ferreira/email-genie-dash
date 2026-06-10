@@ -291,6 +291,7 @@ const MessageInput = z.object({
   message_id: z.string().min(1).max(64),
   subject: z.string().max(500),
   html: z.string().max(200000),
+  refresh: z.boolean().optional(),
 });
 
 export const getMessageAnalysis = createServerFn({ method: "POST" })
@@ -299,14 +300,16 @@ export const getMessageAnalysis = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const cacheId = `msg_${data.message_id}`;
-    const { data: cached } = await supabase
-      .from("campaign_ai_cache")
-      .select("payload")
-      .eq("user_id", userId)
-      .eq("campaign_id", cacheId)
-      .eq("kind", "message_analysis")
-      .maybeSingle();
-    if (cached?.payload) return cached.payload as { analysis: MessageAnalysis };
+    if (!data.refresh) {
+      const { data: cached } = await supabase
+        .from("campaign_ai_cache")
+        .select("payload")
+        .eq("user_id", userId)
+        .eq("campaign_id", cacheId)
+        .eq("kind", "message_analysis")
+        .maybeSingle();
+      if (cached?.payload) return cached.payload as { analysis: MessageAnalysis };
+    }
 
     const sys = `Você é um especialista em copywriting de e-mail marketing. Responda SEMPRE em português do Brasil (PT-BR). Analise o e-mail fornecido e retorne JSON estrito: {"analysis":{"score":0-100,"strengths":["ponto forte em PT-BR"],"weaknesses":["ponto fraco em PT-BR"],"suggestions":[{"priority":"P1"|"P2"|"P3","category":"CONTENT"|"SEGMENTATION"|"TIMING"|"CHANNEL","title":"título em PT-BR","description":"sugestão concreta em PT-BR"}]}}. Avalie: qualidade do assunto, personalização, clareza do CTA, tamanho do copy, legibilidade e responsividade mobile. Dê 2 a 4 pontos fortes, 2 a 4 pontos fracos e 2 a 4 sugestões.`;
 
