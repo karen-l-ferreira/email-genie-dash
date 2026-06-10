@@ -4,18 +4,27 @@ import { z } from "zod";
 
 const MODEL = "gemini-2.5-flash";
 
-async function callGemini(messages: Array<{ role: string; content: string }>) {
+type ImagePart = { inlineData: { mimeType: string; data: string } };
+
+async function callGemini(
+  messages: Array<{ role: string; content: string }>,
+  imageParts: ImagePart[] = [],
+) {
   const key = process.env.GOOGLE_AI_API_KEY;
   if (!key) throw new Error("GOOGLE_AI_API_KEY não configurada");
 
-  // Convert OpenAI-style messages to Gemini format
   const systemMsg = messages.find((m) => m.role === "system");
   const userMessages = messages.filter((m) => m.role !== "system");
 
-  const contents = userMessages.map((m) => ({
-    role: m.role === "assistant" ? "model" : "user",
-    parts: [{ text: m.content }],
-  }));
+  const contents = userMessages.map((m, i) => {
+    const textPart = { text: m.content };
+    // attach images to the last user message
+    const isLast = i === userMessages.length - 1;
+    return {
+      role: m.role === "assistant" ? "model" : "user",
+      parts: isLast && imageParts.length > 0 ? [textPart, ...imageParts] : [textPart],
+    };
+  });
 
   const body: Record<string, unknown> = {
     contents,
@@ -47,6 +56,36 @@ async function callGemini(messages: Array<{ role: string; content: string }>) {
   const json = await res.json();
   const content = json.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
   return parseJSON(content);
+}
+
+function extractImageUrls(html: string): string[] {
+  const urls: string[] = [];
+  const re = /<img[^>]+src=["']([^"']+)["']/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) !== null) {
+    const url = m[1];
+    if (url.startsWith("http")) urls.push(url);
+    if (urls.length >= 6) break;
+  }
+  return [...new Set(urls)];
+}
+
+async function fetchImageParts(urls: string[]): Promise<ImagePart[]> {
+  const results = await Promise.allSettled(
+    urls.map(async (url): Promise<ImagePart> => {
+      const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+      if (!res.ok) throw new Error(`fetch ${url} → ${res.status}`);
+      const contentType = res.headers.get("content-type") ?? "image/jpeg";
+      const mimeType = contentType.split(";")[0].trim();
+      if (!mimeType.startsWith("image/")) throw new Error("not an image");
+      const buf = await res.arrayBuffer();
+      const data = Buffer.from(buf).toString("base64");
+      return { inlineData: { mimeType, data } };
+    }),
+  );
+  return results
+    .filter((r): r is PromiseFulfilledResult<ImagePart> => r.status === "fulfilled")
+    .map((r) => r.value);
 }
 
 function parseJSON(content: string): any {
@@ -316,7 +355,7 @@ export const getMessageAnalysis = createServerFn({ method: "POST" })
 Analise o e-mail de forma completa e honesta. Avalie cada dimensão abaixo:
 - ASSUNTO: clareza, curiosidade, urgência, tamanho (ideal: 40-60 caracteres), uso de emojis ou personalização
 - CORPO DO TEXTO: headline, hierarquia visual, tamanho do copy, tom de voz, clareza da mensagem principal
-- IMAGENS: presença de tags <img>, alt text preenchido, proporção texto/imagem. IMPORTANTE: você não consegue ver o conteúdo visual das imagens — não critique nem suponha ausência de logo, branding ou elementos visuais se houver tags <img> no HTML. Só comente imagens se o alt text estiver vazio ou se não houver nenhuma imagem.
+- IMAGENS: as imagens do e-mail serão anexadas para você visualizar. Analise o conteúdo visual: qualidade, relevância, presença de logo/branding, proporção texto/imagem, alt text preenchido no HTML. Se não houver imagens anexadas, não critique elementos visuais que não consegue ver.
 - CTA: clareza, quantidade (1 principal é o ideal), posicionamento, texto do botão
 - ESTRUTURA: header, footer, link de descadastro, preheader
 - MOBILE: responsividade, tamanho de fonte, botões clicáveis
@@ -333,17 +372,22 @@ suggestions: 0 a 4 itens (só se houver melhoria real com impacto mensurável)`;
     const { clean: htmlClean } = stripStyles(data.html);
     const htmlClipped = htmlClean.slice(0, 40000);
 
+    const imageUrls = extractImageUrls(data.html);
+    const imageParts = await fetchImageParts(imageUrls);
+
     const user = `Assunto: ${data.subject}
 
 HTML do e-mail:
 ${htmlClipped}
 
+${imageParts.length > 0 ? `As ${imageParts.length} imagem(ns) do e-mail estão anexadas — analise o conteúdo visual delas também.` : "Este e-mail não possui imagens externas acessíveis."}
+
 Retorne apenas JSON.`;
 
-    const result = await callGemini([
-      { role: "system", content: sys },
-      { role: "user", content: user },
-    ]);
+    const result = await callGemini(
+      [{ role: "system", content: sys }, { role: "user", content: user }],
+      imageParts,
+    );
     const analysis: MessageAnalysis = result.analysis ?? {
       score: 0,
       strengths: [],
