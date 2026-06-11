@@ -94,14 +94,20 @@ function extractImageUrls(html: string): string[] {
 async function fetchImageParts(urls: string[]): Promise<ImagePart[]> {
   const results = await Promise.allSettled(
     urls.map(async (url): Promise<ImagePart> => {
-      const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
-      if (!res.ok) throw new Error(`fetch ${url} → ${res.status}`);
-      const contentType = res.headers.get("content-type") ?? "image/jpeg";
-      const mimeType = contentType.split(";")[0].trim();
-      if (!mimeType.startsWith("image/")) throw new Error("not an image");
-      const buf = await res.arrayBuffer();
-      const data = Buffer.from(buf).toString("base64");
-      return { inlineData: { mimeType, data } };
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 5000);
+      try {
+        const res = await fetch(url, { signal: controller.signal });
+        if (!res.ok) throw new Error(`fetch ${url} → ${res.status}`);
+        const contentType = res.headers.get("content-type") ?? "image/jpeg";
+        const mimeType = contentType.split(";")[0].trim();
+        if (!mimeType.startsWith("image/")) throw new Error("not an image");
+        const buf = await res.arrayBuffer();
+        const data = Buffer.from(buf).toString("base64");
+        return { inlineData: { mimeType, data } };
+      } finally {
+        clearTimeout(timer);
+      }
     }),
   );
   return results
@@ -409,6 +415,7 @@ Retorne apenas JSON.`;
       [{ role: "system", content: sys }, { role: "user", content: user }],
       imageParts,
     );
+    if (!result.analysis) throw new Error("A IA não retornou uma análise válida. Tente novamente.");
     const analysis: MessageAnalysis = result.analysis ?? {
       score: 0,
       strengths: [],
