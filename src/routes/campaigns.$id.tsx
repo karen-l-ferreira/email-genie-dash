@@ -426,6 +426,7 @@ function MessagesTab({ campaignId, messages, isLoading, isError, error, fetchAna
   const [generatedEmail, setGeneratedEmail] = useState<GeneratedEmail | null>(null);
   const [generating, setGenerating] = useState(false);
   const [generateOpen, setGenerateOpen] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
 
   const msg = messages[selectedIdx];
 
@@ -445,13 +446,13 @@ function MessagesTab({ campaignId, messages, isLoading, isError, error, fetchAna
   async function generateEmail(m: CampaignMessage, analysis: MessageAnalysis) {
     setGenerating(true);
     setGeneratedEmail(null);
+    setGenerateError(null);
     setGenerateOpen(true);
     try {
       const res = await fetchGenerate({ data: { campaign_id: campaignId, message_id: m.id, subject: m.subject, html: m.html, analysis } });
       setGeneratedEmail(res);
     } catch (e) {
-      toast.error((e as Error).message);
-      setGenerateOpen(false);
+      setGenerateError((e as Error).message);
     } finally {
       setGenerating(false);
     }
@@ -606,7 +607,7 @@ function MessagesTab({ campaignId, messages, isLoading, isError, error, fetchAna
       )}
 
       {/* Sheet: e-mail gerado pela IA */}
-      <Sheet open={generateOpen} onOpenChange={setGenerateOpen}>
+      <Sheet open={generateOpen} onOpenChange={(v) => { setGenerateOpen(v); if (!v) setGenerateError(null); }}>
         <SheetContent className="w-full overflow-y-auto bg-background sm:max-w-3xl">
           <SheetHeader>
             <SheetTitle>E-mail Gerado pela IA</SheetTitle>
@@ -615,6 +616,13 @@ function MessagesTab({ campaignId, messages, isLoading, isError, error, fetchAna
             <div className="mt-8 space-y-3">
               <div className="h-8 w-1/2 animate-pulse rounded bg-surface" />
               <div className="h-64 animate-pulse rounded bg-surface" />
+            </div>
+          ) : generateError ? (
+            <div className="mt-6 space-y-4">
+              <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-5 text-sm text-destructive">{generateError}</div>
+              <Button variant="outline" size="sm" onClick={() => msg && generateEmail(msg, analyses[msg.id])}>
+                <RefreshCw className="mr-1.5 h-3.5 w-3.5" />Tentar novamente
+              </Button>
             </div>
           ) : generatedEmail ? (
             <div className="mt-6 space-y-4">
