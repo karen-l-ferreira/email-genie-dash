@@ -426,31 +426,48 @@ export const generateEmailFromAnalysis = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => GenerateEmailInput.parse(d))
   .handler(async ({ data }) => {
-    const sys = `Você é um especialista em copywriting e HTML de e-mail marketing. Responda SEMPRE em português do Brasil (PT-BR).
+    const sys = `Você é um copywriter sênior especialista em e-mail marketing. Responda SEMPRE em português do Brasil (PT-BR).
 
-Com base na análise fornecida, gere uma versão melhorada do e-mail aplicando todas as sugestões e corrigindo os pontos fracos identificados. Regras:
-- Mantenha a mesma estrutura HTML (layout, links, imagens, rodapé, cores da marca)
-- Reescreva apenas o copy: assunto, títulos, corpo do texto e CTAs
-- Aplique as melhorias sugeridas na análise
-- Mantenha o tom de voz da marca
-- Retorne JSON estrito sem markdown: {"subject":"novo assunto","html":"<html completo melhorado>"}`;
+Sua tarefa é reescrever o e-mail abaixo aplicando TODAS as melhorias identificadas na análise. Você DEVE fazer mudanças reais e perceptíveis no copy — não retorne o mesmo texto.
+
+O que você DEVE mudar obrigatoriamente:
+- ASSUNTO: reescreva completamente para ser mais atrativo, direto e com senso de urgência ou curiosidade
+- HEADLINE/TÍTULO principal: reescreva para ser mais impactante
+- CORPO DO TEXTO: reescreva os parágrafos aplicando as sugestões — seja mais claro, conciso e persuasivo
+- CTA (botões): reescreva o texto dos botões para ser mais ativo e específico (ex: "Ver minha proposta" em vez de "Clique aqui")
+
+O que você deve preservar:
+- Estrutura HTML (divs, tabelas, layout)
+- Imagens (tags <img> com os mesmos src)
+- Links (tags <a> com os mesmos href)
+- Cores, fontes e estilos CSS
+- Rodapé e informações legais
+
+Retorne JSON estrito sem markdown: {"subject":"novo assunto reescrito","html":"<html completo com copy reescrito>"}`;
 
     const { clean: htmlClean, styles } = stripStyles(data.html);
     const htmlClipped = htmlClean.slice(0, 40000);
 
-    const analysisText = `Pontuação atual: ${data.analysis.score}/100
-Pontos fracos a corrigir: ${data.analysis.weaknesses.join("; ") || "nenhum"}
-Sugestões a aplicar: ${data.analysis.suggestions.map((s: any) => s.description).join("; ") || "nenhuma"}`;
+    const weaknesses = data.analysis.weaknesses.length > 0
+      ? data.analysis.weaknesses.map((w, i) => `${i + 1}. ${w}`).join("\n")
+      : "Nenhum ponto fraco identificado — mesmo assim melhore o copy.";
+    const suggestions = data.analysis.suggestions.length > 0
+      ? data.analysis.suggestions.map((s: any, i: number) => `${i + 1}. [${s.priority}] ${s.title}: ${s.description}`).join("\n")
+      : "Melhore a persuasão e clareza geral.";
 
-    const user = `Assunto original: ${data.subject}
+    const user = `Assunto original: "${data.subject}"
 
-Análise do e-mail:
-${analysisText}
+=== ANÁLISE (score: ${data.analysis.score}/100) ===
+Pontos fracos a corrigir:
+${weaknesses}
 
-HTML original (estilos CSS removidos para economizar espaço — mantenha a estrutura):
+Sugestões obrigatórias a aplicar:
+${suggestions}
+
+=== HTML ORIGINAL ===
 ${htmlClipped}
 
-Retorne apenas JSON com o e-mail melhorado.`;
+Reescreva o e-mail aplicando TODAS as sugestões acima. O assunto e o copy devem ser visivelmente diferentes do original. Retorne apenas JSON.`;
 
     const result = await callGemini([
       { role: "system", content: sys },
