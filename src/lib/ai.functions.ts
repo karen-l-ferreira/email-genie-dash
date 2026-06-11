@@ -9,6 +9,7 @@ type ImagePart = { inlineData: { mimeType: string; data: string } };
 async function callGemini(
   messages: Array<{ role: string; content: string }>,
   imageParts: ImagePart[] = [],
+  maxTokens = 8192,
 ) {
   const key = process.env.GOOGLE_AI_API_KEY;
   if (!key) throw new Error("GOOGLE_AI_API_KEY não configurada");
@@ -30,7 +31,7 @@ async function callGemini(
     contents,
     generationConfig: {
       responseMimeType: "application/json",
-      maxOutputTokens: 8192,
+      maxOutputTokens: maxTokens,
     },
   };
 
@@ -448,55 +449,57 @@ export const generateEmailFromAnalysis = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => GenerateEmailInput.parse(d))
   .handler(async ({ data }) => {
-    // Extract visible text blocks from HTML to rewrite only the copy
-    const textBlocks = extractTextBlocks(data.html);
-
-    const weaknesses = data.analysis.weaknesses.length > 0
-      ? data.analysis.weaknesses.map((w, i) => `${i + 1}. ${w}`).join("\n")
-      : "Melhore persuasão e clareza geral.";
     const suggestions = data.analysis.suggestions.length > 0
       ? data.analysis.suggestions.map((s: any, i: number) => `${i + 1}. [${s.priority}] ${s.title}: ${s.description}`).join("\n")
-      : "Torne o copy mais persuasivo e os CTAs mais ativos.";
+      : "Melhore persuasão, design e clareza geral.";
+    const weaknesses = data.analysis.weaknesses.length > 0
+      ? data.analysis.weaknesses.map((w, i) => `${i + 1}. ${w}`).join("\n")
+      : "Nenhum ponto fraco explícito — ainda assim melhore visualmente.";
 
-    const sys = `Você é um copywriter sênior de e-mail marketing. Responda SEMPRE em português do Brasil (PT-BR).
-Você receberá o assunto e os blocos de texto de um e-mail numerados. Reescreva CADA bloco aplicando as melhorias da análise.
-Regras obrigatórias:
-- Todo bloco DEVE ser diferente do original — não repita o mesmo texto
-- Assunto: mais atrativo, com urgência ou curiosidade (máx 60 caracteres)
-- Headlines: mais impactantes e diretas
-- Parágrafos: mais claros, concisos e persuasivos
-- CTAs/botões: verbos de ação específicos ("Garantir minha vaga" > "Clique aqui")
-- Mantenha o tom e a identidade da marca
-Retorne JSON estrito: {"subject":"novo assunto","blocks":{"1":"texto reescrito","2":"texto reescrito",...}}`;
+    const sys = `Você é um designer e copywriter sênior de e-mail marketing. Responda SEMPRE em português do Brasil (PT-BR).
 
-    const blocksText = Object.entries(textBlocks)
-      .map(([k, v]) => `[${k}] ${v}`)
-      .join("\n");
+Sua tarefa é REDESENHAR e REESCREVER o e-mail HTML aplicando TODAS as sugestões da análise — incluindo mudanças visuais (cores, espaçamento, layout de seções, botões) e de copy (assunto, títulos, corpo, CTAs).
+
+REGRAS:
+- Aplique cada sugestão da análise — se disser "aumente espaçamento", aplique padding/margin; se disser "destaque o CTA", mude a cor e tamanho do botão
+- Reescreva todo o copy: assunto, headlines, parágrafos, CTAs — nada pode ser idêntico ao original
+- Preserve: imagens (mesmos src), links (mesmos href), placeholders %VARIAVEL%, rodapé e avisos legais
+- Cores e identidade da marca podem ser ajustadas mas não eliminadas
+- O HTML deve ser válido e funcionar em clientes de e-mail
+
+Retorne JSON estrito sem markdown:
+{"subject":"novo assunto","html":"html completo redesenhado"}`;
+
+    const { clean: htmlClean, styles } = stripStyles(data.html);
+    const htmlClipped = htmlClean.slice(0, 35000);
 
     const user = `Assunto original: "${data.subject}"
 
-Análise (score ${data.analysis.score}/100):
-Pontos fracos: ${weaknesses}
-Sugestões: ${suggestions}
+=== ANÁLISE (score ${data.analysis.score}/100) ===
+Pontos fracos:
+${weaknesses}
 
-Blocos de texto do e-mail:
-${blocksText}
+Sugestões a aplicar (OBRIGATÓRIAS):
+${suggestions}
 
-Reescreva todos os blocos acima. Retorne apenas JSON.`;
+=== HTML ORIGINAL ===
+${htmlClipped}
 
-    const result = await callGemini([
-      { role: "system", content: sys },
-      { role: "user", content: user },
-    ]);
+Redesenhe e reescreva o e-mail aplicando TODAS as sugestões acima. Retorne apenas JSON.`;
 
-    // Inject rewritten blocks back into original HTML
-    let html = data.html;
-    const blocks: Record<string, string> = result.blocks ?? {};
-    for (const [key, newText] of Object.entries(blocks)) {
-      const original = textBlocks[key];
-      if (original && newText && original !== newText) {
-        html = html.replace(original, String(newText));
-      }
+    const result = await callGemini(
+      [{ role: "system", content: sys }, { role: "user", content: user }],
+      [],
+      65536,
+    );
+
+    if (!result.html) throw new Error("A IA não gerou o HTML. Tente novamente.");
+
+    let html = result.html;
+    if (styles) {
+      const idx = html.indexOf("</head>");
+      if (idx !== -1) html = html.slice(0, idx) + styles + html.slice(idx);
+      else html = styles + html;
     }
 
     return { subject: result.subject ?? data.subject, html } as GeneratedEmail;
