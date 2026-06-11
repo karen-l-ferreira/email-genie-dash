@@ -401,3 +401,68 @@ Retorne apenas JSON.`;
     );
     return payload;
   });
+
+// ─── Generate new email from analysis ────────────────────────────────────────
+
+export type GeneratedEmail = {
+  subject: string;
+  html: string;
+};
+
+const GenerateEmailInput = z.object({
+  campaign_id: z.string().min(1).max(64),
+  message_id: z.string().min(1).max(64),
+  subject: z.string().max(500),
+  html: z.string().max(200000),
+  analysis: z.object({
+    score: z.number(),
+    strengths: z.array(z.string()),
+    weaknesses: z.array(z.string()),
+    suggestions: z.array(z.any()),
+  }),
+});
+
+export const generateEmailFromAnalysis = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => GenerateEmailInput.parse(d))
+  .handler(async ({ data }) => {
+    const sys = `Você é um especialista em copywriting e HTML de e-mail marketing. Responda SEMPRE em português do Brasil (PT-BR).
+
+Com base na análise fornecida, gere uma versão melhorada do e-mail aplicando todas as sugestões e corrigindo os pontos fracos identificados. Regras:
+- Mantenha a mesma estrutura HTML (layout, links, imagens, rodapé, cores da marca)
+- Reescreva apenas o copy: assunto, títulos, corpo do texto e CTAs
+- Aplique as melhorias sugeridas na análise
+- Mantenha o tom de voz da marca
+- Retorne JSON estrito sem markdown: {"subject":"novo assunto","html":"<html completo melhorado>"}`;
+
+    const { clean: htmlClean, styles } = stripStyles(data.html);
+    const htmlClipped = htmlClean.slice(0, 40000);
+
+    const analysisText = `Pontuação atual: ${data.analysis.score}/100
+Pontos fracos a corrigir: ${data.analysis.weaknesses.join("; ") || "nenhum"}
+Sugestões a aplicar: ${data.analysis.suggestions.map((s: any) => s.description).join("; ") || "nenhuma"}`;
+
+    const user = `Assunto original: ${data.subject}
+
+Análise do e-mail:
+${analysisText}
+
+HTML original (estilos CSS removidos para economizar espaço — mantenha a estrutura):
+${htmlClipped}
+
+Retorne apenas JSON com o e-mail melhorado.`;
+
+    const result = await callGemini([
+      { role: "system", content: sys },
+      { role: "user", content: user },
+    ]);
+
+    let html = result.html ?? data.html;
+    if (styles) {
+      const idx = html.indexOf("</head>");
+      if (idx !== -1) html = html.slice(0, idx) + styles + html.slice(idx);
+      else html = styles + html;
+    }
+
+    return { subject: result.subject ?? data.subject, html } as GeneratedEmail;
+  });

@@ -4,7 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { getCampaign, getCampaignMessages, listCampaigns, type CampaignMessage } from "@/lib/ac.functions";
 import { getSettings } from "@/lib/settings.functions";
-import { getMessageAnalysis, getRecommendations, getVariations, type MessageAnalysis, type Recommendation } from "@/lib/ai.functions";
+import { getMessageAnalysis, getRecommendations, getVariations, generateEmailFromAnalysis, type MessageAnalysis, type Recommendation, type GeneratedEmail } from "@/lib/ai.functions";
 import { AuthGate } from "@/components/app/AuthGate";
 import { AppHeader } from "@/components/app/Header";
 import { MetricCard } from "@/components/app/MetricCard";
@@ -12,7 +12,7 @@ import { CampaignStatusBadge } from "@/components/app/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { ArrowLeft, CheckCircle2, Copy, Download, Mail, RefreshCw, Sparkles, XCircle } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Copy, Download, Mail, RefreshCw, Sparkles, Wand2, XCircle } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -53,6 +53,7 @@ function CampaignDetailPage() {
   const fetchVars = useServerFn(getVariations);
   const fetchMessages = useServerFn(getCampaignMessages);
   const fetchMsgAnalysis = useServerFn(getMessageAnalysis);
+  const fetchGenerateEmail = useServerFn(generateEmailFromAnalysis);
 
   const settingsQ = useQuery({ queryKey: ["settings"], queryFn: () => fetchSettings() });
   const cQ = useQuery({ queryKey: ["campaign", id], queryFn: () => fetchCampaign({ data: { id } }) });
@@ -322,6 +323,7 @@ function CampaignDetailPage() {
               isError={messagesQ.isError}
               error={messagesQ.error as Error | null}
               fetchAnalysis={fetchMsgAnalysis as FetchAnalysis}
+              fetchGenerate={fetchGenerateEmail as FetchGenerate}
             />
           </TabsContent>
         </Tabs>
@@ -396,17 +398,25 @@ type FetchAnalysis = (opts: {
   data: { campaign_id: string; message_id: string; subject: string; html: string; refresh?: boolean };
 }) => Promise<{ analysis: MessageAnalysis }>;
 
-function MessagesTab({ campaignId, messages, isLoading, isError, error, fetchAnalysis }: {
+type FetchGenerate = (opts: {
+  data: { campaign_id: string; message_id: string; subject: string; html: string; analysis: MessageAnalysis };
+}) => Promise<GeneratedEmail>;
+
+function MessagesTab({ campaignId, messages, isLoading, isError, error, fetchAnalysis, fetchGenerate }: {
   campaignId: string;
   messages: CampaignMessage[];
   isLoading: boolean;
   isError: boolean;
   error: Error | null;
   fetchAnalysis: FetchAnalysis;
+  fetchGenerate: FetchGenerate;
 }) {
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [analyses, setAnalyses] = useState<Record<string, MessageAnalysis>>({});
   const [loading, setLoading] = useState<Record<string, boolean>>({});
+  const [generatedEmail, setGeneratedEmail] = useState<GeneratedEmail | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [generateOpen, setGenerateOpen] = useState(false);
 
   const msg = messages[selectedIdx];
 
@@ -420,6 +430,21 @@ function MessagesTab({ campaignId, messages, isLoading, isError, error, fetchAna
       toast.error((e as Error).message);
     } finally {
       setLoading((prev) => ({ ...prev, [m.id]: false }));
+    }
+  }
+
+  async function generateEmail(m: CampaignMessage, analysis: MessageAnalysis) {
+    setGenerating(true);
+    setGeneratedEmail(null);
+    setGenerateOpen(true);
+    try {
+      const res = await fetchGenerate({ data: { campaign_id: campaignId, message_id: m.id, subject: m.subject, html: m.html, analysis } });
+      setGeneratedEmail(res);
+    } catch (e) {
+      toast.error((e as Error).message);
+      setGenerateOpen(false);
+    } finally {
+      setGenerating(false);
     }
   }
 
@@ -557,14 +582,55 @@ function MessagesTab({ campaignId, messages, isLoading, isError, error, fetchAna
                   </div>
                 )}
 
-                <Button variant="outline" size="sm" onClick={() => analyzeMessage(msg, true)}>
-                  Reanalisar
-                </Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => analyzeMessage(msg, true)}>
+                    <RefreshCw className="mr-1.5 h-3.5 w-3.5" />Reanalisar
+                  </Button>
+                  <Button size="sm" onClick={() => generateEmail(msg, analysis)}>
+                    <Wand2 className="mr-1.5 h-3.5 w-3.5" />Gerar novo e-mail
+                  </Button>
+                </div>
               </>
             )}
           </div>
         </div>
       )}
+
+      {/* Sheet: e-mail gerado pela IA */}
+      <Sheet open={generateOpen} onOpenChange={setGenerateOpen}>
+        <SheetContent className="w-full overflow-y-auto bg-background sm:max-w-3xl">
+          <SheetHeader>
+            <SheetTitle>E-mail Gerado pela IA</SheetTitle>
+          </SheetHeader>
+          {generating ? (
+            <div className="mt-8 space-y-3">
+              <div className="h-8 w-1/2 animate-pulse rounded bg-surface" />
+              <div className="h-64 animate-pulse rounded bg-surface" />
+            </div>
+          ) : generatedEmail ? (
+            <div className="mt-6 space-y-4">
+              <div className="rounded-xl border border-border bg-card p-4">
+                <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Novo assunto</div>
+                <div className="mt-2 flex items-center gap-2">
+                  <p className="flex-1 text-sm font-medium">{generatedEmail.subject}</p>
+                  <Button size="sm" variant="ghost" onClick={() => { navigator.clipboard.writeText(generatedEmail.subject); toast.success("Assunto copiado"); }}>
+                    <Copy className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+              <div className="rounded-xl border border-border bg-card p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Prévia</div>
+                  <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(generatedEmail.html); toast.success("HTML copiado"); }}>
+                    <Copy className="mr-1.5 h-3.5 w-3.5" />Copiar HTML
+                  </Button>
+                </div>
+                <iframe srcDoc={generatedEmail.html} className="h-[520px] w-full rounded-md border border-border bg-white" sandbox="" title="generated-email" />
+              </div>
+            </div>
+          ) : null}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
