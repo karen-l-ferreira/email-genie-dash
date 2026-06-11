@@ -94,6 +94,7 @@ export type Campaign = {
   open_rate: number;
   ctr: number;
   score: number;
+  listId: string | null;
 };
 
 export type CampaignMessage = {
@@ -146,6 +147,7 @@ function mapCampaign(c: any): Campaign {
     open_rate,
     ctr,
     score,
+    listId: c.list ? String(c.list) : null,
   };
 }
 
@@ -296,7 +298,8 @@ export type ContactSummary = {
   email: string;
   firstName: string;
   lastName: string;
-  fieldValues: Record<string, string>; // fieldId → value
+  accountId: string | null;
+  fieldValues: Record<string, string>; // contact fieldId → value
 };
 
 export const listContactFields = createServerFn({ method: "GET" })
@@ -314,24 +317,33 @@ export const listContactFields = createServerFn({ method: "GET" })
 
 export const listContactsForAnalysis = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ offset: z.number().int().min(0).optional() }).parse(d ?? {}))
+  .inputValidator((d) => z.object({ offset: z.number().int().min(0).optional(), listId: z.string().optional() }).parse(d ?? {}))
   .handler(async ({ data, context }) => {
     const creds = await getCreds(context.supabase, context.userId);
-    const json = await acFetch(creds, "contacts", {
+    const params: Record<string, string> = {
       limit: "100",
       offset: String(data.offset ?? 0),
-      include: "fieldValues",
+      include: "fieldValues,accountContacts",
       "orders[id]": "DESC",
-    });
+    };
+    if (data.listId) params["listid"] = data.listId;
+    const json = await acFetch(creds, "contacts", params);
 
-    // fieldValues is a separate top-level array in the AC response
+    // fieldValues: separate top-level array keyed by contact id
     const fvMap: Record<string, Record<string, string>> = {};
-    const fieldValuesArr: any[] = json.fieldValues ?? [];
-    for (const fv of fieldValuesArr) {
+    for (const fv of (json.fieldValues ?? []) as any[]) {
       if (!fv.contact || !fv.field || fv.value == null || fv.value === "") continue;
       const cid = String(fv.contact);
       if (!fvMap[cid]) fvMap[cid] = {};
       fvMap[cid][String(fv.field)] = String(fv.value);
+    }
+
+    // accountContacts: array of {contact, account} links
+    const acctMap: Record<string, string> = {}; // contactId → accountId
+    for (const ac of (json.accountContacts ?? []) as any[]) {
+      if (ac.contact && ac.account) {
+        acctMap[String(ac.contact)] = String(ac.account);
+      }
     }
 
     const contacts: ContactSummary[] = (json.contacts ?? []).map((c: any) => ({
@@ -339,8 +351,65 @@ export const listContactsForAnalysis = createServerFn({ method: "GET" })
       email: c.email ?? "",
       firstName: c.firstName ?? c.firstname ?? "",
       lastName: c.lastName ?? c.lastname ?? "",
+      accountId: acctMap[String(c.id)] ?? null,
       fieldValues: fvMap[String(c.id)] ?? {},
     }));
 
     return { contacts, total: Number(json.meta?.total ?? contacts.length) };
+  });
+
+// ─── Account custom fields & data ────────────────────────────────────────────
+
+export type AccountField = {
+  id: string;
+  title: string;
+  type: string;
+};
+
+export type AccountSummary = {
+  id: string;
+  name: string;
+  fieldValues: Record<string, string>; // customFieldId → value
+};
+
+export const listAccountFields = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const creds = await getCreds(context.supabase, context.userId);
+    const json = await acFetch(creds, "accountCustomFieldMeta", { limit: "100" });
+    const fields: AccountField[] = (json.accountCustomFieldMeta ?? []).map((f: any) => ({
+      id: String(f.id),
+      title: f.fieldLabel ?? f.fieldType ?? `Campo ${f.id}`,
+      type: f.fieldType ?? "text",
+    }));
+    return { fields };
+  });
+
+export const listAccountsForAnalysis = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ offset: z.number().int().min(0).optional() }).parse(d ?? {}))
+  .handler(async ({ data, context }) => {
+    const creds = await getCreds(context.supabase, context.userId);
+    const json = await acFetch(creds, "accounts", {
+      limit: "100",
+      offset: String(data.offset ?? 0),
+      include: "accountCustomFieldData",
+    });
+
+    // accountCustomFieldData: separate top-level array
+    const fvMap: Record<string, Record<string, string>> = {};
+    for (const fv of (json.accountCustomFieldData ?? []) as any[]) {
+      if (!fv.accountId || !fv.customFieldId || fv.fieldValue == null || fv.fieldValue === "") continue;
+      const aid = String(fv.accountId);
+      if (!fvMap[aid]) fvMap[aid] = {};
+      fvMap[aid][String(fv.customFieldId)] = String(fv.fieldValue);
+    }
+
+    const accounts: AccountSummary[] = (json.accounts ?? []).map((a: any) => ({
+      id: String(a.id),
+      name: a.name ?? "(sem nome)",
+      fieldValues: fvMap[String(a.id)] ?? {},
+    }));
+
+    return { accounts, total: Number(json.meta?.total ?? accounts.length) };
   });

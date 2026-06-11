@@ -126,17 +126,18 @@ function InfluenciaPage() {
     setContacts([]);
     setLoaded(false);
     try {
-      const first = await fetchContacts({ data: { offset: 0 } });
+      const listId = selectedCampaign?.listId ?? undefined;
+      const first = await fetchContacts({ data: { offset: 0, listId } });
       setTotalContacts(first.total);
       const pages = Math.ceil(first.total / 100);
       const offsets = Array.from({ length: pages - 1 }, (_, i) => (i + 1) * 100);
-      const rest = await Promise.all(offsets.map((o) => fetchContacts({ data: { offset: o } })));
+      const rest = await Promise.all(offsets.map((o) => fetchContacts({ data: { offset: o, listId } })));
       setContacts([...first.contacts, ...rest.flatMap((r) => r.contacts)]);
       setLoaded(true);
     } finally {
       setLoadingAll(false);
     }
-  }, [fetchContacts, selectedCampaignId, operationFieldId]);
+  }, [fetchContacts, selectedCampaignId, operationFieldId, selectedCampaign]);
 
   const rows: AnalysisRow[] = useMemo(() => {
     if (!loaded || !selectedCampaign || !operationFieldId) return [];
@@ -193,7 +194,7 @@ function InfluenciaPage() {
           <div>
             <h1 className="text-2xl font-semibold">Análise de Influência</h1>
             <p className="text-sm text-muted-foreground">
-              O contato recebeu o e-mail e operou logo em seguida?
+              Quem recebeu o e-mail e operou logo em seguida?
             </p>
           </div>
         </div>
@@ -336,7 +337,7 @@ function InfluenciaPage() {
               {!selectedCampaignId ? "Selecione a campanha enviada." : "Clique em \"Rodar análise\"."}
             </p>
             <p className="mt-2 text-xs text-muted-foreground">
-              Cruza o envio do e-mail com o campo <strong>{FIELD_TITLE}</strong> do contato no AC.
+              Cruza o envio com o campo <strong>{FIELD_TITLE}</strong> — apenas contatos da lista da campanha.
             </p>
           </div>
         )}
