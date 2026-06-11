@@ -6,32 +6,27 @@ const MODEL = "gemini-2.5-flash";
 
 type ImagePart = { inlineData: { mimeType: string; data: string } };
 
-async function callGemini(
+async function callGeminiRaw(
   messages: Array<{ role: string; content: string }>,
-  imageParts: ImagePart[] = [],
-  maxTokens = 8192,
+  opts: { maxTokens?: number; jsonMode?: boolean } = {},
 ) {
   const key = process.env.GOOGLE_AI_API_KEY;
   if (!key) throw new Error("GOOGLE_AI_API_KEY não configurada");
 
+  const { maxTokens = 8192, jsonMode = true } = opts;
   const systemMsg = messages.find((m) => m.role === "system");
   const userMessages = messages.filter((m) => m.role !== "system");
 
-  const contents = userMessages.map((m, i) => {
-    const textPart = { text: m.content };
-    // attach images to the last user message
-    const isLast = i === userMessages.length - 1;
-    return {
-      role: m.role === "assistant" ? "model" : "user",
-      parts: isLast && imageParts.length > 0 ? [textPart, ...imageParts] : [textPart],
-    };
-  });
+  const contents = userMessages.map((m) => ({
+    role: m.role === "assistant" ? "model" : "user",
+    parts: [{ text: m.content }],
+  }));
 
   const body: Record<string, unknown> = {
     contents,
     generationConfig: {
-      responseMimeType: "application/json",
       maxOutputTokens: maxTokens,
+      ...(jsonMode ? { responseMimeType: "application/json" } : {}),
     },
   };
 
@@ -55,8 +50,16 @@ async function callGemini(
   }
 
   const json = await res.json();
-  const content = json.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
-  return parseJSON(content);
+  return json.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+}
+
+async function callGemini(
+  messages: Array<{ role: string; content: string }>,
+  imageParts: ImagePart[] = [],
+  maxTokens = 8192,
+) {
+  const text = await callGeminiRaw(messages, { maxTokens, jsonMode: true });
+  return parseJSON(text || "{}");
 }
 
 function extractTextBlocks(html: string): Record<string, string> {
@@ -487,12 +490,12 @@ ${htmlClipped}
 
 Redesenhe e reescreva o e-mail aplicando TODAS as sugestões acima. Retorne apenas JSON.`;
 
-    const result = await callGemini(
+    const raw = await callGeminiRaw(
       [{ role: "system", content: sys }, { role: "user", content: user }],
-      [],
-      65536,
+      { maxTokens: 32768, jsonMode: false },
     );
 
+    const result = parseJSON(raw);
     if (!result.html) throw new Error("A IA não gerou o HTML. Tente novamente.");
 
     let html = result.html;
