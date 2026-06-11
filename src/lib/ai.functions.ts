@@ -531,8 +531,11 @@ REGRAS:
 - Cores e identidade da marca podem ser ajustadas mas não eliminadas
 - O HTML deve ser válido e funcionar em clientes de e-mail
 
-Retorne JSON estrito sem markdown:
-{"subject":"novo assunto","html":"html completo redesenhado"}`;
+Responda EXATAMENTE neste formato, sem mais nada:
+SUBJECT: <novo assunto aqui>
+===HTML_START===
+<html completo redesenhado aqui>
+===HTML_END===`;
 
     const { clean: htmlClean, styles } = stripStyles(data.html);
     const htmlClipped = htmlClean.slice(0, 35000);
@@ -549,22 +552,25 @@ ${suggestions}
 === HTML ORIGINAL ===
 ${htmlClipped}
 
-Redesenhe e reescreva o e-mail aplicando TODAS as sugestões acima. Retorne apenas JSON.`;
+Redesenhe e reescreva o e-mail aplicando TODAS as sugestões acima.`;
 
     const raw = await callGeminiRaw(
       [{ role: "system", content: sys }, { role: "user", content: user }],
       { maxTokens: 32768, jsonMode: false },
     );
 
-    const result = parseJSON(raw);
-    if (!result.html) throw new Error("A IA não gerou o HTML. Tente novamente.");
+    const htmlMatch = raw.match(/===HTML_START===\s*([\s\S]*?)\s*===HTML_END===/);
+    if (!htmlMatch?.[1]) throw new Error("A IA não gerou o HTML. Tente novamente.");
 
-    let html = result.html;
+    const subjectMatch = raw.match(/^SUBJECT:\s*(.+)/m);
+    const newSubject = subjectMatch?.[1]?.trim() || data.subject;
+
+    let html = htmlMatch[1];
     if (styles) {
       const idx = html.indexOf("</head>");
       if (idx !== -1) html = html.slice(0, idx) + styles + html.slice(idx);
       else html = styles + html;
     }
 
-    return { subject: result.subject ?? data.subject, html } as GeneratedEmail;
+    return { subject: newSubject, html } as GeneratedEmail;
   });
