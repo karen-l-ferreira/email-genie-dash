@@ -58,6 +58,26 @@ async function callGemini(
   return parseJSON(content);
 }
 
+function extractTextBlocks(html: string): Record<string, string> {
+  const blocks: Record<string, string> = {};
+  let idx = 0;
+  // Match text content inside meaningful tags, ignoring scripts/styles/imgs
+  const re = /(?<=<(?:p|h1|h2|h3|h4|td|th|span|div|a|li|strong|em|b)[^>]*>)([^<]{8,})(?=<\/)/gi;
+  let m: RegExpExecArray | null;
+  const seen = new Set<string>();
+  while ((m = re.exec(html)) !== null) {
+    const text = m[1].trim();
+    if (!text || seen.has(text)) continue;
+    // skip footer/unsubscribe boilerplate
+    if (/descadast|unsubscri|privacidade|©|\d{4} all rights/i.test(text)) continue;
+    seen.add(text);
+    idx++;
+    blocks[String(idx)] = text;
+    if (idx >= 30) break;
+  }
+  return blocks;
+}
+
 function extractImageUrls(html: string): string[] {
   const urls: string[] = [];
   const re = /<img[^>]+src=["']([^"']+)["']/gi;
@@ -426,59 +446,55 @@ export const generateEmailFromAnalysis = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => GenerateEmailInput.parse(d))
   .handler(async ({ data }) => {
-    const sys = `Você é um copywriter sênior especialista em e-mail marketing. Responda SEMPRE em português do Brasil (PT-BR).
-
-Sua tarefa é reescrever o e-mail abaixo aplicando TODAS as melhorias identificadas na análise. Você DEVE fazer mudanças reais e perceptíveis no copy — não retorne o mesmo texto.
-
-O que você DEVE mudar obrigatoriamente:
-- ASSUNTO: reescreva completamente para ser mais atrativo, direto e com senso de urgência ou curiosidade
-- HEADLINE/TÍTULO principal: reescreva para ser mais impactante
-- CORPO DO TEXTO: reescreva os parágrafos aplicando as sugestões — seja mais claro, conciso e persuasivo
-- CTA (botões): reescreva o texto dos botões para ser mais ativo e específico (ex: "Ver minha proposta" em vez de "Clique aqui")
-
-O que você deve preservar:
-- Estrutura HTML (divs, tabelas, layout)
-- Imagens (tags <img> com os mesmos src)
-- Links (tags <a> com os mesmos href)
-- Cores, fontes e estilos CSS
-- Rodapé e informações legais
-
-Retorne JSON estrito sem markdown: {"subject":"novo assunto reescrito","html":"<html completo com copy reescrito>"}`;
-
-    const { clean: htmlClean, styles } = stripStyles(data.html);
-    const htmlClipped = htmlClean.slice(0, 40000);
+    // Extract visible text blocks from HTML to rewrite only the copy
+    const textBlocks = extractTextBlocks(data.html);
 
     const weaknesses = data.analysis.weaknesses.length > 0
       ? data.analysis.weaknesses.map((w, i) => `${i + 1}. ${w}`).join("\n")
-      : "Nenhum ponto fraco identificado — mesmo assim melhore o copy.";
+      : "Melhore persuasão e clareza geral.";
     const suggestions = data.analysis.suggestions.length > 0
       ? data.analysis.suggestions.map((s: any, i: number) => `${i + 1}. [${s.priority}] ${s.title}: ${s.description}`).join("\n")
-      : "Melhore a persuasão e clareza geral.";
+      : "Torne o copy mais persuasivo e os CTAs mais ativos.";
+
+    const sys = `Você é um copywriter sênior de e-mail marketing. Responda SEMPRE em português do Brasil (PT-BR).
+Você receberá o assunto e os blocos de texto de um e-mail numerados. Reescreva CADA bloco aplicando as melhorias da análise.
+Regras obrigatórias:
+- Todo bloco DEVE ser diferente do original — não repita o mesmo texto
+- Assunto: mais atrativo, com urgência ou curiosidade (máx 60 caracteres)
+- Headlines: mais impactantes e diretas
+- Parágrafos: mais claros, concisos e persuasivos
+- CTAs/botões: verbos de ação específicos ("Garantir minha vaga" > "Clique aqui")
+- Mantenha o tom e a identidade da marca
+Retorne JSON estrito: {"subject":"novo assunto","blocks":{"1":"texto reescrito","2":"texto reescrito",...}}`;
+
+    const blocksText = Object.entries(textBlocks)
+      .map(([k, v]) => `[${k}] ${v}`)
+      .join("\n");
 
     const user = `Assunto original: "${data.subject}"
 
-=== ANÁLISE (score: ${data.analysis.score}/100) ===
-Pontos fracos a corrigir:
-${weaknesses}
+Análise (score ${data.analysis.score}/100):
+Pontos fracos: ${weaknesses}
+Sugestões: ${suggestions}
 
-Sugestões obrigatórias a aplicar:
-${suggestions}
+Blocos de texto do e-mail:
+${blocksText}
 
-=== HTML ORIGINAL ===
-${htmlClipped}
-
-Reescreva o e-mail aplicando TODAS as sugestões acima. O assunto e o copy devem ser visivelmente diferentes do original. Retorne apenas JSON.`;
+Reescreva todos os blocos acima. Retorne apenas JSON.`;
 
     const result = await callGemini([
       { role: "system", content: sys },
       { role: "user", content: user },
     ]);
 
-    let html = result.html ?? data.html;
-    if (styles) {
-      const idx = html.indexOf("</head>");
-      if (idx !== -1) html = html.slice(0, idx) + styles + html.slice(idx);
-      else html = styles + html;
+    // Inject rewritten blocks back into original HTML
+    let html = data.html;
+    const blocks: Record<string, string> = result.blocks ?? {};
+    for (const [key, newText] of Object.entries(blocks)) {
+      const original = textBlocks[key];
+      if (original && newText && original !== newText) {
+        html = html.replace(original, String(newText));
+      }
     }
 
     return { subject: result.subject ?? data.subject, html } as GeneratedEmail;
