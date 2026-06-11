@@ -61,15 +61,16 @@ async function callGemini(
 function extractTextBlocks(html: string): Record<string, string> {
   const blocks: Record<string, string> = {};
   let idx = 0;
-  // Match text content inside meaningful tags, ignoring scripts/styles/imgs
   const re = /(?<=<(?:p|h1|h2|h3|h4|td|th|span|div|a|li|strong|em|b)[^>]*>)([^<]{8,})(?=<\/)/gi;
   let m: RegExpExecArray | null;
   const seen = new Set<string>();
   while ((m = re.exec(html)) !== null) {
     const text = m[1].trim();
     if (!text || seen.has(text)) continue;
+    // skip blocks with AC placeholders (%VAR%) — never rewrite these
+    if (/%[A-Z0-9_]+%/.test(text)) continue;
     // skip footer/unsubscribe boilerplate
-    if (/descadast|unsubscri|privacidade|©|\d{4} all rights/i.test(text)) continue;
+    if (/descadast|unsubscri|privacidade|©|\d{4} all rights|não responda|e-mail automático/i.test(text)) continue;
     seen.add(text);
     idx++;
     blocks[String(idx)] = text;
