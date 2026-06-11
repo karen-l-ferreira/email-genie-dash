@@ -71,10 +71,11 @@ function CampaignDetailPage() {
     }
   }, [c]);
 
+  const [recsEnabled, setRecsEnabled] = useState(false);
   const [recsRefresh, setRecsRefresh] = useState(false);
   const recsQ = useQuery({
     queryKey: ["recs", id, recsRefresh],
-    enabled: !!c && !!settingsQ.data,
+    enabled: recsEnabled && !!c && !!settingsQ.data,
     queryFn: () =>
       fetchRecs({
         data: {
@@ -284,13 +285,21 @@ function CampaignDetailPage() {
                   <Sparkles className="h-4 w-4 text-primary" />
                   <h2 className="text-base font-semibold">Recomendações de Melhoria por IA</h2>
                 </div>
-                {recsQ.data && !recsQ.isLoading && (
-                  <Button variant="outline" size="sm" onClick={() => setRecsRefresh((v) => !v)} disabled={recsQ.isLoading}>
-                    Reanalisar
+                {!recsEnabled ? (
+                  <Button size="sm" onClick={() => setRecsEnabled(true)}>
+                    <Sparkles className="mr-1.5 h-3.5 w-3.5" />Gerar recomendações
+                  </Button>
+                ) : recsQ.data && !recsQ.isLoading && (
+                  <Button variant="outline" size="sm" onClick={() => { setRecsRefresh((v) => !v); }} disabled={recsQ.isLoading}>
+                    <RefreshCw className="mr-1.5 h-3.5 w-3.5" />Reanalisar
                   </Button>
                 )}
               </div>
-              {recsQ.isLoading ? (
+              {!recsEnabled ? (
+                <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+                  Clique em "Gerar recomendações" para analisar esta campanha com IA.
+                </div>
+              ) : recsQ.isLoading ? (
                 <div className="grid gap-3 md:grid-cols-2">
                   {[0, 1, 2, 3].map((i) => <div key={i} className="h-24 animate-pulse rounded-xl bg-surface" />)}
                 </div>
@@ -306,7 +315,7 @@ function CampaignDetailPage() {
                 </div>
               )}
               <div className="mt-6">
-                <Button size="lg" disabled={!recsQ.data || varsM.isPending} onClick={() => { setDrawerOpen(true); varsM.mutate(false); }}>
+                <Button size="lg" disabled={!recsEnabled || !recsQ.data || varsM.isPending} onClick={() => { setDrawerOpen(true); varsM.mutate(false); }}>
                   <Sparkles className="mr-2 h-4 w-4" />
                   {varsM.isPending ? "Gerando…" : "Gerar 3 Variações com IA"}
                 </Button>
