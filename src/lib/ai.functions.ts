@@ -435,6 +435,60 @@ Retorne apenas JSON.`;
     return payload;
   });
 
+// ─── Free-form email analysis (no campaign required) ─────────────────────────
+
+const FreeAnalysisInput = z.object({
+  subject: z.string().max(500),
+  html: z.string().max(200000),
+});
+
+export const analyzeEmailFree = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => FreeAnalysisInput.parse(d))
+  .handler(async ({ data }) => {
+    const sys = `Você é um especialista sênior em e-mail marketing. Responda SEMPRE em português do Brasil (PT-BR).
+
+Analise o e-mail de forma completa e honesta. Avalie cada dimensão abaixo:
+
+- ASSUNTO: clareza, curiosidade, urgência, tamanho (ideal: 40-60 caracteres), uso de emojis, personalização com nome/empresa, evitar palavras de spam (grátis, promoção, clique aqui), power words, números específicos
+- PREHEADER: presença e qualidade do texto de previsualização (complementa o assunto sem repetir), tamanho ideal (85-100 caracteres)
+- REMETENTE: nome do remetente é reconhecível e confiável, endereço de e-mail profissional
+- HEADLINE: impacto, clareza, alinhamento com o assunto, hierarquia visual, se a proposta de valor está clara nos primeiros 3 segundos
+- CORPO DO TEXTO: tamanho (ideal: objetivo e conciso), tom de voz consistente com a marca, uso de bullet points para facilitar escaneabilidade, storytelling ou lógica de persuasão (problema → solução → benefício), personalização além do nome (%VARIAVEL%), linguagem ativa vs passiva
+- PROPOSTA DE VALOR: está clara? o leitor sabe o que ganha? benefícios vs características, urgência e escassez (quando pertinente)
+- CTA: quantidade (1 principal é o ideal), texto do botão (verbo de ação específico vs genérico), cor e contraste do botão, posicionamento (acima da dobra e ao final), repetição do CTA em e-mails longos
+- IMAGENS: relevância das imagens para a mensagem, proporção texto/imagem (ideal 60/40), alt text preenchido para quando imagens não carregam, imagens como apoio ao texto (não substituem o copy)
+- DESIGN E LAYOUT: hierarquia visual clara, espaçamento entre seções, uso de cores consistente com a marca, largura do e-mail (ideal: 600px), separação visual entre blocos de conteúdo
+- PERSONALIZAÇÃO E SEGMENTAÇÃO: uso de variáveis dinâmicas, conteúdo relevante para o segmento, contexto do envio condiz com o conteúdo
+- MOBILE: layout responsivo, fontes legíveis (mín. 14px corpo, 22px títulos), botões com altura mínima de 44px, imagens adaptáveis, colunas que empilham corretamente
+- ESTRUTURA TÉCNICA: header com logo, footer com endereço físico, link de descadastro obrigatório, link para visualizar no navegador, política de privacidade, razão para receber o e-mail
+
+REGRA CRÍTICA: só aponte pontos fracos e sugestões SE realmente existirem. Um e-mail bem feito pode ter 0 pontos fracos e 0 sugestões — não invente críticas só para preencher. Seja direto e específico.
+
+Retorne JSON estrito:
+{"analysis":{"score":0-100,"strengths":["o que está bom e por quê — seja específico"],"weaknesses":["problema real e concreto — omita se não houver"],"suggestions":[{"priority":"P1"|"P2"|"P3","category":"CONTENT"|"SEGMENTATION"|"TIMING"|"CHANNEL","title":"título curto","description":"o que mudar e por quê, com exemplos concretos"}]}}
+
+strengths: 1 a 5 itens (só o que genuinamente se destaca)
+weaknesses: 0 a 4 itens (deixe vazio [] se o e-mail for bom nesse aspecto)
+suggestions: 0 a 4 itens (só se houver melhoria real com impacto mensurável)`;
+
+    const { clean: htmlClean } = stripStyles(data.html);
+    const htmlClipped = htmlClean.slice(0, 40000);
+
+    const user = `Assunto: ${data.subject || "(não informado)"}
+
+HTML do e-mail:
+${htmlClipped}
+
+Retorne apenas JSON.`;
+
+    const result = await callGemini(
+      [{ role: "system", content: sys }, { role: "user", content: user }],
+    );
+    if (!result.analysis) throw new Error("A IA não retornou uma análise válida. Tente novamente.");
+    return { analysis: result.analysis as MessageAnalysis };
+  });
+
 // ─── Generate new email from analysis ────────────────────────────────────────
 
 export type GeneratedEmail = {
