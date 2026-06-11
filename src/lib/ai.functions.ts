@@ -399,21 +399,15 @@ suggestions: 0 a 4 itens (só se houver melhoria real com impacto mensurável)`;
     const { clean: htmlClean } = stripStyles(data.html);
     const htmlClipped = htmlClean.slice(0, 40000);
 
-    const imageUrls = extractImageUrls(data.html);
-    const imageParts = await fetchImageParts(imageUrls);
-
     const user = `Assunto: ${data.subject}
 
 HTML do e-mail:
 ${htmlClipped}
 
-${imageParts.length > 0 ? `As ${imageParts.length} imagem(ns) do e-mail estão anexadas — analise o conteúdo visual delas também.` : "Este e-mail não possui imagens externas acessíveis."}
-
 Retorne apenas JSON.`;
 
     const result = await callGemini(
       [{ role: "system", content: sys }, { role: "user", content: user }],
-      imageParts,
     );
     if (!result.analysis) throw new Error("A IA não retornou uma análise válida. Tente novamente.");
     const analysis: MessageAnalysis = result.analysis ?? {
