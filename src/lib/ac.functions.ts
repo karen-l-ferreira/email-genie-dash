@@ -368,37 +368,21 @@ export const getAutomationMessages = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     const creds = await getCreds(context.supabase, context.userId);
 
-    // Campaigns linked to this automation — each campaign = one email step.
-    const json = await acFetch(creds, "campaigns", {
+    // Try querying messages directly by automation id
+    const json = await acFetch(creds, "messages", {
       "filters[automation]": data.id,
       limit: "100",
     });
-    const camps: any[] = json.campaigns ?? [];
-    const msgIds = [...new Set(
-      camps
-        .map((c: any) => c.message_id ? String(c.message_id) : null)
-        .filter(Boolean) as string[]
-    )];
+    const rawMessages: any[] = json.messages ?? [];
 
-    const messages: CampaignMessage[] = [];
-    await Promise.all(
-      msgIds.map(async (mid) => {
-        try {
-          const m = await acFetch(creds, `messages/${mid}`);
-          if (m.message) {
-            messages.push({
-              id: String(m.message.id ?? mid),
-              subject: m.message.subject ?? "",
-              html: m.message.html ?? "",
-              fromname: m.message.fromname ?? "",
-              fromemail: m.message.fromemail ?? "",
-            });
-          }
-        } catch {
-          // skip messages that fail
-        }
-      }),
-    );
+    const messages: CampaignMessage[] = rawMessages.map((m: any) => ({
+      id: String(m.id),
+      subject: m.subject ?? "",
+      html: m.html ?? "",
+      fromname: m.fromname ?? "",
+      fromemail: m.fromemail ?? "",
+    }));
+
     return { messages };
   });
 
