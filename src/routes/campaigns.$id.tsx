@@ -106,8 +106,10 @@ function CampaignDetailPage() {
     queryFn: () => fetchMessages({ data: { id } }),
   });
 
+  const [pageTab, setPageTab] = useState<"overview" | "regua" | "messages">("overview");
   const snapshotsQ = useQuery({
     queryKey: ["snapshots", id],
+    enabled: pageTab === "regua",
     queryFn: () => fetchListSnapshots({ data: { entity_id: id } }),
   });
 
@@ -142,7 +144,6 @@ function CampaignDetailPage() {
     onSuccess: () => snapshotsQ.refetch(),
   });
 
-  const [pageTab, setPageTab] = useState<"overview" | "messages">("overview");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const varsM = useMutation({
     mutationFn: (refresh = false) =>
@@ -239,7 +240,7 @@ function CampaignDetailPage() {
         </div>
 
         {/* Abas principais */}
-        <Tabs value={pageTab} onValueChange={(v) => setPageTab(v as typeof pageTab)} className="mt-8">
+        <Tabs value={pageTab} onValueChange={(v) => setPageTab(v as "overview" | "regua" | "messages")} className="mt-8">
           <TabsList className="bg-surface">
             <TabsTrigger value="overview">Visão Geral</TabsTrigger>
             <TabsTrigger value="regua"><BookmarkPlus className="mr-1.5 h-3.5 w-3.5" />Régua</TabsTrigger>

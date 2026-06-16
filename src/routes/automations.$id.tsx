@@ -53,10 +53,11 @@ function AutomationDetailPage() {
 
   const autoQ = useQuery({ queryKey: ["automation", id], queryFn: () => fetchAutomation({ data: { id } }) });
   const messagesQ = useQuery({ queryKey: ["automation-messages", id], enabled: !!autoQ.data, queryFn: () => fetchMessages({ data: { id } }) });
-  const snapshotsQ = useQuery({ queryKey: ["snapshots", id], queryFn: () => fetchListSnapshots({ data: { entity_id: id } }) });
+  const snapshotsQ = useQuery({ queryKey: ["snapshots", id], enabled: activeTab === "regua", queryFn: () => fetchListSnapshots({ data: { entity_id: id } }) });
 
   const a = autoQ.data?.automation;
 
+  const [activeTab, setActiveTab] = useState("recs");
   const [recsRefresh, setRecsRefresh] = useState(false);
   const recsQ = useQuery({
     queryKey: ["automation-recs", id, recsRefresh],
@@ -152,7 +153,7 @@ function AutomationDetailPage() {
         )}
 
         {/* Abas */}
-        <Tabs defaultValue="recs">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="bg-surface">
             <TabsTrigger value="recs"><Sparkles className="mr-1.5 h-3.5 w-3.5" />Recomendações</TabsTrigger>
             <TabsTrigger value="messages">
