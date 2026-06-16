@@ -368,15 +368,22 @@ export const getAutomationMessages = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     const creds = await getCreds(context.supabase, context.userId);
 
-    // Fetch campaigns filtered by automation. AC uses "filters[automation]" in the URL.
-    // We also filter in code as a safety net using all known field names.
+    // Fetch campaigns filtered by automation.
     const json = await acFetch(creds, "campaigns", {
       "filters[automation]": data.id,
       limit: "50",
     });
-    const camps: any[] = (json.campaigns ?? []).filter((c: any) =>
-      String(c.automation ?? c.series ?? c.seriesid ?? "") === data.id
-    );
+    const raw: any[] = json.campaigns ?? [];
+    // Log raw fields of first campaign to identify which field links to automation
+    if (raw.length > 0) {
+      const f = raw[0];
+      console.error("[AC_DEBUG] campaign fields:", JSON.stringify({
+        id: f.id, name: f.name, type: f.type,
+        automation: f.automation, series: f.series, seriesid: f.seriesid,
+        automationid: f.automationid, "automation_id": f["automation_id"],
+      }));
+    }
+    const camps: any[] = raw;
 
     const msgIds = [...new Set(
       camps.map((c: any) => c.message_id ? String(c.message_id) : null).filter(Boolean) as string[]
