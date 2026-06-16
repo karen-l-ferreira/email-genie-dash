@@ -146,7 +146,7 @@ function CampaignDetailPage() {
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const varsM = useMutation({
-    mutationFn: (refresh = false) =>
+    mutationFn: (refresh: boolean) =>
       fetchVars({ data: { campaign_id: id, subject, html, recommendations: recsQ.data?.recommendations ?? [], refresh } }),
   });
 
