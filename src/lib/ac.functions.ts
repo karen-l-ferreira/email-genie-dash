@@ -368,15 +368,12 @@ export const getAutomationMessages = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     const creds = await getCreds(context.supabase, context.userId);
 
-    // Automation email steps are campaigns of type "autoresponder" linked to the automation.
-    // "single" campaigns can also appear under the same automation ID (manual sends) — exclude them.
+    // Automation email steps — filtered by automation field from AC API.
     const json = await acFetch(creds, "campaigns", {
       "filters[automation]": data.id,
       limit: "50",
     });
-    const camps: any[] = (json.campaigns ?? []).filter(
-      (c: any) => c.type === "autoresponder"
-    );
+    const camps: any[] = json.campaigns ?? [];
 
     const msgIds = [...new Set(
       camps.map((c: any) => c.message_id ? String(c.message_id) : null).filter(Boolean) as string[]
