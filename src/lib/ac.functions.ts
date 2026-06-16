@@ -367,6 +367,7 @@ export type AutomationEmail = CampaignMessage & {
   campaignName: string;
   sends: number;
   uniqueopens: number;
+  linkclicks: number;
   uniquelinkclicks: number;
   open_rate: number;
   ctr: number;
@@ -393,6 +394,7 @@ export const getAutomationMessages = createServerFn({ method: "GET" })
         if (!m.message) continue;
         const sends = Number(c.send_amt ?? c.total_amt ?? 0);
         const uo = Number(c.uniqueopens ?? 0);
+        const lc = Number(c.linkclicks ?? 0);
         const ulc = Number(c.uniquelinkclicks ?? 0);
         emails.push({
           id: String(m.message.id ?? mid),
@@ -404,6 +406,7 @@ export const getAutomationMessages = createServerFn({ method: "GET" })
           fromemail: m.message.fromemail ?? "",
           sends,
           uniqueopens: uo,
+          linkclicks: lc,
           uniquelinkclicks: ulc,
           open_rate: sends > 0 ? (uo / sends) * 100 : 0,
           ctr: uo > 0 ? (ulc / uo) * 100 : 0,

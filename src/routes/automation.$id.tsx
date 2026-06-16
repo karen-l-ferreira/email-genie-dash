@@ -179,17 +179,19 @@ function AutomationDetailPage() {
         {messages.length > 0 && (() => {
           const totalSends = messages.reduce((s, m) => s + m.sends, 0);
           const totalOpens = messages.reduce((s, m) => s + m.uniqueopens, 0);
-          const totalClicks = messages.reduce((s, m) => s + m.uniquelinkclicks, 0);
+          const totalClicks = messages.reduce((s, m) => s + m.linkclicks, 0);
+          const totalUniqueClicks = messages.reduce((s, m) => s + m.uniquelinkclicks, 0);
           const avgOpenRate = messages.reduce((s, m) => s + m.open_rate, 0) / messages.length;
           const avgCtr = messages.reduce((s, m) => s + m.ctr, 0) / messages.length;
           return (
             <div>
               <h2 className="mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wider">Métricas da Régua</h2>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
                 {[
                   { label: "Total enviados", value: totalSends.toLocaleString("pt-BR") },
                   { label: "Total aberturas", value: totalOpens.toLocaleString("pt-BR") },
-                  { label: "Total cliques", value: totalClicks.toLocaleString("pt-BR") },
+                  { label: "Cliques totais", value: totalClicks.toLocaleString("pt-BR") },
+                  { label: "Cliques únicos", value: totalUniqueClicks.toLocaleString("pt-BR") },
                   { label: "Média abertura", value: `${avgOpenRate.toFixed(1)}%` },
                   { label: "Média CTR", value: `${avgCtr.toFixed(1)}%` },
                 ].map((stat) => (
@@ -263,10 +265,12 @@ function AutomationDetailPage() {
               {msg && (
                 <>
                   {/* Métricas do email selecionado */}
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
                     {[
                       { label: "Enviados", value: msg.sends.toLocaleString("pt-BR") },
                       { label: "Aberturas únicas", value: msg.uniqueopens.toLocaleString("pt-BR") },
+                      { label: "Cliques totais", value: msg.linkclicks.toLocaleString("pt-BR") },
+                      { label: "Cliques únicos", value: msg.uniquelinkclicks.toLocaleString("pt-BR") },
                       { label: "Taxa de abertura", value: `${msg.open_rate.toFixed(1)}%` },
                       { label: "CTR", value: `${msg.ctr.toFixed(1)}%` },
                     ].map((stat) => (
