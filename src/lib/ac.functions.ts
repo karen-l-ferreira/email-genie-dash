@@ -367,39 +367,15 @@ export const getAutomationMessages = createServerFn({ method: "GET" })
   .inputValidator((d) => z.object({ id: z.string().min(1).max(64) }).parse(d))
   .handler(async ({ data, context }) => {
     const creds = await getCreds(context.supabase, context.userId);
-    // Fetch automation email actions
-    // Try fetching automation emails via automationEmails endpoint
-    let msgIds: string[] = [];
-    try {
-      const json = await acFetch(creds, "automationEmails", {
-        "filters[automation]": data.id,
-        limit: "100",
-      });
-      const automationEmails: any[] = json.automationEmails ?? [];
-      msgIds = [...new Set(automationEmails.map((ae: any) => String(ae.message)).filter(Boolean))];
-    } catch (e) {
-      console.error("[getAutomationMessages] automationEmails failed:", e);
-    }
 
-    // Fallback: get message IDs from automation campaigns endpoint
-    if (msgIds.length === 0) {
-      try {
-        const json = await acFetch(creds, "campaigns", {
-          "filters[automation]": data.id,
-          limit: "50",
-        });
-        const camps: any[] = json.campaigns ?? [];
-        for (const c of camps) {
-          if (c.message_id) msgIds.push(String(c.message_id));
-          if (Array.isArray(c.relmessages)) {
-            c.relmessages.forEach((mid: any) => { if (mid) msgIds.push(String(mid)); });
-          }
-        }
-        msgIds = [...new Set(msgIds)];
-      } catch (e) {
-        console.error("[getAutomationMessages] campaigns fallback failed:", e);
-      }
-    }
+    // automationEmails returns the "send email" action steps in an automation.
+    // Each entry has a `message` field with the message ID.
+    const json = await acFetch(creds, "automationEmails", {
+      "filters[automation]": data.id,
+      limit: "100",
+    });
+    const automationEmails: any[] = json.automationEmails ?? [];
+    const msgIds = [...new Set(automationEmails.map((ae: any) => String(ae.message)).filter(Boolean))];
 
     const messages: CampaignMessage[] = [];
     await Promise.all(
