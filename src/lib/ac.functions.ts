@@ -423,7 +423,7 @@ export const saveSnapshot = createServerFn({ method: "POST" })
     }).parse(d),
   )
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase.from("metric_snapshots").insert({
+    const { error } = await (context.supabase as any).from("metric_snapshots").insert({
       user_id: context.userId,
       label: data.label,
       entity_type: data.entity_type,
@@ -441,12 +441,8 @@ export const listSnapshots = createServerFn({ method: "GET" })
     z.object({ entity_id: z.string().min(1).max(64).optional() }).parse(d ?? {}),
   )
   .handler(async ({ data, context }) => {
-    let q = context.supabase
-      .from("metric_snapshots")
-      .select("*")
-      .eq("user_id", context.userId)
-      .order("created_at", { ascending: false })
-      .limit(100);
+    const db = context.supabase as any;
+    let q = db.from("metric_snapshots").select("*").eq("user_id", context.userId).order("created_at", { ascending: false }).limit(100);
     if (data.entity_id) q = q.eq("entity_id", data.entity_id);
     const { data: rows, error } = await q;
     if (error) throw new Error(error.message);
@@ -457,11 +453,7 @@ export const deleteSnapshot = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    await context.supabase
-      .from("metric_snapshots")
-      .delete()
-      .eq("id", data.id)
-      .eq("user_id", context.userId);
+    await (context.supabase as any).from("metric_snapshots").delete().eq("id", data.id).eq("user_id", context.userId);
     return { ok: true };
   });
 
