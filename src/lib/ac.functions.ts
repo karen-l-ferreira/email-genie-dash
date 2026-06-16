@@ -362,46 +362,55 @@ export const listContactsForAnalysis = createServerFn({ method: "GET" })
 
 // ─── Automation messages ──────────────────────────────────────────────────────
 
+export type AutomationEmail = CampaignMessage & {
+  campaignId: string;
+  campaignName: string;
+  sends: number;
+  uniqueopens: number;
+  uniquelinkclicks: number;
+  open_rate: number;
+  ctr: number;
+};
+
 export const getAutomationMessages = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ id: z.string().min(1).max(64) }).parse(d))
   .handler(async ({ data, context }) => {
     const creds = await getCreds(context.supabase, context.userId);
 
-    // Automation email steps — filtered by automation field from AC API.
     const json = await acFetch(creds, "campaigns", {
       "filters[automation]": data.id,
       limit: "50",
     });
     const camps: any[] = json.campaigns ?? [];
 
-    const msgIds = [...new Set(
-      camps
-        .map((c: any) => {
-          const mid = c.message_id ?? c.messageid ?? c.message;
-          return mid && String(mid) !== "0" ? String(mid) : null;
-        })
-        .filter(Boolean) as string[]
-    )];
-
-    // Fetch at most 20 messages to avoid timeout
-    const limited = msgIds.slice(0, 20);
-    const messages: CampaignMessage[] = [];
-    for (const mid of limited) {
+    const emails: AutomationEmail[] = [];
+    for (const c of camps.slice(0, 20)) {
+      const mid = c.message_id ?? c.messageid ?? c.message;
+      if (!mid || String(mid) === "0") continue;
       try {
-        const m = await acFetch(creds, `messages/${mid}`);
-        if (m.message) {
-          messages.push({
-            id: String(m.message.id ?? mid),
-            subject: m.message.subject ?? "",
-            html: m.message.html ?? "",
-            fromname: m.message.fromname ?? "",
-            fromemail: m.message.fromemail ?? "",
-          });
-        }
+        const m = await acFetch(creds, `messages/${String(mid)}`);
+        if (!m.message) continue;
+        const sends = Number(c.send_amt ?? c.total_amt ?? 0);
+        const uo = Number(c.uniqueopens ?? 0);
+        const ulc = Number(c.uniquelinkclicks ?? 0);
+        emails.push({
+          id: String(m.message.id ?? mid),
+          campaignId: String(c.id),
+          campaignName: c.name ?? "",
+          subject: m.message.subject ?? "",
+          html: m.message.html ?? "",
+          fromname: m.message.fromname ?? "",
+          fromemail: m.message.fromemail ?? "",
+          sends,
+          uniqueopens: uo,
+          uniquelinkclicks: ulc,
+          open_rate: sends > 0 ? (uo / sends) * 100 : 0,
+          ctr: uo > 0 ? (ulc / uo) * 100 : 0,
+        });
       } catch { /* skip */ }
     }
-    return { messages };
+    return { messages: emails };
   });
 
 // ─── Metric snapshots ─────────────────────────────────────────────────────────

@@ -1,15 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
-import { getAutomation, getAutomationMessages } from "@/lib/ac.functions";
+import { useState, useEffect } from "react";
+import { getAutomation, getAutomationMessages, type AutomationEmail } from "@/lib/ac.functions";
 import { getMessageAnalysis, generateEmailFromAnalysis, type MessageAnalysis, type GeneratedEmail } from "@/lib/ai.functions";
 import { AuthGate } from "@/components/app/AuthGate";
 import { AppHeader } from "@/components/app/Header";
 import { AutomationStatusBadge } from "@/components/app/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { ArrowLeft, CheckCircle2, Copy, Mail, RefreshCw, Sparkles, Wand2, XCircle } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Copy, Mail, RefreshCw, Sparkles, Wand2, X, XCircle } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -23,6 +23,10 @@ export const Route = createFileRoute("/automation/$id")({
     </AuthGate>
   ),
 });
+
+function hiddenKey(automationId: string) {
+  return `automation_hidden_${automationId}`;
+}
 
 function AutomationDetailPage() {
   const { id } = Route.useParams();
@@ -43,7 +47,32 @@ function AutomationDetailPage() {
   });
 
   const a = autoQ.data?.automation;
-  const messages = messagesQ.data?.messages ?? [];
+  const allMessages: AutomationEmail[] = (messagesQ.data?.messages ?? []) as AutomationEmail[];
+
+  // Hidden campaign IDs stored in localStorage per automation
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(hiddenKey(id));
+      if (stored) setHiddenIds(new Set(JSON.parse(stored)));
+    } catch {}
+  }, [id]);
+
+  function hideEmail(campaignId: string) {
+    setHiddenIds((prev) => {
+      const next = new Set(prev);
+      next.add(campaignId);
+      localStorage.setItem(hiddenKey(id), JSON.stringify([...next]));
+      return next;
+    });
+  }
+
+  function restoreAll() {
+    setHiddenIds(new Set());
+    localStorage.removeItem(hiddenKey(id));
+  }
+
+  const messages = allMessages.filter((m) => !hiddenIds.has(m.campaignId));
 
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [analyses, setAnalyses] = useState<Record<string, MessageAnalysis>>({});
@@ -53,7 +82,8 @@ function AutomationDetailPage() {
   const [generated, setGenerated] = useState<GeneratedEmail | null>(null);
   const [generateError, setGenerateError] = useState<string | null>(null);
 
-  const msg = messages[selectedIdx];
+  const safeIdx = Math.min(selectedIdx, Math.max(0, messages.length - 1));
+  const msg = messages[safeIdx];
   const analysis = msg ? analyses[msg.id] : undefined;
 
   async function analyze(refresh = false) {
@@ -130,7 +160,7 @@ function AutomationDetailPage() {
           </Button>
         </div>
 
-        {/* Métricas */}
+        {/* Métricas da automação */}
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           {[
             { label: "Entrou", value: a.entered },
@@ -147,112 +177,155 @@ function AutomationDetailPage() {
 
         {/* E-mails da automação */}
         <div>
-          <h2 className="mb-4 flex items-center gap-2 text-base font-semibold">
-            <Mail className="h-4 w-4 text-primary" />
-            E-mails desta automação
-            {messages.length > 0 && (
-              <span className="rounded-full bg-primary/20 px-2 py-0.5 text-xs font-semibold text-primary">{messages.length}</span>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="flex items-center gap-2 text-base font-semibold">
+              <Mail className="h-4 w-4 text-primary" />
+              E-mails desta automação
+              {messages.length > 0 && (
+                <span className="rounded-full bg-primary/20 px-2 py-0.5 text-xs font-semibold text-primary">{messages.length}</span>
+              )}
+            </h2>
+            {hiddenIds.size > 0 && (
+              <button onClick={restoreAll} className="text-xs text-muted-foreground underline hover:text-foreground">
+                Restaurar {hiddenIds.size} oculto{hiddenIds.size > 1 ? "s" : ""}
+              </button>
             )}
-          </h2>
+          </div>
 
           {messagesQ.isLoading ? (
             <div className="space-y-3">{[0,1].map(i => <div key={i} className="h-16 animate-pulse rounded-xl bg-surface" />)}</div>
           ) : messages.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
               Nenhum e-mail encontrado nesta automação.
+              {hiddenIds.size > 0 && (
+                <div className="mt-3">
+                  <button onClick={restoreAll} className="text-xs text-primary underline">Restaurar ocultos</button>
+                </div>
+              )}
             </div>
           ) : (
             <div className="space-y-6">
               {/* Seletor de e-mail */}
-              {messages.length > 1 && (
-                <div className="flex flex-wrap gap-2">
-                  {messages.map((m, i) => (
-                    <button key={m.id} onClick={() => setSelectedIdx(i)}
-                      className={cn("rounded-full border px-4 py-1.5 text-xs font-medium transition-colors",
-                        selectedIdx === i ? "border-primary/40 bg-primary/15 text-primary" : "border-border bg-surface text-muted-foreground hover:text-foreground")}>
-                      E-mail {i + 1}{m.subject ? ` — ${m.subject.slice(0, 35)}` : ""}
+              <div className="flex flex-wrap gap-2">
+                {messages.map((m, i) => (
+                  <div key={m.campaignId} className="group relative">
+                    <button
+                      onClick={() => { setSelectedIdx(i); setAnalyses({}); }}
+                      className={cn(
+                        "rounded-full border pl-4 pr-8 py-1.5 text-xs font-medium transition-colors",
+                        safeIdx === i
+                          ? "border-primary/40 bg-primary/15 text-primary"
+                          : "border-border bg-surface text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      <span className="font-semibold">{m.campaignName || `E-mail ${i + 1}`}</span>
+                      {m.subject && <span className="ml-1 opacity-70">— {m.subject.slice(0, 30)}</span>}
                     </button>
-                  ))}
-                </div>
-              )}
+                    <button
+                      onClick={() => { hideEmail(m.campaignId); if (safeIdx >= i) setSelectedIdx(Math.max(0, safeIdx - 1)); }}
+                      title="Ocultar este e-mail"
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
 
               {msg && (
-                <div className="grid gap-5 lg:grid-cols-2">
-                  {/* Prévia */}
-                  <div className="space-y-4">
-                    <div className="rounded-xl border border-border bg-card p-4">
-                      <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Assunto</p>
-                      <p className="mt-1 text-sm font-medium">{msg.subject || "(sem assunto)"}</p>
-                      {msg.fromname && <p className="mt-1 text-xs text-muted-foreground">De: {msg.fromname} &lt;{msg.fromemail}&gt;</p>}
-                      <div className="mt-3 flex gap-2">
-                        <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(msg.html); toast.success("HTML copiado"); }}>
-                          <Copy className="mr-1.5 h-3.5 w-3.5" />Copiar HTML
-                        </Button>
+                <>
+                  {/* Métricas do email selecionado */}
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    {[
+                      { label: "Enviados", value: msg.sends.toLocaleString("pt-BR") },
+                      { label: "Aberturas únicas", value: msg.uniqueopens.toLocaleString("pt-BR") },
+                      { label: "Taxa de abertura", value: `${msg.open_rate.toFixed(1)}%` },
+                      { label: "CTR", value: `${msg.ctr.toFixed(1)}%` },
+                    ].map((stat) => (
+                      <div key={stat.label} className="rounded-lg border border-border bg-card px-4 py-3">
+                        <div className="text-[11px] text-muted-foreground">{stat.label}</div>
+                        <div className="mt-0.5 text-lg font-semibold tabular-nums">{stat.value}</div>
                       </div>
+                    ))}
+                  </div>
+
+                  <div className="grid gap-5 lg:grid-cols-2">
+                    {/* Prévia */}
+                    <div className="space-y-4">
+                      <div className="rounded-xl border border-border bg-card p-4">
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Assunto</p>
+                        <p className="mt-1 text-sm font-medium">{msg.subject || "(sem assunto)"}</p>
+                        {msg.fromname && <p className="mt-1 text-xs text-muted-foreground">De: {msg.fromname} &lt;{msg.fromemail}&gt;</p>}
+                        <div className="mt-3 flex gap-2">
+                          <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(msg.html); toast.success("HTML copiado"); }}>
+                            <Copy className="mr-1.5 h-3.5 w-3.5" />Copiar HTML
+                          </Button>
+                        </div>
+                      </div>
+                      {msg.html && (
+                        <iframe srcDoc={msg.html} className="h-[500px] w-full rounded-xl border border-border bg-white" sandbox="" title={`msg-${msg.id}`} />
+                      )}
                     </div>
-                    {msg.html && (
-                      <iframe srcDoc={msg.html} className="h-[500px] w-full rounded-xl border border-border bg-white" sandbox="" title={`msg-${msg.id}`} />
-                    )}
-                  </div>
 
-                  {/* Análise */}
-                  <div className="space-y-4">
-                    {!analysis && !analyzing[msg.id] && (
-                      <div className="rounded-xl border border-border bg-card p-8 text-center">
-                        <Sparkles className="mx-auto mb-3 h-8 w-8 text-primary/50" />
-                        <p className="mb-4 text-sm text-muted-foreground">Analise copy, estrutura e efetividade com IA.</p>
-                        <Button onClick={() => analyze()} disabled={!msg.html}>
-                          <Sparkles className="mr-2 h-4 w-4" />Analisar e-mail
-                        </Button>
-                      </div>
-                    )}
-
-                    {analyzing[msg.id] && (
-                      <div className="space-y-3">{[0,1,2].map(i => <div key={i} className="h-20 animate-pulse rounded-xl bg-surface" />)}</div>
-                    )}
-
-                    {analysis && (
-                      <>
-                        <div className="rounded-xl border border-border bg-card p-5 flex items-center justify-between">
-                          <div>
-                            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Score</p>
-                            <p className={cn("mt-1 font-mono text-4xl font-semibold",
-                              analysis.score >= 70 ? "text-success" : analysis.score >= 40 ? "text-warning" : "text-destructive")}>
-                              {analysis.score}<span className="text-2xl text-muted-foreground">/100</span>
-                            </p>
-                          </div>
-                        </div>
-
-                        {analysis.strengths.length > 0 && (
-                          <div className="rounded-xl border border-success/30 bg-success/5 p-4">
-                            <p className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-success">
-                              <CheckCircle2 className="h-3.5 w-3.5" />Pontos Fortes
-                            </p>
-                            <ul className="space-y-1">{analysis.strengths.map((s, i) => <li key={i} className="text-xs">{s}</li>)}</ul>
-                          </div>
-                        )}
-
-                        {analysis.weaknesses.length > 0 && (
-                          <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4">
-                            <p className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-destructive">
-                              <XCircle className="h-3.5 w-3.5" />Pontos Fracos
-                            </p>
-                            <ul className="space-y-1">{analysis.weaknesses.map((w, i) => <li key={i} className="text-xs">{w}</li>)}</ul>
-                          </div>
-                        )}
-
-                        <div className="flex gap-2">
-                          <Button variant="outline" size="sm" onClick={() => analyze(true)}>
-                            <RefreshCw className="mr-1.5 h-3.5 w-3.5" />Reanalisar
-                          </Button>
-                          <Button size="sm" onClick={generate}>
-                            <Wand2 className="mr-1.5 h-3.5 w-3.5" />Gerar novo e-mail
+                    {/* Análise IA */}
+                    <div className="space-y-4">
+                      {!analysis && !analyzing[msg.id] && (
+                        <div className="rounded-xl border border-border bg-card p-8 text-center">
+                          <Sparkles className="mx-auto mb-3 h-8 w-8 text-primary/50" />
+                          <p className="mb-4 text-sm text-muted-foreground">Analise copy, estrutura e efetividade com IA.</p>
+                          <Button onClick={() => analyze()} disabled={!msg.html}>
+                            <Sparkles className="mr-2 h-4 w-4" />Analisar e-mail
                           </Button>
                         </div>
-                      </>
-                    )}
+                      )}
+
+                      {analyzing[msg.id] && (
+                        <div className="space-y-3">{[0,1,2].map(i => <div key={i} className="h-20 animate-pulse rounded-xl bg-surface" />)}</div>
+                      )}
+
+                      {analysis && (
+                        <>
+                          <div className="rounded-xl border border-border bg-card p-5 flex items-center justify-between">
+                            <div>
+                              <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Score</p>
+                              <p className={cn("mt-1 font-mono text-4xl font-semibold",
+                                analysis.score >= 70 ? "text-success" : analysis.score >= 40 ? "text-warning" : "text-destructive")}>
+                                {analysis.score}<span className="text-2xl text-muted-foreground">/100</span>
+                              </p>
+                            </div>
+                          </div>
+
+                          {analysis.strengths.length > 0 && (
+                            <div className="rounded-xl border border-success/30 bg-success/5 p-4">
+                              <p className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-success">
+                                <CheckCircle2 className="h-3.5 w-3.5" />Pontos Fortes
+                              </p>
+                              <ul className="space-y-1">{analysis.strengths.map((s, i) => <li key={i} className="text-xs">{s}</li>)}</ul>
+                            </div>
+                          )}
+
+                          {analysis.weaknesses.length > 0 && (
+                            <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4">
+                              <p className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-destructive">
+                                <XCircle className="h-3.5 w-3.5" />Pontos Fracos
+                              </p>
+                              <ul className="space-y-1">{analysis.weaknesses.map((w, i) => <li key={i} className="text-xs">{w}</li>)}</ul>
+                            </div>
+                          )}
+
+                          <div className="flex gap-2">
+                            <Button variant="outline" size="sm" onClick={() => analyze(true)}>
+                              <RefreshCw className="mr-1.5 h-3.5 w-3.5" />Reanalisar
+                            </Button>
+                            <Button size="sm" onClick={generate}>
+                              <Wand2 className="mr-1.5 h-3.5 w-3.5" />Gerar novo e-mail
+                            </Button>
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
+                </>
               )}
             </div>
           )}
