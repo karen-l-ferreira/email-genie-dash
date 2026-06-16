@@ -15,9 +15,10 @@ import { Route as InfluenciaRouteImport } from './routes/influencia'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as CampanhasRouteImport } from './routes/campanhas'
 import { Route as AutomationsRouteImport } from './routes/automations'
+import { Route as AnalisarRouteImport } from './routes/analisar'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CampaignsIdRouteImport } from './routes/campaigns.$id'
-import { Route as AutomationsIdRouteImport } from './routes/automations.$id'
+import { Route as AutomationIdRouteImport } from './routes/automation.$id'
 
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
@@ -49,6 +50,11 @@ const AutomationsRoute = AutomationsRouteImport.update({
   path: '/automations',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AnalisarRoute = AnalisarRouteImport.update({
+  id: '/analisar',
+  path: '/analisar',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -59,90 +65,98 @@ const CampaignsIdRoute = CampaignsIdRouteImport.update({
   path: '/campaigns/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AutomationsIdRoute = AutomationsIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => AutomationsRoute,
+const AutomationIdRoute = AutomationIdRouteImport.update({
+  id: '/automation/$id',
+  path: '/automation/$id',
+  getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/automations': typeof AutomationsRouteWithChildren
+  '/analisar': typeof AnalisarRoute
+  '/automations': typeof AutomationsRoute
   '/campanhas': typeof CampanhasRoute
   '/dashboard': typeof DashboardRoute
   '/influencia': typeof InfluenciaRoute
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRoute
-  '/automations/$id': typeof AutomationsIdRoute
+  '/automation/$id': typeof AutomationIdRoute
   '/campaigns/$id': typeof CampaignsIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/automations': typeof AutomationsRouteWithChildren
+  '/analisar': typeof AnalisarRoute
+  '/automations': typeof AutomationsRoute
   '/campanhas': typeof CampanhasRoute
   '/dashboard': typeof DashboardRoute
   '/influencia': typeof InfluenciaRoute
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRoute
-  '/automations/$id': typeof AutomationsIdRoute
+  '/automation/$id': typeof AutomationIdRoute
   '/campaigns/$id': typeof CampaignsIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/automations': typeof AutomationsRouteWithChildren
+  '/analisar': typeof AnalisarRoute
+  '/automations': typeof AutomationsRoute
   '/campanhas': typeof CampanhasRoute
   '/dashboard': typeof DashboardRoute
   '/influencia': typeof InfluenciaRoute
   '/login': typeof LoginRoute
   '/settings': typeof SettingsRoute
-  '/automations/$id': typeof AutomationsIdRoute
+  '/automation/$id': typeof AutomationIdRoute
   '/campaigns/$id': typeof CampaignsIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/analisar'
     | '/automations'
     | '/campanhas'
     | '/dashboard'
     | '/influencia'
     | '/login'
     | '/settings'
-    | '/automations/$id'
+    | '/automation/$id'
     | '/campaigns/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/analisar'
     | '/automations'
     | '/campanhas'
     | '/dashboard'
     | '/influencia'
     | '/login'
     | '/settings'
-    | '/automations/$id'
+    | '/automation/$id'
     | '/campaigns/$id'
   id:
     | '__root__'
     | '/'
+    | '/analisar'
     | '/automations'
     | '/campanhas'
     | '/dashboard'
     | '/influencia'
     | '/login'
     | '/settings'
-    | '/automations/$id'
+    | '/automation/$id'
     | '/campaigns/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AutomationsRoute: typeof AutomationsRouteWithChildren
+  AnalisarRoute: typeof AnalisarRoute
+  AutomationsRoute: typeof AutomationsRoute
   CampanhasRoute: typeof CampanhasRoute
   DashboardRoute: typeof DashboardRoute
   InfluenciaRoute: typeof InfluenciaRoute
   LoginRoute: typeof LoginRoute
   SettingsRoute: typeof SettingsRoute
+  AutomationIdRoute: typeof AutomationIdRoute
   CampaignsIdRoute: typeof CampaignsIdRoute
 }
 
@@ -190,6 +204,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AutomationsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/analisar': {
+      id: '/analisar'
+      path: '/analisar'
+      fullPath: '/analisar'
+      preLoaderRoute: typeof AnalisarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -204,36 +225,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CampaignsIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/automations/$id': {
-      id: '/automations/$id'
-      path: '/$id'
-      fullPath: '/automations/$id'
-      preLoaderRoute: typeof AutomationsIdRouteImport
-      parentRoute: typeof AutomationsRoute
+    '/automation/$id': {
+      id: '/automation/$id'
+      path: '/automation/$id'
+      fullPath: '/automation/$id'
+      preLoaderRoute: typeof AutomationIdRouteImport
+      parentRoute: typeof rootRouteImport
     }
   }
 }
 
-interface AutomationsRouteChildren {
-  AutomationsIdRoute: typeof AutomationsIdRoute
-}
-
-const AutomationsRouteChildren: AutomationsRouteChildren = {
-  AutomationsIdRoute: AutomationsIdRoute,
-}
-
-const AutomationsRouteWithChildren = AutomationsRoute._addFileChildren(
-  AutomationsRouteChildren,
-)
-
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AutomationsRoute: AutomationsRouteWithChildren,
+  AnalisarRoute: AnalisarRoute,
+  AutomationsRoute: AutomationsRoute,
   CampanhasRoute: CampanhasRoute,
   DashboardRoute: DashboardRoute,
   InfluenciaRoute: InfluenciaRoute,
   LoginRoute: LoginRoute,
   SettingsRoute: SettingsRoute,
+  AutomationIdRoute: AutomationIdRoute,
   CampaignsIdRoute: CampaignsIdRoute,
 }
 export const routeTree = rootRouteImport

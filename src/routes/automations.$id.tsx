@@ -15,7 +15,7 @@ import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/automation/$id")({
+export const Route = createFileRoute("/automations/$id")({
   ssr: false,
   component: () => (
     <AuthGate>
