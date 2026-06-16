@@ -175,6 +175,34 @@ function AutomationDetailPage() {
           ))}
         </div>
 
+        {/* Métricas agregadas dos emails da régua */}
+        {messages.length > 0 && (() => {
+          const totalSends = messages.reduce((s, m) => s + m.sends, 0);
+          const totalOpens = messages.reduce((s, m) => s + m.uniqueopens, 0);
+          const totalClicks = messages.reduce((s, m) => s + m.uniquelinkclicks, 0);
+          const avgOpenRate = messages.reduce((s, m) => s + m.open_rate, 0) / messages.length;
+          const avgCtr = messages.reduce((s, m) => s + m.ctr, 0) / messages.length;
+          return (
+            <div>
+              <h2 className="mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wider">Métricas da Régua</h2>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+                {[
+                  { label: "Total enviados", value: totalSends.toLocaleString("pt-BR") },
+                  { label: "Total aberturas", value: totalOpens.toLocaleString("pt-BR") },
+                  { label: "Total cliques", value: totalClicks.toLocaleString("pt-BR") },
+                  { label: "Média abertura", value: `${avgOpenRate.toFixed(1)}%` },
+                  { label: "Média CTR", value: `${avgCtr.toFixed(1)}%` },
+                ].map((stat) => (
+                  <div key={stat.label} className="rounded-lg border border-border bg-card px-4 py-3">
+                    <div className="text-[11px] text-muted-foreground">{stat.label}</div>
+                    <div className="mt-0.5 text-lg font-semibold tabular-nums">{stat.value}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+
         {/* E-mails da automação */}
         <div>
           <div className="mb-4 flex items-center justify-between">
