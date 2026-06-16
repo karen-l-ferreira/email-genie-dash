@@ -385,6 +385,18 @@ export const getAutomationMessages = createServerFn({ method: "GET" })
     });
     const camps: any[] = json.campaigns ?? [];
 
+    // Log all click/open related fields from first campaign to find correct mapping
+    if (camps.length > 0) {
+      const f = camps[0];
+      const clickFields: Record<string, any> = {};
+      for (const k of Object.keys(f)) {
+        if (/click|open|link|unique|subscriber|forward/i.test(k)) {
+          clickFields[k] = f[k];
+        }
+      }
+      console.error("[AC_FIELDS]", JSON.stringify(clickFields));
+    }
+
     const emails: AutomationEmail[] = [];
     for (const c of camps.slice(0, 20)) {
       const mid = c.message_id ?? c.messageid ?? c.message;
