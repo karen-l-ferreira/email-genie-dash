@@ -368,17 +368,19 @@ export const getAutomationMessages = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     const creds = await getCreds(context.supabase, context.userId);
 
-    // automationEmails returns the "send email" action steps in an automation.
-    // Fetch all and filter by automation id (AC filter params vary by account).
-    const json = await acFetch(creds, "automationEmails", { limit: "100" });
-    const allEmails: any[] = json.automationEmails ?? [];
-    // Log to diagnose the structure returned by AC
-    console.log("[automationEmails] total returned:", allEmails.length, "| first item:", JSON.stringify(allEmails[0] ?? null));
-    const automationEmails = allEmails.filter(
-      (ae: any) => String(ae.automation) === data.id || String(ae.automationid) === data.id,
-    );
-    console.log("[automationEmails] filtered for automation", data.id, ":", automationEmails.length);
-    const msgIds = [...new Set(automationEmails.map((ae: any) => String(ae.message ?? ae.messageid ?? "")).filter(Boolean))];
+    // Automation emails are campaigns of type "autoresponder" linked to this automation.
+    // We use only message_id (not relmessages) to get exactly one message per step.
+    const json = await acFetch(creds, "campaigns", {
+      "filters[automation]": data.id,
+      "filters[type]": "autoresponder",
+      limit: "100",
+    });
+    const camps: any[] = json.campaigns ?? [];
+    const msgIds = [...new Set(
+      camps
+        .map((c: any) => c.message_id ? String(c.message_id) : null)
+        .filter(Boolean) as string[]
+    )];
 
     const messages: CampaignMessage[] = [];
     await Promise.all(
