@@ -368,22 +368,15 @@ export const getAutomationMessages = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     const creds = await getCreds(context.supabase, context.userId);
 
-    // Fetch campaigns filtered by automation.
+    // Automation email steps are campaigns of type "autoresponder" linked to the automation.
+    // "single" campaigns can also appear under the same automation ID (manual sends) — exclude them.
     const json = await acFetch(creds, "campaigns", {
       "filters[automation]": data.id,
       limit: "50",
     });
-    const raw: any[] = json.campaigns ?? [];
-    // Log raw fields of first campaign to identify which field links to automation
-    if (raw.length > 0) {
-      const f = raw[0];
-      console.error("[AC_DEBUG] campaign fields:", JSON.stringify({
-        id: f.id, name: f.name, type: f.type,
-        automation: f.automation, series: f.series, seriesid: f.seriesid,
-        automationid: f.automationid, "automation_id": f["automation_id"],
-      }));
-    }
-    const camps: any[] = raw;
+    const camps: any[] = (json.campaigns ?? []).filter(
+      (c: any) => c.type === "autoresponder"
+    );
 
     const msgIds = [...new Set(
       camps.map((c: any) => c.message_id ? String(c.message_id) : null).filter(Boolean) as string[]
