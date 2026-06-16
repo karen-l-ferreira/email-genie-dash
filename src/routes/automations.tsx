@@ -175,7 +175,7 @@ function AutomationsPage() {
                 rows.map((a) => (
                   <tr
                     key={a.id}
-                    onClick={() => navigate({ to: "/automations/$id", params: { id: a.id } })}
+                    onClick={() => navigate({ to: "/automation/$id", params: { id: a.id } })}
                     className="cursor-pointer border-t border-border transition-colors hover:bg-surface-2"
                   >
                     <td className="px-5 py-4 font-medium">{a.name}</td>
