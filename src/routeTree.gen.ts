@@ -15,6 +15,7 @@ import { Route as InfluenciaRouteImport } from './routes/influencia'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as CampanhasRouteImport } from './routes/campanhas'
 import { Route as AutomationsRouteImport } from './routes/automations'
+import { Route as AnalisarRouteImport } from './routes/analisar'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CampaignsIdRouteImport } from './routes/campaigns.$id'
 import { Route as AutomationsIdRouteImport } from './routes/automations.$id'
@@ -49,6 +50,11 @@ const AutomationsRoute = AutomationsRouteImport.update({
   path: '/automations',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AnalisarRoute = AnalisarRouteImport.update({
+  id: '/analisar',
+  path: '/analisar',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -67,6 +73,7 @@ const AutomationsIdRoute = AutomationsIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/analisar': typeof AnalisarRoute
   '/automations': typeof AutomationsRouteWithChildren
   '/campanhas': typeof CampanhasRoute
   '/dashboard': typeof DashboardRoute
@@ -78,6 +85,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/analisar': typeof AnalisarRoute
   '/automations': typeof AutomationsRouteWithChildren
   '/campanhas': typeof CampanhasRoute
   '/dashboard': typeof DashboardRoute
@@ -90,6 +98,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/analisar': typeof AnalisarRoute
   '/automations': typeof AutomationsRouteWithChildren
   '/campanhas': typeof CampanhasRoute
   '/dashboard': typeof DashboardRoute
@@ -103,6 +112,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/analisar'
     | '/automations'
     | '/campanhas'
     | '/dashboard'
@@ -114,6 +124,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/analisar'
     | '/automations'
     | '/campanhas'
     | '/dashboard'
@@ -125,6 +136,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/analisar'
     | '/automations'
     | '/campanhas'
     | '/dashboard'
@@ -137,6 +149,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AnalisarRoute: typeof AnalisarRoute
   AutomationsRoute: typeof AutomationsRouteWithChildren
   CampanhasRoute: typeof CampanhasRoute
   DashboardRoute: typeof DashboardRoute
@@ -190,6 +203,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AutomationsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/analisar': {
+      id: '/analisar'
+      path: '/analisar'
+      fullPath: '/analisar'
+      preLoaderRoute: typeof AnalisarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -228,6 +248,7 @@ const AutomationsRouteWithChildren = AutomationsRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AnalisarRoute: AnalisarRoute,
   AutomationsRoute: AutomationsRouteWithChildren,
   CampanhasRoute: CampanhasRoute,
   DashboardRoute: DashboardRoute,
