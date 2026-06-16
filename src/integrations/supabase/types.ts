@@ -41,6 +41,39 @@ export type Database = {
         }
         Relationships: []
       }
+      metric_snapshots: {
+        Row: {
+          created_at: string
+          entity_id: string
+          entity_name: string
+          entity_type: string
+          id: string
+          label: string
+          metrics: Json
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          entity_id: string
+          entity_name: string
+          entity_type: string
+          id?: string
+          label: string
+          metrics: Json
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          entity_id?: string
+          entity_name?: string
+          entity_type?: string
+          id?: string
+          label?: string
+          metrics?: Json
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_settings: {
         Row: {
           ac_api_key: string | null
