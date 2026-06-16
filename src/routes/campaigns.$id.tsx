@@ -2,7 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { getCampaign, getCampaignMessages, listCampaigns, type CampaignMessage } from "@/lib/ac.functions";
+import { Input } from "@/components/ui/input";
+import { getCampaign, getCampaignMessages, listCampaigns, saveSnapshot, listSnapshots, deleteSnapshot, type CampaignMessage, type MetricSnapshot } from "@/lib/ac.functions";
 import { getSettings } from "@/lib/settings.functions";
 import { getMessageAnalysis, getRecommendations, getVariations, generateEmailFromAnalysis, type MessageAnalysis, type Recommendation, type GeneratedEmail } from "@/lib/ai.functions";
 import { AuthGate } from "@/components/app/AuthGate";
@@ -12,7 +13,7 @@ import { CampaignStatusBadge } from "@/components/app/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { ArrowLeft, CheckCircle2, Copy, Download, Mail, RefreshCw, Sparkles, Wand2, XCircle } from "lucide-react";
+import { ArrowLeft, BookmarkPlus, CheckCircle2, Copy, Download, Mail, RefreshCw, Sparkles, Trash2, Wand2, XCircle } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -54,6 +55,9 @@ function CampaignDetailPage() {
   const fetchMessages = useServerFn(getCampaignMessages);
   const fetchMsgAnalysis = useServerFn(getMessageAnalysis);
   const fetchGenerateEmail = useServerFn(generateEmailFromAnalysis);
+  const fetchSaveSnapshot = useServerFn(saveSnapshot);
+  const fetchListSnapshots = useServerFn(listSnapshots);
+  const fetchDeleteSnapshot = useServerFn(deleteSnapshot);
 
   const settingsQ = useQuery({ queryKey: ["settings"], queryFn: () => fetchSettings() });
   const cQ = useQuery({ queryKey: ["campaign", id], queryFn: () => fetchCampaign({ data: { id } }) });
@@ -100,6 +104,42 @@ function CampaignDetailPage() {
     queryKey: ["campaign-messages", id],
     enabled: !!c,
     queryFn: () => fetchMessages({ data: { id } }),
+  });
+
+  const snapshotsQ = useQuery({
+    queryKey: ["snapshots", id],
+    queryFn: () => fetchListSnapshots({ data: { entity_id: id } }),
+  });
+
+  const [snapshotLabel, setSnapshotLabel] = useState("");
+  const [savingSnapshot, setSavingSnapshot] = useState(false);
+
+  async function handleSaveSnapshot() {
+    if (!c || !snapshotLabel.trim()) return;
+    setSavingSnapshot(true);
+    try {
+      await fetchSaveSnapshot({
+        data: {
+          label: snapshotLabel.trim(),
+          entity_type: "campaign",
+          entity_id: c.id,
+          entity_name: c.name,
+          metrics: { open_rate: c.open_rate, ctr: c.ctr, uniquelinkclicks: c.uniquelinkclicks, linkclicks: c.linkclicks, send_amt: c.send_amt, uniqueopens: c.uniqueopens, hardbounces: c.hardbounces, unsubscribes: c.unsubscribes },
+        },
+      });
+      toast.success("Régua salva com sucesso");
+      setSnapshotLabel("");
+      snapshotsQ.refetch();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Erro ao salvar");
+    } finally {
+      setSavingSnapshot(false);
+    }
+  }
+
+  const deleteSnapshotM = useMutation({
+    mutationFn: (snapId: string) => fetchDeleteSnapshot({ data: { id: snapId } }),
+    onSuccess: () => snapshotsQ.refetch(),
   });
 
   const [pageTab, setPageTab] = useState<"overview" | "messages">("overview");
@@ -202,6 +242,7 @@ function CampaignDetailPage() {
         <Tabs value={pageTab} onValueChange={(v) => setPageTab(v as typeof pageTab)} className="mt-8">
           <TabsList className="bg-surface">
             <TabsTrigger value="overview">Visão Geral</TabsTrigger>
+            <TabsTrigger value="regua"><BookmarkPlus className="mr-1.5 h-3.5 w-3.5" />Régua</TabsTrigger>
             <TabsTrigger value="messages">
               <Mail className="mr-1.5 h-3.5 w-3.5" />
               Mensagens
@@ -215,9 +256,10 @@ function CampaignDetailPage() {
 
           {/* ── Aba Visão Geral ── */}
           <TabsContent value="overview">
-            <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+            <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-7">
               <MetricCard label="Taxa de Abertura" value={`${c.open_rate.toFixed(1)}%`} detail={`${c.uniqueopens}/${c.send_amt}`} variance={c.open_rate - benchOR} />
               <MetricCard label="CTR" value={`${c.ctr.toFixed(2)}%`} detail={`${c.uniquelinkclicks}/${c.uniqueopens || 0}`} variance={c.ctr - benchCTR} />
+              <MetricCard label="Cliques Únicos" value={c.uniquelinkclicks.toLocaleString("pt-BR")} detail={`${c.linkclicks.toLocaleString("pt-BR")} no total`} />
               <MetricCard label="Total de Aberturas" value={c.opens.toLocaleString("pt-BR")} detail={`${c.uniqueopens.toLocaleString("pt-BR")} únicos`} />
               <MetricCard label="Envios" value={c.send_amt.toLocaleString("pt-BR")} detail={`${c.total_amt.toLocaleString("pt-BR")} na fila`} />
               <MetricCard label="Devoluções" value={(c.hardbounces + c.softbounces).toLocaleString("pt-BR")} detail={`${c.hardbounces} hard`} variance={-(((c.hardbounces + c.softbounces) / Math.max(1, c.send_amt)) * 100 - 2)} invertColor />
@@ -321,6 +363,38 @@ function CampaignDetailPage() {
                 </Button>
               </div>
             </section>
+          </TabsContent>
+
+          {/* ── Aba Régua ── */}
+          <TabsContent value="regua">
+            <div className="mt-6 space-y-6">
+              <div className="rounded-xl border border-border bg-card p-5 space-y-3">
+                <h3 className="text-sm font-semibold">Salvar snapshot atual</h3>
+                <p className="text-xs text-muted-foreground">Salve as métricas de agora com um rótulo. Use antes e depois de uma alteração para comparar o impacto.</p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Ex: Antes de mudar o assunto do e-mail"
+                    value={snapshotLabel}
+                    onChange={(e) => setSnapshotLabel(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSaveSnapshot()}
+                    className="flex h-9 max-w-md flex-1 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  />
+                  <Button onClick={handleSaveSnapshot} disabled={savingSnapshot || !snapshotLabel.trim()}>
+                    <BookmarkPlus className="mr-1.5 h-4 w-4" />
+                    {savingSnapshot ? "Salvando..." : "Salvar"}
+                  </Button>
+                </div>
+              </div>
+
+              {snapshotsQ.isLoading ? (
+                <div className="space-y-2">{[0,1,2].map(i => <div key={i} className="h-16 animate-pulse rounded-xl bg-surface" />)}</div>
+              ) : (snapshotsQ.data?.snapshots ?? []).length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">Nenhum snapshot salvo ainda.</div>
+              ) : (
+                <CampaignSnapshotTable snapshots={snapshotsQ.data!.snapshots} onDelete={(sid) => deleteSnapshotM.mutate(sid)} />
+              )}
+            </div>
           </TabsContent>
 
           {/* ── Aba Mensagens ── */}
@@ -677,6 +751,55 @@ function ScoreRing({ score }: { score: number }) {
       <circle cx={36} cy={36} r={r} fill="none" stroke="oklch(1 0 0 / 8%)" strokeWidth={6} />
       <circle cx={36} cy={36} r={r} fill="none" stroke={color} strokeWidth={6} strokeDasharray={circ} strokeDashoffset={offset} strokeLinecap="round" style={{ transition: "stroke-dashoffset 0.6s ease" }} />
     </svg>
+  );
+}
+
+function CampaignSnapshotTable({ snapshots, onDelete }: { snapshots: MetricSnapshot[]; onDelete: (id: string) => void }) {
+  const KEYS = ["open_rate", "ctr", "uniquelinkclicks", "linkclicks", "send_amt", "uniqueopens", "hardbounces", "unsubscribes"];
+  const LABELS: Record<string, string> = {
+    open_rate: "Abertura %", ctr: "CTR %", uniquelinkclicks: "Cliques únicos", linkclicks: "Total cliques",
+    send_amt: "Envios", uniqueopens: "Aberturas únicas", hardbounces: "Hard bounce", unsubscribes: "Descadastros",
+  };
+  const PCT_KEYS = new Set(["open_rate", "ctr"]);
+  const presentKeys = KEYS.filter(k => snapshots.some(s => s.metrics[k] !== undefined));
+
+  return (
+    <div className="overflow-x-auto rounded-xl border border-border">
+      <table className="w-full text-sm">
+        <thead className="bg-surface text-[11px] uppercase tracking-wider text-muted-foreground">
+          <tr>
+            <th className="px-4 py-2.5 text-left font-medium">Rótulo</th>
+            <th className="px-4 py-2.5 text-left font-medium">Data</th>
+            {presentKeys.map(k => <th key={k} className="px-4 py-2.5 text-right font-medium">{LABELS[k] ?? k}</th>)}
+            <th className="px-4 py-2.5" />
+          </tr>
+        </thead>
+        <tbody>
+          {snapshots.map((s, i) => (
+            <tr key={s.id} className={cn("border-t border-border", i % 2 === 1 && "bg-surface/40")}>
+              <td className="px-4 py-3 font-medium">{s.label}</td>
+              <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                {format(new Date(s.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+              </td>
+              {presentKeys.map(k => (
+                <td key={k} className="px-4 py-3 text-right font-mono tabular-nums">
+                  {s.metrics[k] !== undefined
+                    ? PCT_KEYS.has(k)
+                      ? `${Number(s.metrics[k]).toFixed(2)}%`
+                      : Number(s.metrics[k]).toLocaleString("pt-BR")
+                    : "—"}
+                </td>
+              ))}
+              <td className="px-4 py-3 text-right">
+                <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-destructive" onClick={() => onDelete(s.id)}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

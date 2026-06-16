@@ -360,6 +360,113 @@ export const listContactsForAnalysis = createServerFn({ method: "GET" })
 
 // ─── Account custom fields & data ────────────────────────────────────────────
 
+// ─── Automation messages ──────────────────────────────────────────────────────
+
+export const getAutomationMessages = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ id: z.string().min(1).max(64) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const creds = await getCreds(context.supabase, context.userId);
+    // Fetch automation email actions
+    const json = await acFetch(creds, "automationEmails", {
+      "filters[automation]": data.id,
+      limit: "50",
+    });
+    const automationEmails: any[] = json.automationEmails ?? [];
+
+    // Collect unique message IDs
+    const msgIds = [...new Set(automationEmails.map((ae: any) => String(ae.message)).filter(Boolean))];
+
+    const messages: CampaignMessage[] = [];
+    await Promise.all(
+      msgIds.map(async (mid) => {
+        try {
+          const m = await acFetch(creds, `messages/${mid}`);
+          if (m.message) {
+            messages.push({
+              id: String(m.message.id ?? mid),
+              subject: m.message.subject ?? "",
+              html: m.message.html ?? "",
+              fromname: m.message.fromname ?? "",
+              fromemail: m.message.fromemail ?? "",
+            });
+          }
+        } catch {
+          // skip messages that fail
+        }
+      }),
+    );
+    return { messages };
+  });
+
+// ─── Metric snapshots ─────────────────────────────────────────────────────────
+
+export type MetricSnapshot = {
+  id: string;
+  label: string;
+  entity_type: "campaign" | "automation";
+  entity_id: string;
+  entity_name: string;
+  metrics: Record<string, number | string>;
+  created_at: string;
+};
+
+export const saveSnapshot = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) =>
+    z.object({
+      label: z.string().min(1).max(200),
+      entity_type: z.enum(["campaign", "automation"]),
+      entity_id: z.string().min(1).max(64),
+      entity_name: z.string().max(300),
+      metrics: z.record(z.union([z.number(), z.string()])),
+    }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase.from("metric_snapshots").insert({
+      user_id: context.userId,
+      label: data.label,
+      entity_type: data.entity_type,
+      entity_id: data.entity_id,
+      entity_name: data.entity_name,
+      metrics: data.metrics,
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const listSnapshots = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) =>
+    z.object({ entity_id: z.string().min(1).max(64).optional() }).parse(d ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    let q = context.supabase
+      .from("metric_snapshots")
+      .select("*")
+      .eq("user_id", context.userId)
+      .order("created_at", { ascending: false })
+      .limit(100);
+    if (data.entity_id) q = q.eq("entity_id", data.entity_id);
+    const { data: rows, error } = await q;
+    if (error) throw new Error(error.message);
+    return { snapshots: (rows ?? []) as MetricSnapshot[] };
+  });
+
+export const deleteSnapshot = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await context.supabase
+      .from("metric_snapshots")
+      .delete()
+      .eq("id", data.id)
+      .eq("user_id", context.userId);
+    return { ok: true };
+  });
+
+// ─── Account custom fields & data ────────────────────────────────────────────
+
 export type AccountField = {
   id: string;
   title: string;
