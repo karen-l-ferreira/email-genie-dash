@@ -369,13 +369,16 @@ export const getAutomationMessages = createServerFn({ method: "GET" })
     const creds = await getCreds(context.supabase, context.userId);
 
     // automationEmails returns the "send email" action steps in an automation.
-    // Each entry has a `message` field with the message ID.
-    const json = await acFetch(creds, "automationEmails", {
-      "filters[automation]": data.id,
-      limit: "100",
-    });
-    const automationEmails: any[] = json.automationEmails ?? [];
-    const msgIds = [...new Set(automationEmails.map((ae: any) => String(ae.message)).filter(Boolean))];
+    // Fetch all and filter by automation id (AC filter params vary by account).
+    const json = await acFetch(creds, "automationEmails", { limit: "100" });
+    const allEmails: any[] = json.automationEmails ?? [];
+    // Log to diagnose the structure returned by AC
+    console.log("[automationEmails] total returned:", allEmails.length, "| first item:", JSON.stringify(allEmails[0] ?? null));
+    const automationEmails = allEmails.filter(
+      (ae: any) => String(ae.automation) === data.id || String(ae.automationid) === data.id,
+    );
+    console.log("[automationEmails] filtered for automation", data.id, ":", automationEmails.length);
+    const msgIds = [...new Set(automationEmails.map((ae: any) => String(ae.message ?? ae.messageid ?? "")).filter(Boolean))];
 
     const messages: CampaignMessage[] = [];
     await Promise.all(
