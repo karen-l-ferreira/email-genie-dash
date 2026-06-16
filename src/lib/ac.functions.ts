@@ -376,7 +376,12 @@ export const getAutomationMessages = createServerFn({ method: "GET" })
     const camps: any[] = json.campaigns ?? [];
 
     const msgIds = [...new Set(
-      camps.map((c: any) => c.message_id ? String(c.message_id) : null).filter(Boolean) as string[]
+      camps
+        .map((c: any) => {
+          const mid = c.message_id ?? c.messageid ?? c.message;
+          return mid && String(mid) !== "0" ? String(mid) : null;
+        })
+        .filter(Boolean) as string[]
     )];
 
     // Fetch at most 20 messages to avoid timeout
