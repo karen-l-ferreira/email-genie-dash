@@ -368,50 +368,37 @@ export const getAutomationMessages = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     const creds = await getCreds(context.supabase, context.userId);
 
-    // Fetch all campaigns and filter in code — inspect raw fields to find automation link
-    const json = await acFetch(creds, "campaigns", { limit: "100" });
-    const allCamps: any[] = json.campaigns ?? [];
-    // Log the first campaign's raw fields to identify which field links to automation
-    if (allCamps.length > 0) {
-      const sample = allCamps[0];
-      console.log("[getAutomationMessages] sample campaign keys:", Object.keys(sample).join(", "));
-      console.log("[getAutomationMessages] sample campaign automation-related fields:", {
-        automation: sample.automation,
-        series: sample.series,
-        seriesid: sample.seriesid,
-        type: sample.type,
-        id: sample.id,
-        name: sample.name,
-      });
-    }
-    // Filter by any automation-related field
-    const camps = allCamps.filter((c: any) =>
-      String(c.automation ?? "") === data.id ||
-      String(c.series ?? "") === data.id ||
-      String(c.seriesid ?? "") === data.id
+    // Fetch campaigns filtered by automation. AC uses "filters[automation]" in the URL.
+    // We also filter in code as a safety net using all known field names.
+    const json = await acFetch(creds, "campaigns", {
+      "filters[automation]": data.id,
+      limit: "50",
+    });
+    const camps: any[] = (json.campaigns ?? []).filter((c: any) =>
+      String(c.automation ?? c.series ?? c.seriesid ?? "") === data.id
     );
-    console.log("[getAutomationMessages] automation", data.id, "→ matched", camps.length, "of", allCamps.length, "campaigns");
+
     const msgIds = [...new Set(
       camps.map((c: any) => c.message_id ? String(c.message_id) : null).filter(Boolean) as string[]
     )];
 
+    // Fetch at most 20 messages to avoid timeout
+    const limited = msgIds.slice(0, 20);
     const messages: CampaignMessage[] = [];
-    await Promise.all(
-      msgIds.map(async (mid) => {
-        try {
-          const m = await acFetch(creds, `messages/${mid}`);
-          if (m.message) {
-            messages.push({
-              id: String(m.message.id ?? mid),
-              subject: m.message.subject ?? "",
-              html: m.message.html ?? "",
-              fromname: m.message.fromname ?? "",
-              fromemail: m.message.fromemail ?? "",
-            });
-          }
-        } catch { /* skip */ }
-      }),
-    );
+    for (const mid of limited) {
+      try {
+        const m = await acFetch(creds, `messages/${mid}`);
+        if (m.message) {
+          messages.push({
+            id: String(m.message.id ?? mid),
+            subject: m.message.subject ?? "",
+            html: m.message.html ?? "",
+            fromname: m.message.fromname ?? "",
+            fromemail: m.message.fromemail ?? "",
+          });
+        }
+      } catch { /* skip */ }
+    }
     return { messages };
   });
 
