@@ -368,11 +368,17 @@ export const getAutomationMessages = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     const creds = await getCreds(context.supabase, context.userId);
     // Fetch automation email actions
-    const json = await acFetch(creds, "automationEmails", {
-      "filters[automation]": data.id,
-      limit: "50",
-    });
-    const automationEmails: any[] = json.automationEmails ?? [];
+    let automationEmails: any[] = [];
+    try {
+      const json = await acFetch(creds, "automationEmails", {
+        "filters[automation]": data.id,
+        limit: "50",
+      });
+      automationEmails = json.automationEmails ?? [];
+    } catch {
+      // endpoint may not be available — return empty
+      return { messages: [] };
+    }
 
     // Collect unique message IDs
     const msgIds = [...new Set(automationEmails.map((ae: any) => String(ae.message)).filter(Boolean))];

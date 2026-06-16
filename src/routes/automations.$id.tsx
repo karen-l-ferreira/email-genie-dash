@@ -1,8 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { getAutomation, getAutomationMessages, saveSnapshot, listSnapshots, deleteSnapshot, type CampaignMessage, type MetricSnapshot } from "@/lib/ac.functions";
+import { getAutomation, getAutomationMessages, type CampaignMessage } from "@/lib/ac.functions";
 import { getAutomationRecommendations, getMessageAnalysis, generateEmailFromAnalysis, type AutomationRecommendation, type MessageAnalysis, type GeneratedEmail } from "@/lib/ai.functions";
 import { AuthGate } from "@/components/app/AuthGate";
 import { AppHeader } from "@/components/app/Header";
@@ -11,8 +11,7 @@ import { AutomationStatusBadge } from "@/components/app/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Input } from "@/components/ui/input";
-import { ArrowLeft, BookmarkPlus, CheckCircle2, Copy, Mail, RefreshCw, Sparkles, Trash2, Wand2, XCircle } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Copy, Mail, RefreshCw, Sparkles, Wand2, XCircle } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -47,17 +46,14 @@ function AutomationDetailPage() {
   const fetchMessages = useServerFn(getAutomationMessages);
   const fetchMsgAnalysis = useServerFn(getMessageAnalysis);
   const fetchGenerate = useServerFn(generateEmailFromAnalysis);
-  const fetchSaveSnapshot = useServerFn(saveSnapshot);
-  const fetchListSnapshots = useServerFn(listSnapshots);
-  const fetchDeleteSnapshot = useServerFn(deleteSnapshot);
 
-  const autoQ = useQuery({ queryKey: ["automation", id], queryFn: () => fetchAutomation({ data: { id } }) });
-  const messagesQ = useQuery({ queryKey: ["automation-messages", id], enabled: !!autoQ.data, queryFn: () => fetchMessages({ data: { id } }) });
-  const snapshotsQ = useQuery({ queryKey: ["snapshots", id], enabled: activeTab === "regua", queryFn: () => fetchListSnapshots({ data: { entity_id: id } }) });
+  const autoQ = useQuery({
+    queryKey: ["automation", id],
+    queryFn: () => fetchAutomation({ data: { id } }),
+  });
 
   const a = autoQ.data?.automation;
 
-  const [activeTab, setActiveTab] = useState("recs");
   const [recsRefresh, setRecsRefresh] = useState(false);
   const recsQ = useQuery({
     queryKey: ["automation-recs", id, recsRefresh],
@@ -65,35 +61,10 @@ function AutomationDetailPage() {
     queryFn: () => fetchRecs({ data: { automation_id: a!.id, name: a!.name, status: a!.status, entered: a!.entered, exited: a!.exited, active: a!.active, completion_rate: a!.completion_rate, refresh: recsRefresh } }),
   });
 
-  const [snapshotLabel, setSnapshotLabel] = useState("");
-  const [savingSnapshot, setSavingSnapshot] = useState(false);
-
-  async function handleSaveSnapshot() {
-    if (!a || !snapshotLabel.trim()) return;
-    setSavingSnapshot(true);
-    try {
-      await fetchSaveSnapshot({
-        data: {
-          label: snapshotLabel.trim(),
-          entity_type: "automation",
-          entity_id: a.id,
-          entity_name: a.name,
-          metrics: { entered: a.entered, exited: a.exited, active: a.active, completion_rate: a.completion_rate },
-        },
-      });
-      toast.success("Régua salva com sucesso");
-      setSnapshotLabel("");
-      snapshotsQ.refetch();
-    } catch (e: any) {
-      toast.error(e?.message ?? "Erro ao salvar");
-    } finally {
-      setSavingSnapshot(false);
-    }
-  }
-
-  const deleteM = useMutation({
-    mutationFn: (snapId: string) => fetchDeleteSnapshot({ data: { id: snapId } }),
-    onSuccess: () => snapshotsQ.refetch(),
+  const messagesQ = useQuery({
+    queryKey: ["automation-messages", id],
+    enabled: !!a,
+    queryFn: () => fetchMessages({ data: { id } }),
   });
 
   if (autoQ.isLoading || !a) {
@@ -105,6 +76,20 @@ function AutomationDetailPage() {
           <div className="mt-8 grid grid-cols-4 gap-4">
             {[0, 1, 2, 3].map((i) => <div key={i} className="h-28 animate-pulse rounded-xl bg-surface" />)}
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (autoQ.isError) {
+    return (
+      <div className="min-h-screen bg-background">
+        <AppHeader />
+        <div className="mx-auto max-w-[1400px] px-6 py-10">
+          <p className="text-sm text-destructive">{(autoQ.error as Error).message}</p>
+          <Button asChild variant="outline" size="sm" className="mt-3">
+            <Link to="/automations"><ArrowLeft className="mr-1.5 h-4 w-4" />Voltar</Link>
+          </Button>
         </div>
       </div>
     );
@@ -153,17 +138,17 @@ function AutomationDetailPage() {
         )}
 
         {/* Abas */}
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <Tabs defaultValue="recs">
           <TabsList className="bg-surface">
             <TabsTrigger value="recs"><Sparkles className="mr-1.5 h-3.5 w-3.5" />Recomendações</TabsTrigger>
             <TabsTrigger value="messages">
-              <Mail className="mr-1.5 h-3.5 w-3.5" />
-              E-mails
+              <Mail className="mr-1.5 h-3.5 w-3.5" />E-mails
               {(messagesQ.data?.messages.length ?? 0) > 0 && (
-                <span className="ml-1.5 rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-semibold text-primary">{messagesQ.data!.messages.length}</span>
+                <span className="ml-1.5 rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                  {messagesQ.data!.messages.length}
+                </span>
               )}
             </TabsTrigger>
-            <TabsTrigger value="regua"><BookmarkPlus className="mr-1.5 h-3.5 w-3.5" />Régua</TabsTrigger>
           </TabsList>
 
           {/* Recomendações */}
@@ -208,44 +193,13 @@ function AutomationDetailPage() {
               fetchGenerate={fetchGenerate as any}
             />
           </TabsContent>
-
-          {/* Régua */}
-          <TabsContent value="regua" className="mt-6">
-            <div className="space-y-6">
-              <div className="rounded-xl border border-border bg-card p-5 space-y-3">
-                <h3 className="text-sm font-semibold">Salvar snapshot atual</h3>
-                <p className="text-xs text-muted-foreground">Salve as métricas de agora com um rótulo. Use antes e depois de uma alteração para comparar o impacto.</p>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Ex: Antes de alterar o delay do step 3"
-                    value={snapshotLabel}
-                    onChange={(e) => setSnapshotLabel(e.target.value)}
-                    className="max-w-md"
-                    onKeyDown={(e) => e.key === "Enter" && handleSaveSnapshot()}
-                  />
-                  <Button onClick={handleSaveSnapshot} disabled={savingSnapshot || !snapshotLabel.trim()}>
-                    <BookmarkPlus className="mr-1.5 h-4 w-4" />
-                    {savingSnapshot ? "Salvando..." : "Salvar"}
-                  </Button>
-                </div>
-              </div>
-
-              {snapshotsQ.isLoading ? (
-                <div className="space-y-2">{[0,1,2].map(i => <div key={i} className="h-16 animate-pulse rounded-xl bg-surface" />)}</div>
-              ) : (snapshotsQ.data?.snapshots ?? []).length === 0 ? (
-                <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">Nenhum snapshot salvo ainda.</div>
-              ) : (
-                <SnapshotTable snapshots={snapshotsQ.data!.snapshots} onDelete={(sid) => deleteM.mutate(sid)} />
-              )}
-            </div>
-          </TabsContent>
         </Tabs>
       </main>
     </div>
   );
 }
 
-// ─── Aba E-mails (reusável) ───────────────────────────────────────────────────
+// ─── Aba E-mails ──────────────────────────────────────────────────────────────
 
 function MessagesTab({ campaignId, messages, isLoading, fetchAnalysis, fetchGenerate }: {
   campaignId: string;
@@ -294,7 +248,9 @@ function MessagesTab({ campaignId, messages, isLoading, fetchAnalysis, fetchGene
     }
   }
 
-  if (isLoading) return <div className="space-y-3 mt-2">{[0,1,2].map(i => <div key={i} className="h-20 animate-pulse rounded-xl bg-surface" />)}</div>;
+  if (isLoading) return (
+    <div className="space-y-3">{[0,1,2].map(i => <div key={i} className="h-20 animate-pulse rounded-xl bg-surface" />)}</div>
+  );
 
   if (messages.length === 0) return (
     <div className="rounded-xl border border-border bg-card p-10 text-center text-muted-foreground">
@@ -326,16 +282,15 @@ function MessagesTab({ campaignId, messages, isLoading, fetchAnalysis, fetchGene
             </div>
             <div className="rounded-xl border border-border bg-card p-4">
               <div className="mb-3 flex items-center justify-between">
-                <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Prévia do e-mail</div>
+                <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Prévia</div>
                 <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(msg.html); toast.success("HTML copiado"); }}>
                   <Copy className="mr-1.5 h-3.5 w-3.5" />Copiar HTML
                 </Button>
               </div>
-              {msg.html ? (
-                <iframe srcDoc={msg.html} className="h-[500px] w-full rounded-md border border-border bg-white" sandbox="" title={`msg-${msg.id}`} />
-              ) : (
-                <div className="flex h-32 items-center justify-center text-sm text-muted-foreground">Sem conteúdo HTML</div>
-              )}
+              {msg.html
+                ? <iframe srcDoc={msg.html} className="h-[500px] w-full rounded-md border border-border bg-white" sandbox="" title={`msg-${msg.id}`} />
+                : <div className="flex h-32 items-center justify-center text-sm text-muted-foreground">Sem conteúdo HTML</div>
+              }
             </div>
           </div>
 
@@ -343,7 +298,7 @@ function MessagesTab({ campaignId, messages, isLoading, fetchAnalysis, fetchGene
             {!analysis && !isAnalyzing && (
               <div className="rounded-xl border border-border bg-card p-8 text-center">
                 <Sparkles className="mx-auto mb-3 h-8 w-8 text-primary/50" />
-                <p className="mb-4 text-sm text-muted-foreground">Analise o copy, estrutura e efetividade deste e-mail com IA.</p>
+                <p className="mb-4 text-sm text-muted-foreground">Analise copy, estrutura e efetividade deste e-mail com IA.</p>
                 <Button onClick={() => analyzeMessage(msg)} disabled={!msg.html}>
                   <Sparkles className="mr-2 h-4 w-4" />Analisar este e-mail
                 </Button>
@@ -357,7 +312,7 @@ function MessagesTab({ campaignId, messages, isLoading, fetchAnalysis, fetchGene
                 <div className="rounded-xl border border-border bg-card p-5">
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Pontuação do E-mail</div>
+                      <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Pontuação</div>
                       <div className="mt-2 font-mono text-4xl font-semibold">
                         <span className={cn(analysis.score >= 70 ? "text-success" : analysis.score >= 40 ? "text-warning" : "text-destructive")}>{analysis.score}</span>
                         <span className="text-2xl text-muted-foreground">/100</span>
@@ -372,13 +327,13 @@ function MessagesTab({ campaignId, messages, isLoading, fetchAnalysis, fetchGene
                     <div className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-success">
                       <CheckCircle2 className="h-3.5 w-3.5" />Pontos Fortes
                     </div>
-                    <ul className="space-y-1.5">{analysis.strengths.map((s, i) => <li key={i} className="text-xs text-foreground">{s}</li>)}</ul>
+                    <ul className="space-y-1.5">{analysis.strengths.map((s, i) => <li key={i} className="text-xs">{s}</li>)}</ul>
                   </div>
                   <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4">
                     <div className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-destructive">
                       <XCircle className="h-3.5 w-3.5" />Pontos Fracos
                     </div>
-                    <ul className="space-y-1.5">{analysis.weaknesses.map((w, i) => <li key={i} className="text-xs text-foreground">{w}</li>)}</ul>
+                    <ul className="space-y-1.5">{analysis.weaknesses.map((w, i) => <li key={i} className="text-xs">{w}</li>)}</ul>
                   </div>
                 </div>
 
@@ -435,57 +390,6 @@ function MessagesTab({ campaignId, messages, isLoading, fetchAnalysis, fetchGene
           ) : null}
         </SheetContent>
       </Sheet>
-    </div>
-  );
-}
-
-// ─── Snapshot table ───────────────────────────────────────────────────────────
-
-function SnapshotTable({ snapshots, onDelete }: { snapshots: MetricSnapshot[]; onDelete: (id: string) => void }) {
-  const METRIC_KEYS = ["entered", "exited", "active", "completion_rate", "open_rate", "ctr", "uniquelinkclicks", "send_amt"];
-  const METRIC_LABELS: Record<string, string> = {
-    entered: "Entradas", exited: "Saídas", active: "Ativos", completion_rate: "Conclusão %",
-    open_rate: "Abertura %", ctr: "CTR %", uniquelinkclicks: "Cliques únicos", send_amt: "Envios",
-  };
-
-  const presentKeys = METRIC_KEYS.filter(k => snapshots.some(s => s.metrics[k] !== undefined));
-
-  return (
-    <div className="overflow-x-auto rounded-xl border border-border">
-      <table className="w-full text-sm">
-        <thead className="bg-surface text-[11px] uppercase tracking-wider text-muted-foreground">
-          <tr>
-            <th className="px-4 py-2.5 text-left font-medium">Rótulo</th>
-            <th className="px-4 py-2.5 text-left font-medium">Data</th>
-            {presentKeys.map(k => <th key={k} className="px-4 py-2.5 text-right font-medium">{METRIC_LABELS[k] ?? k}</th>)}
-            <th className="px-4 py-2.5" />
-          </tr>
-        </thead>
-        <tbody>
-          {snapshots.map((s, i) => (
-            <tr key={s.id} className={cn("border-t border-border", i % 2 === 1 && "bg-surface/40")}>
-              <td className="px-4 py-3 font-medium">{s.label}</td>
-              <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
-                {format(new Date(s.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
-              </td>
-              {presentKeys.map(k => (
-                <td key={k} className="px-4 py-3 text-right font-mono tabular-nums">
-                  {s.metrics[k] !== undefined
-                    ? typeof s.metrics[k] === "number" && (k.includes("rate") || k === "ctr" || k === "completion_rate")
-                      ? `${Number(s.metrics[k]).toFixed(1)}%`
-                      : Number(s.metrics[k]).toLocaleString("pt-BR")
-                    : "—"}
-                </td>
-              ))}
-              <td className="px-4 py-3 text-right">
-                <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-destructive" onClick={() => onDelete(s.id)}>
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
     </div>
   );
 }
