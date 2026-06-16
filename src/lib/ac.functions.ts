@@ -368,12 +368,29 @@ export const getAutomationMessages = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     const creds = await getCreds(context.supabase, context.userId);
 
-    // In AC, automation campaigns use the "series" field (not "automation") to link to an automation.
-    const json = await acFetch(creds, "campaigns", {
-      "filters[series]": data.id,
-      limit: "100",
-    });
-    const camps: any[] = json.campaigns ?? [];
+    // Fetch all campaigns and filter in code — inspect raw fields to find automation link
+    const json = await acFetch(creds, "campaigns", { limit: "100" });
+    const allCamps: any[] = json.campaigns ?? [];
+    // Log the first campaign's raw fields to identify which field links to automation
+    if (allCamps.length > 0) {
+      const sample = allCamps[0];
+      console.log("[getAutomationMessages] sample campaign keys:", Object.keys(sample).join(", "));
+      console.log("[getAutomationMessages] sample campaign automation-related fields:", {
+        automation: sample.automation,
+        series: sample.series,
+        seriesid: sample.seriesid,
+        type: sample.type,
+        id: sample.id,
+        name: sample.name,
+      });
+    }
+    // Filter by any automation-related field
+    const camps = allCamps.filter((c: any) =>
+      String(c.automation ?? "") === data.id ||
+      String(c.series ?? "") === data.id ||
+      String(c.seriesid ?? "") === data.id
+    );
+    console.log("[getAutomationMessages] automation", data.id, "→ matched", camps.length, "of", allCamps.length, "campaigns");
     const msgIds = [...new Set(
       camps.map((c: any) => c.message_id ? String(c.message_id) : null).filter(Boolean) as string[]
     )];
