@@ -166,7 +166,7 @@ function AnalisarPage() {
                     srcDoc={html}
                     className="w-full border-t border-border"
                     style={{ height: 600 }}
-                    sandbox="allow-same-origin"
+                    sandbox=""
                   />
                 )}
               </div>
