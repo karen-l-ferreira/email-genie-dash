@@ -285,7 +285,7 @@ export const listAlertasEnviados = createServerFn({ method: "GET" })
   .inputValidator((d) =>
     z.object({
       page: z.number().int().min(1).default(1),
-      cliente: z.string().optional(),
+      cliente: z.string().max(100).regex(/^[\w\s@.\-À-ÿ]*$/).optional(),
       dataInicio: z.string().optional(),
       dataFim: z.string().optional(),
     }).parse(d ?? {}),
@@ -299,7 +299,8 @@ export const listAlertasEnviados = createServerFn({ method: "GET" })
       .eq("user_id", context.userId)
       .order("data_envio", { ascending: false });
     if (data.cliente) {
-      q = q.or(`cliente_nome.ilike.%${data.cliente}%,cliente_id.ilike.%${data.cliente}%`);
+      const safe = data.cliente.replace(/[,()*]/g, "");
+      q = q.or(`cliente_nome.ilike.%${safe}%,cliente_id.ilike.%${safe}%`);
     }
     if (data.dataInicio) q = q.gte("data_envio", data.dataInicio);
     if (data.dataFim) q = q.lte("data_envio", data.dataFim);
