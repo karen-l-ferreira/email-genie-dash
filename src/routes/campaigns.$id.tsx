@@ -5,7 +5,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { getCampaign, getCampaignMessages, listCampaigns, saveSnapshot, listSnapshots, deleteSnapshot, type CampaignMessage, type MetricSnapshot } from "@/lib/ac.functions";
 import { getSettings } from "@/lib/settings.functions";
-import { getMessageAnalysis, getRecommendations, getVariations, generateEmailFromAnalysis, type MessageAnalysis, type Recommendation, type GeneratedEmail } from "@/lib/ai.functions";
+import { getMessageAnalysis, getRecommendations, getVariations, generateEmailFromAnalysis, type MessageAnalysis, type Recommendation, type GeneratedEmail, type Variation } from "@/lib/ai.functions";
 import { AuthGate } from "@/components/app/AuthGate";
 import { AppHeader } from "@/components/app/Header";
 import { MetricCard } from "@/components/app/MetricCard";
@@ -145,8 +145,8 @@ function CampaignDetailPage() {
   });
 
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const varsM = useMutation({
-    mutationFn: (refresh = false) =>
+  const varsM = useMutation<{ variations: Variation[] }, Error, boolean>({
+    mutationFn: (refresh: boolean) =>
       fetchVars({ data: { campaign_id: id, subject, html, recommendations: recsQ.data?.recommendations ?? [], refresh } }),
   });
 

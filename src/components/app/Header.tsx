@@ -2,7 +2,7 @@ import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
-import { Activity, BarChart3, GitBranch, LogOut, Mail, Moon, ScanText, Search, Settings as SettingsIcon, Sun, Zap } from "lucide-react";
+import { Activity, BarChart3, Bell, GitBranch, LogOut, Mail, Moon, ScanText, Search, Settings as SettingsIcon, Sun, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/hooks/use-theme";
 
@@ -79,6 +79,16 @@ export function AppHeader({ campaignCount }: Props) {
             >
               <Zap className="h-3.5 w-3.5" />
               Influência
+            </Link>
+            <Link
+              to="/alertas"
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors",
+                pathname.startsWith("/alertas") ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <Bell className="h-3.5 w-3.5" />
+              Alertas
             </Link>
           </nav>
         </div>

@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      alertas_enviados: {
+        Row: {
+          cliente_id: string
+          cliente_nome: string | null
+          created_at: string
+          data_envio: string
+          email_destino: string
+          id: string
+          link_portal_clicado: string | null
+          link_whatsapp_clicado: string | null
+          user_id: string
+        }
+        Insert: {
+          cliente_id: string
+          cliente_nome?: string | null
+          created_at?: string
+          data_envio?: string
+          email_destino: string
+          id?: string
+          link_portal_clicado?: string | null
+          link_whatsapp_clicado?: string | null
+          user_id: string
+        }
+        Update: {
+          cliente_id?: string
+          cliente_nome?: string | null
+          created_at?: string
+          data_envio?: string
+          email_destino?: string
+          id?: string
+          link_portal_clicado?: string | null
+          link_whatsapp_clicado?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       campaign_ai_cache: {
         Row: {
           campaign_id: string
@@ -37,6 +73,39 @@ export type Database = {
           id?: string
           kind?: string
           payload?: Json
+          user_id?: string
+        }
+        Relationships: []
+      }
+      metric_snapshots: {
+        Row: {
+          created_at: string
+          entity_id: string
+          entity_name: string
+          entity_type: string
+          id: string
+          label: string
+          metrics: Json
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          entity_id: string
+          entity_name: string
+          entity_type: string
+          id?: string
+          label: string
+          metrics: Json
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          entity_id?: string
+          entity_name?: string
+          entity_type?: string
+          id?: string
+          label?: string
+          metrics?: Json
           user_id?: string
         }
         Relationships: []
