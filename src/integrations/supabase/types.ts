@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      alertas_enviados: {
+        Row: {
+          cliente_id: string
+          cliente_nome: string | null
+          created_at: string
+          data_envio: string
+          email_destino: string
+          id: string
+          link_portal_clicado: string | null
+          link_whatsapp_clicado: string | null
+          user_id: string
+        }
+        Insert: {
+          cliente_id: string
+          cliente_nome?: string | null
+          created_at?: string
+          data_envio?: string
+          email_destino: string
+          id?: string
+          link_portal_clicado?: string | null
+          link_whatsapp_clicado?: string | null
+          user_id: string
+        }
+        Update: {
+          cliente_id?: string
+          cliente_nome?: string | null
+          created_at?: string
+          data_envio?: string
+          email_destino?: string
+          id?: string
+          link_portal_clicado?: string | null
+          link_whatsapp_clicado?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       campaign_ai_cache: {
         Row: {
           campaign_id: string
