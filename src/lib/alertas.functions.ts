@@ -300,7 +300,7 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
     } else if (data.tab === "valor_aprovado") {
       rows = rows.filter((r) => {
         const c = contactById.get(r.contactId);
-        return isApto(c?.cf["APTO"]) && r.valorAprovadoNaoOperado > 5000;
+        return isApto(c?.cf["APTO"]);
       });
       rows.sort((a, b) => b.valorAprovadoNaoOperado - a.valorAprovadoNaoOperado);
     }
