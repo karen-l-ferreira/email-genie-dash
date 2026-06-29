@@ -184,6 +184,7 @@ function ClientesTab({ tab, mode }: { tab: "sem_operar_15" | "sem_operar_30" | "
                 </div>
               </div>
 
+              {(r as any)._dbg && <p className="text-[10px] font-mono text-muted-foreground break-all">{(r as any)._dbg}</p>}
               {/* Badge */}
               <Badge className={`self-start border text-xs font-medium ${badgeColor}`}>
                 {tab !== "valor_aprovado" && <Clock className="mr-1 h-3 w-3" />}

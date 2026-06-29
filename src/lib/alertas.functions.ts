@@ -210,6 +210,7 @@ export type AlertaClienteRow = {
   phone: string;
   valorAprovadoNaoOperado: number;
   limiteDisponivel: number;
+  _dbg?: string;
 };
 
 export type ListAlertasResult = {
@@ -277,6 +278,7 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
         phone: c.phone,
         valorAprovadoNaoOperado: parseMoneyLoose(valorRaw),
         limiteDisponivel: parseMoneyLoose(limiteRaw),
+        _dbg: `acctId=${c.accountId} acfKeys=${Object.keys(acf).join("|") || "vazio"} valorRaw=${valorRaw ?? "null"}`,
       };
     });
 
