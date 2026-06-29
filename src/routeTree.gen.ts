@@ -16,7 +16,6 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as CampanhasRouteImport } from './routes/campanhas'
 import { Route as AutomationsRouteImport } from './routes/automations'
 import { Route as AnalisarRouteImport } from './routes/analisar'
-import { Route as DebugAlertasRouteImport } from './routes/debug-alertas'
 import { Route as AlertasRouteImport } from './routes/alertas'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CampaignsIdRouteImport } from './routes/campaigns.$id'
@@ -57,11 +56,6 @@ const AnalisarRoute = AnalisarRouteImport.update({
   path: '/analisar',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DebugAlertasRoute = DebugAlertasRouteImport.update({
-  id: '/debug-alertas',
-  path: '/debug-alertas',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AlertasRoute = AlertasRouteImport.update({
   id: '/alertas',
   path: '/alertas',
@@ -86,7 +80,6 @@ const AutomationIdRoute = AutomationIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/alertas': typeof AlertasRoute
-  '/debug-alertas': typeof DebugAlertasRoute
   '/analisar': typeof AnalisarRoute
   '/automations': typeof AutomationsRoute
   '/campanhas': typeof CampanhasRoute
@@ -100,7 +93,6 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/alertas': typeof AlertasRoute
-  '/debug-alertas': typeof DebugAlertasRoute
   '/analisar': typeof AnalisarRoute
   '/automations': typeof AutomationsRoute
   '/campanhas': typeof CampanhasRoute
@@ -115,7 +107,6 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/alertas': typeof AlertasRoute
-  '/debug-alertas': typeof DebugAlertasRoute
   '/analisar': typeof AnalisarRoute
   '/automations': typeof AutomationsRoute
   '/campanhas': typeof CampanhasRoute
@@ -131,7 +122,6 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/alertas'
-    | '/debug-alertas'
     | '/analisar'
     | '/automations'
     | '/campanhas'
@@ -145,7 +135,6 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/alertas'
-    | '/debug-alertas'
     | '/analisar'
     | '/automations'
     | '/campanhas'
@@ -159,7 +148,6 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/alertas'
-    | '/debug-alertas'
     | '/analisar'
     | '/automations'
     | '/campanhas'
@@ -174,7 +162,6 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AlertasRoute: typeof AlertasRoute
-  DebugAlertasRoute: typeof DebugAlertasRoute
   AnalisarRoute: typeof AnalisarRoute
   AutomationsRoute: typeof AutomationsRoute
   CampanhasRoute: typeof CampanhasRoute
@@ -244,13 +231,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AlertasRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/debug-alertas': {
-      id: '/debug-alertas'
-      path: '/debug-alertas'
-      fullPath: '/debug-alertas'
-      preLoaderRoute: typeof DebugAlertasRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/': {
       id: '/'
       path: '/'
@@ -278,7 +258,6 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AlertasRoute: AlertasRoute,
-  DebugAlertasRoute: DebugAlertasRoute,
   AnalisarRoute: AnalisarRoute,
   AutomationsRoute: AutomationsRoute,
   CampanhasRoute: CampanhasRoute,
