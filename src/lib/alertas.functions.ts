@@ -162,27 +162,39 @@ async function loadAllAccounts(creds: Settings, acctFieldMap: Record<string, str
     fieldIdToPersonalization[id] = personalization;
   }
 
+  // Step 1: load account names
   const byId: Record<string, AccountData> = {};
   for (let page = 0; page < MAX_PAGES; page++) {
     const json = await acFetch(creds, "accounts", {
       limit: String(PAGE_SIZE),
       offset: String(page * PAGE_SIZE),
-      include: "accountCustomFieldData",
     });
-
-    const cfByAcct: Record<string, Record<string, string>> = {};
-    for (const fv of (json.accountCustomFieldData ?? []) as any[]) {
-      if (!fv.accountId || !fv.customFieldId || fv.fieldValue == null || fv.fieldValue === "") continue;
-      const personalization = fieldIdToPersonalization[String(fv.customFieldId)];
-      if (!personalization) continue;
-      (cfByAcct[String(fv.accountId)] ??= {})[personalization] = String(fv.fieldValue);
-    }
-
     for (const a of (json.accounts ?? []) as any[]) {
-      byId[String(a.id)] = { id: String(a.id), name: a.name ?? "", cf: cfByAcct[String(a.id)] ?? {} };
+      byId[String(a.id)] = { id: String(a.id), name: a.name ?? "", cf: {} };
     }
     if ((json.accounts ?? []).length < PAGE_SIZE) break;
   }
+
+  // Step 2: load account custom field values from dedicated endpoint
+  // Uses customerAccountId (not accountId) as the account reference
+  for (let page = 0; page < MAX_PAGES * 5; page++) {
+    const json = await acFetch(creds, "accountCustomFieldData", {
+      limit: String(PAGE_SIZE),
+      offset: String(page * PAGE_SIZE),
+    });
+    const entries: any[] = json.accountCustomFieldData ?? [];
+    for (const fv of entries) {
+      const aid = String(fv.customerAccountId ?? fv.accountId ?? "");
+      const fieldId = String(fv.customFieldId ?? "");
+      const value = fv.fieldValue;
+      if (!aid || !fieldId || value == null || value === "") continue;
+      const personalization = fieldIdToPersonalization[fieldId];
+      if (!personalization) continue;
+      if (byId[aid]) byId[aid].cf[personalization] = String(value);
+    }
+    if (entries.length < PAGE_SIZE) break;
+  }
+
   return byId;
 }
 
