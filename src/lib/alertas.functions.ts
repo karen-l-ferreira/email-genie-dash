@@ -271,7 +271,7 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
       });
       rows.sort((a, b) => (a.ultimaOperacao! < b.ultimaOperacao! ? -1 : 1));
     } else if (data.tab === "valor_aprovado") {
-      rows = rows.filter((r) => r.valorAprovadoNaoOperado > 2000 && r.limiteDisponivel > 2000);
+      rows = rows.filter((r) => r.valorAprovadoNaoOperado > 5000);
       rows.sort((a, b) => b.valorAprovadoNaoOperado - a.valorAprovadoNaoOperado);
     }
 
