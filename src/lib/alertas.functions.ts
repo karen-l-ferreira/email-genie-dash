@@ -43,132 +43,13 @@ async function acFetch(creds: Settings, path: string, params?: Record<string, st
   return res.json();
 }
 
-// Cap to keep requests bounded — 20 pages of 100 = 2000 records.
 const MAX_PAGES = 20;
 const PAGE_SIZE = 100;
 
-type ContactRow = {
-  id: string;
-  email: string;
-  phone: string;
-  accountId: string | null;
-  cf: Record<string, string>; // perstag → value
-};
-
-type AccountRow = {
-  id: string;
-  name: string;
-  cf: Record<string, string>; // perstag (e.g. ACCT_CNPJ) → value
-};
-
-async function loadContactFieldsByPerstag(creds: Settings): Promise<Record<string, string>> {
-  const json = await acFetch(creds, "fields", { limit: "100" });
-  const map: Record<string, string> = {};
-  for (const f of (json.fields ?? []) as any[]) {
-    if (f.perstag) map[String(f.perstag).toUpperCase()] = String(f.id);
-  }
-  return map;
-}
-
-function normalizeKey(s: string): string {
-  return s
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^A-Z0-9]/gi, "_")
-    .toUpperCase();
-}
-
-// Returns map of fieldId → all tags (perstag + normalized label) for that field
-// Returns map of fieldId → all tags for that field (personalization + normalized label)
-async function loadAccountFieldsById(creds: Settings): Promise<Record<string, string[]>> {
-  const json = await acFetch(creds, "accountCustomFieldMeta", { limit: "100" });
-  const map: Record<string, string[]> = {};
-  for (const f of (json.accountCustomFieldMeta ?? []) as any[]) {
-    const id = String(f.id);
-    const tags: string[] = [];
-    if (f.personalization) tags.push(String(f.personalization).toUpperCase());
-    if (f.fieldLabel) tags.push(normalizeKey(f.fieldLabel));
-    if (tags.length) map[id] = tags;
-  }
-  return map;
-}
-
-async function loadAllContacts(creds: Settings, perstagToId: Record<string, string>): Promise<ContactRow[]> {
-  const idToPerstag: Record<string, string> = {};
-  for (const [k, v] of Object.entries(perstagToId)) idToPerstag[v] = k;
-
-  const out: ContactRow[] = [];
-  for (let page = 0; page < MAX_PAGES; page++) {
-    const json = await acFetch(creds, "contacts", {
-      limit: String(PAGE_SIZE),
-      offset: String(page * PAGE_SIZE),
-      include: "fieldValues,accountContacts",
-      "orders[id]": "ASC",
-    });
-    const fvByContact: Record<string, Record<string, string>> = {};
-    for (const fv of (json.fieldValues ?? []) as any[]) {
-      if (!fv.contact || !fv.field || fv.value == null || fv.value === "") continue;
-      const cid = String(fv.contact);
-      const tag = idToPerstag[String(fv.field)];
-      if (!tag) continue;
-      (fvByContact[cid] ??= {})[tag] = String(fv.value);
-    }
-    const acctByContact: Record<string, string> = {};
-    for (const ac of (json.accountContacts ?? []) as any[]) {
-      if (ac.contact && ac.account) acctByContact[String(ac.contact)] = String(ac.account);
-    }
-    const rows: any[] = json.contacts ?? [];
-    for (const c of rows) {
-      out.push({
-        id: String(c.id),
-        email: c.email ?? "",
-        phone: c.phone ?? "",
-        accountId: acctByContact[String(c.id)] ?? null,
-        cf: fvByContact[String(c.id)] ?? {},
-      });
-    }
-    if (rows.length < PAGE_SIZE) break;
-  }
-  return out;
-}
-
-async function loadAllAccounts(creds: Settings): Promise<Record<string, AccountRow>> {
-  // Step 1: load all accounts (names only)
-  const byId: Record<string, AccountRow> = {};
-  for (let page = 0; page < MAX_PAGES; page++) {
-    const json = await acFetch(creds, "accounts", {
-      limit: String(PAGE_SIZE),
-      offset: String(page * PAGE_SIZE),
-    });
-    for (const a of (json.accounts ?? []) as any[]) {
-      byId[String(a.id)] = { id: String(a.id), name: a.name ?? "", cf: {} };
-    }
-    if ((json.accounts ?? []).length < PAGE_SIZE) break;
-  }
-
-  // Step 2: load all account custom field values from dedicated endpoint
-  for (let page = 0; page < MAX_PAGES; page++) {
-    const json = await acFetch(creds, "accountCustomFieldData", {
-      limit: String(PAGE_SIZE),
-      offset: String(page * PAGE_SIZE),
-    });
-    for (const fv of (json.accountCustomFieldData ?? []) as any[]) {
-      if (!fv.customerAccountId || !fv.customFieldId || fv.fieldValue == null || fv.fieldValue === "") continue;
-      const aid = String(fv.customerAccountId);
-      if (byId[aid]) byId[aid].cf[String(fv.customFieldId)] = String(fv.fieldValue);
-    }
-    if ((json.accountCustomFieldData ?? []).length < PAGE_SIZE) break;
-  }
-
-  return byId;
-}
-
 function parseDateLoose(s: string | undefined): Date | null {
   if (!s) return null;
-  // Try ISO/standard first
   let d = new Date(s);
   if (!isNaN(d.getTime())) return d;
-  // dd/mm/yyyy
   const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
   if (m) {
     d = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
@@ -177,9 +58,8 @@ function parseDateLoose(s: string | undefined): Date | null {
   return null;
 }
 
-function parseMoneyLoose(s: string | undefined): number {
+function parseMoneyLoose(s: string | undefined | null): number {
   if (!s) return 0;
-  // Strip currency, allow dot/comma decimal
   const clean = s.replace(/[^\d,.-]/g, "").replace(/\.(?=\d{3}(\D|$))/g, "").replace(",", ".");
   const n = Number(clean);
   return isNaN(n) ? 0 : n;
@@ -191,13 +71,130 @@ function isApto(s: string | undefined): boolean {
   return v === "sim" || v === "true" || v === "1" || v === "verdadeiro" || v === "yes";
 }
 
+// ─── Contact fields (perstag → fieldId) ────────────────────────────────────
+
+async function loadContactFieldMap(creds: Settings): Promise<Record<string, string>> {
+  const json = await acFetch(creds, "fields", { limit: "100" });
+  const map: Record<string, string> = {};
+  for (const f of (json.fields ?? []) as any[]) {
+    if (f.perstag) map[String(f.perstag).toUpperCase()] = String(f.id);
+  }
+  return map;
+}
+
+// ─── Account fields (personalization → fieldId) ────────────────────────────
+
+async function loadAccountFieldMap(creds: Settings): Promise<Record<string, string>> {
+  const map: Record<string, string> = {};
+  for (let page = 0; page < 5; page++) {
+    const json = await acFetch(creds, "accountCustomFieldMeta", {
+      limit: "100",
+      offset: String(page * 100),
+    });
+    const fields: any[] = json.accountCustomFieldMeta ?? [];
+    for (const f of fields) {
+      if (f.personalization) map[String(f.personalization).toUpperCase()] = String(f.id);
+    }
+    if (fields.length < 100) break;
+  }
+  return map;
+}
+
+// ─── Load all contacts with custom fields ──────────────────────────────────
+
+type ContactData = {
+  id: string;
+  email: string;
+  phone: string;
+  accountId: string | null;
+  cf: Record<string, string>; // perstag → value
+};
+
+async function loadAllContacts(creds: Settings, fieldIdToPerstag: Record<string, string>): Promise<ContactData[]> {
+  const out: ContactData[] = [];
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const json = await acFetch(creds, "contacts", {
+      limit: String(PAGE_SIZE),
+      offset: String(page * PAGE_SIZE),
+      include: "fieldValues,accountContacts",
+      "orders[id]": "ASC",
+    });
+
+    const cfByContact: Record<string, Record<string, string>> = {};
+    for (const fv of (json.fieldValues ?? []) as any[]) {
+      if (!fv.contact || !fv.field || fv.value == null || fv.value === "") continue;
+      const perstag = fieldIdToPerstag[String(fv.field)];
+      if (!perstag) continue;
+      (cfByContact[String(fv.contact)] ??= {})[perstag] = String(fv.value);
+    }
+
+    const acctByContact: Record<string, string> = {};
+    for (const ac of (json.accountContacts ?? []) as any[]) {
+      if (ac.contact && ac.account) acctByContact[String(ac.contact)] = String(ac.account);
+    }
+
+    for (const c of (json.contacts ?? []) as any[]) {
+      out.push({
+        id: String(c.id),
+        email: c.email ?? "",
+        phone: c.phone ?? "",
+        accountId: acctByContact[String(c.id)] ?? null,
+        cf: cfByContact[String(c.id)] ?? {},
+      });
+    }
+    if ((json.contacts ?? []).length < PAGE_SIZE) break;
+  }
+  return out;
+}
+
+// ─── Load all accounts with custom fields ──────────────────────────────────
+
+type AccountData = {
+  id: string;
+  name: string;
+  cf: Record<string, string>; // personalization → value
+};
+
+async function loadAllAccounts(creds: Settings, acctFieldMap: Record<string, string>): Promise<Record<string, AccountData>> {
+  // Invert: fieldId → personalization
+  const fieldIdToPersonalization: Record<string, string> = {};
+  for (const [personalization, id] of Object.entries(acctFieldMap)) {
+    fieldIdToPersonalization[id] = personalization;
+  }
+
+  const byId: Record<string, AccountData> = {};
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const json = await acFetch(creds, "accounts", {
+      limit: String(PAGE_SIZE),
+      offset: String(page * PAGE_SIZE),
+      include: "accountCustomFieldData",
+    });
+
+    const cfByAcct: Record<string, Record<string, string>> = {};
+    for (const fv of (json.accountCustomFieldData ?? []) as any[]) {
+      if (!fv.accountId || !fv.customFieldId || fv.fieldValue == null || fv.fieldValue === "") continue;
+      const personalization = fieldIdToPersonalization[String(fv.customFieldId)];
+      if (!personalization) continue;
+      (cfByAcct[String(fv.accountId)] ??= {})[personalization] = String(fv.fieldValue);
+    }
+
+    for (const a of (json.accounts ?? []) as any[]) {
+      byId[String(a.id)] = { id: String(a.id), name: a.name ?? "", cf: cfByAcct[String(a.id)] ?? {} };
+    }
+    if ((json.accounts ?? []).length < PAGE_SIZE) break;
+  }
+  return byId;
+}
+
+// ─── Types ─────────────────────────────────────────────────────────────────
+
 export type AlertaClienteRow = {
   contactId: string;
   accountId: string | null;
   razaoSocial: string;
   clienteId: string;
   cnpj: string;
-  ultimaOperacao: string | null; // ISO
+  ultimaOperacao: string | null;
   email: string;
   phone: string;
   valorAprovadoNaoOperado: number;
@@ -209,8 +206,9 @@ export type ListAlertasResult = {
   total: number;
   page: number;
   pageSize: number;
-  _debug?: { acctFieldKeys: string[]; sampleAcf: Record<string, string> } | null;
 };
+
+// ─── Server function ───────────────────────────────────────────────────────
 
 const tabSchema = z.object({
   tab: z.enum(["sem_operar_15", "sem_operar_30", "valor_aprovado"]),
@@ -222,51 +220,59 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
   .inputValidator((d) => tabSchema.parse(d ?? {}))
   .handler(async ({ data, context }) => {
     const creds = await getCreds(context.supabase, context.userId);
-    const [contactPerstag, acctMeta] = await Promise.all([
-      loadContactFieldsByPerstag(creds),
-      loadAccountFieldsById(creds),
-    ]);
-    const [contacts, accounts] = await Promise.all([
-      loadAllContacts(creds, contactPerstag),
-      loadAllAccounts(creds),
+
+    // Load field maps in parallel
+    const [contactFieldMap, acctFieldMap] = await Promise.all([
+      loadContactFieldMap(creds),
+      loadAccountFieldMap(creds),
     ]);
 
-    // Build personalization → fieldId lookup from account field metadata
-    const personalizationToId: Record<string, string> = {};
-    for (const [id, tags] of Object.entries(acctMeta)) {
-      for (const tag of tags) personalizationToId[tag] = id;
+    // Invert contact field map: fieldId → perstag
+    const contactFieldIdToPerstag: Record<string, string> = {};
+    for (const [perstag, id] of Object.entries(contactFieldMap)) {
+      contactFieldIdToPerstag[id] = perstag;
     }
-    const fieldId = (p: string) => personalizationToId[p.toUpperCase()] ?? null;
+
+    // Load contacts and accounts in parallel
+    const [contacts, accounts] = await Promise.all([
+      loadAllContacts(creds, contactFieldIdToPerstag),
+      loadAllAccounts(creds, acctFieldMap),
+    ]);
 
     const now = new Date();
     const cutoff15 = new Date(now.getTime() - 15 * 86400000);
     const cutoff30 = new Date(now.getTime() - 30 * 86400000);
 
+    const contactById = new Map(contacts.map((c) => [c.id, c]));
+
     let rows: AlertaClienteRow[] = contacts.map((c) => {
       const acct = c.accountId ? accounts[c.accountId] : undefined;
-      const acf = acct?.cf ?? {}; // keyed by raw numeric fieldId
+      const acf = acct?.cf ?? {}; // personalization → value
+
       const dataUlt = parseDateLoose(c.cf["DATA_DA_LTIMA_OPERAO"]);
-      const getAcctField = (personalization: string) => {
-        const id = fieldId(personalization);
-        return id ? acf[id] : undefined;
-      };
+
+      // ACCT_VALOR_APROVADO_NO_OPERADO: try contact field first, then account field
+      const valorRaw = c.cf["ACCT_VALOR_APROVADO_NO_OPERADO"] ?? acf["ACCT_VALOR_APROVADO_NO_OPERADO"] ?? null;
+      const limiteRaw = c.cf["ACCT_LIMITE_DISPONVEL"] ?? acf["ACCT_LIMITE_DISPONVEL"] ?? c.cf["ACCT_LIMITE_DISPONIVEL"] ?? acf["ACCT_LIMITE_DISPONIVEL"] ?? null;
+
       return {
         contactId: c.id,
         accountId: c.accountId,
-        razaoSocial: getAcctField("RAZAO_SOCIAL") ?? acct?.name ?? "",
-        clienteId: getAcctField("ACCT_CLIENTE_ID") ?? "",
-        cnpj: getAcctField("ACCT_CNPJ") ?? "",
+        razaoSocial: acf["RAZAO_SOCIAL"] ?? acct?.name ?? "",
+        clienteId: acf["ACCT_CLIENTE_ID"] ?? c.cf["ACCT_CLIENTE_ID"] ?? "",
+        cnpj: acf["ACCT_CNPJ"] ?? c.cf["ACCT_CNPJ"] ?? "",
         ultimaOperacao: dataUlt ? dataUlt.toISOString() : null,
         email: c.email,
         phone: c.phone,
-        valorAprovadoNaoOperado: parseMoneyLoose(getAcctField("ACCT_VALOR_APROVADO_NO_OPERADO")),
-        limiteDisponivel: parseMoneyLoose(getAcctField("ACCT_LIMITE_DISPONVEL") ?? getAcctField("ACCT_LIMITE_DISPONIVEL")),
+        valorAprovadoNaoOperado: parseMoneyLoose(valorRaw),
+        limiteDisponivel: parseMoneyLoose(limiteRaw),
       };
     });
 
     if (data.tab === "sem_operar_15") {
       rows = rows.filter((r) => {
-        if (!isApto(contacts.find((c) => c.id === r.contactId)?.cf["APTO"])) return false;
+        const c = contactById.get(r.contactId);
+        if (!isApto(c?.cf["APTO"])) return false;
         if (!r.ultimaOperacao) return false;
         const d = new Date(r.ultimaOperacao);
         return d < cutoff15 && d >= cutoff30;
@@ -274,17 +280,19 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
       rows.sort((a, b) => (a.ultimaOperacao! < b.ultimaOperacao! ? -1 : 1));
     } else if (data.tab === "sem_operar_30") {
       rows = rows.filter((r) => {
-        if (!isApto(contacts.find((c) => c.id === r.contactId)?.cf["APTO"])) return false;
+        const c = contactById.get(r.contactId);
+        if (!isApto(c?.cf["APTO"])) return false;
         if (!r.ultimaOperacao) return false;
         return new Date(r.ultimaOperacao) < cutoff30;
       });
       rows.sort((a, b) => (a.ultimaOperacao! < b.ultimaOperacao! ? -1 : 1));
     } else if (data.tab === "valor_aprovado") {
-      rows = rows.filter((r) => isApto(contacts.find((c) => c.id === r.contactId)?.cf["APTO"]) && r.valorAprovadoNaoOperado > 5000);
+      rows = rows.filter((r) => {
+        const c = contactById.get(r.contactId);
+        return isApto(c?.cf["APTO"]) && r.valorAprovadoNaoOperado > 5000;
+      });
       rows.sort((a, b) => b.valorAprovadoNaoOperado - a.valorAprovadoNaoOperado);
     }
-
-    const _debug = null;
 
     const pageSize = 20;
     const total = rows.length;
@@ -294,11 +302,10 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
       total,
       page: data.page,
       pageSize,
-      _debug,
     } satisfies ListAlertasResult;
   });
 
-// ─── Sub-tab 4: Alertas enviados ────────────────────────────────────────────
+// ─── Alertas enviados ───────────────────────────────────────────────────────
 
 export type AlertaEnviadoRow = {
   id: string;
@@ -310,51 +317,11 @@ export type AlertaEnviadoRow = {
   link_portal_clicado: string | null;
 };
 
-export const debugAlertasFields = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const creds = await getCreds(context.supabase, context.userId);
-
-    // 1. Account custom fields (perstag + label)
-    const metaJson = await acFetch(creds, "accountCustomFieldMeta", { limit: "100" });
-    const acctFields = (metaJson.accountCustomFieldMeta ?? []).map((f: any) => ({
-      id: String(f.id),
-      perstag: f.perstag ?? null,
-      fieldLabel: f.fieldLabel ?? null,
-      fieldType: f.fieldType ?? null,
-    }));
-
-    // 2. First account + raw field values
-    const acctJson = await acFetch(creds, "accounts", { limit: "1", include: "accountCustomFieldData" });
-    const sampleAccount = (acctJson.accounts ?? [])[0] ?? null;
-    const sampleFieldValues = (acctJson.accountCustomFieldData ?? [])
-      .filter((fv: any) => sampleAccount && String(fv.accountId) === String(sampleAccount.id))
-      .map((fv: any) => ({ customFieldId: String(fv.customFieldId), fieldValue: fv.fieldValue }));
-
-    // 3. alertas_enviados count
-    const db = context.supabase as any;
-    const { count, data: recentRows, error } = await db
-      .from("alertas_enviados")
-      .select("id, cliente_nome, data_envio", { count: "exact" })
-      .eq("user_id", context.userId)
-      .order("data_envio", { ascending: false })
-      .limit(3);
-
-    return {
-      acctFields,
-      sampleAccount: sampleAccount ? { id: String(sampleAccount.id), name: sampleAccount.name } : null,
-      sampleFieldValues,
-      alertasEnviadosTotal: count ?? 0,
-      alertasEnviadosRecentes: error ? [] : (recentRows ?? []),
-    };
-  });
-
 export const listAlertasEnviados = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) =>
     z.object({
       page: z.number().int().min(1).default(1),
-      cliente: z.string().max(100).regex(/^[\w\s@.\-À-ÿ]*$/).optional(),
       dataInicio: z.string().optional(),
       dataFim: z.string().optional(),
     }).parse(d ?? {}),
@@ -367,10 +334,6 @@ export const listAlertasEnviados = createServerFn({ method: "GET" })
       .select("id, cliente_id, cliente_nome, email_destino, data_envio, link_whatsapp_clicado, link_portal_clicado", { count: "exact" })
       .eq("user_id", context.userId)
       .order("data_envio", { ascending: false });
-    if (data.cliente) {
-      const safe = data.cliente.replace(/[,()*]/g, "");
-      q = q.or(`cliente_nome.ilike.%${safe}%,cliente_id.ilike.%${safe}%`);
-    }
     if (data.dataInicio) q = q.gte("data_envio", data.dataInicio);
     if (data.dataFim) q = q.lte("data_envio", data.dataFim);
     const from = (data.page - 1) * pageSize;
