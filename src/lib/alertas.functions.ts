@@ -176,7 +176,11 @@ async function loadAllAccounts(creds: Settings, acctFieldMap: Record<string, str
     // accountCustomFieldData is a top-level array in the response
     // each entry: { accountId, customFieldId, fieldValue }
     const cfByAcct: Record<string, Record<string, string>> = {};
-    for (const fv of (json.customerAccountCustomFieldData ?? []) as any[]) {
+    const rawEntries: any[] = json.customerAccountCustomFieldData ?? [];
+    if (page === 0 && rawEntries.length > 0) {
+      throw new Error(`DEBUG fv[0]: ${JSON.stringify(rawEntries[0])}`);
+    }
+    for (const fv of rawEntries) {
       const aid = String(fv.customerAccountId ?? fv.accountId ?? "");
       const fid = String(fv.customFieldId ?? "");
       const val = fv.fieldValue;
