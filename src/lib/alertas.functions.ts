@@ -302,6 +302,45 @@ export type AlertaEnviadoRow = {
   link_portal_clicado: string | null;
 };
 
+export const debugAlertasFields = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const creds = await getCreds(context.supabase, context.userId);
+
+    // 1. Account custom fields (perstag + label)
+    const metaJson = await acFetch(creds, "accountCustomFieldMeta", { limit: "100" });
+    const acctFields = (metaJson.accountCustomFieldMeta ?? []).map((f: any) => ({
+      id: String(f.id),
+      perstag: f.perstag ?? null,
+      fieldLabel: f.fieldLabel ?? null,
+      fieldType: f.fieldType ?? null,
+    }));
+
+    // 2. First account + raw field values
+    const acctJson = await acFetch(creds, "accounts", { limit: "1", include: "accountCustomFieldData" });
+    const sampleAccount = (acctJson.accounts ?? [])[0] ?? null;
+    const sampleFieldValues = (acctJson.accountCustomFieldData ?? [])
+      .filter((fv: any) => sampleAccount && String(fv.accountId) === String(sampleAccount.id))
+      .map((fv: any) => ({ customFieldId: String(fv.customFieldId), fieldValue: fv.fieldValue }));
+
+    // 3. alertas_enviados count
+    const db = context.supabase as any;
+    const { count, data: recentRows, error } = await db
+      .from("alertas_enviados")
+      .select("id, cliente_nome, data_envio", { count: "exact" })
+      .eq("user_id", context.userId)
+      .order("data_envio", { ascending: false })
+      .limit(3);
+
+    return {
+      acctFields,
+      sampleAccount: sampleAccount ? { id: String(sampleAccount.id), name: sampleAccount.name } : null,
+      sampleFieldValues,
+      alertasEnviadosTotal: count ?? 0,
+      alertasEnviadosRecentes: error ? [] : (recentRows ?? []),
+    };
+  });
+
 export const listAlertasEnviados = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) =>
