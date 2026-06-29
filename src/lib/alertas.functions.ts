@@ -265,11 +265,20 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
       });
       rows.sort((a, b) => (a.ultimaOperacao! < b.ultimaOperacao! ? -1 : 1));
     } else if (data.tab === "valor_aprovado") {
-      rows = rows.filter((r) => isApto(contacts.find((c) => c.id === r.contactId)?.cf["APTO"]) && r.valorAprovadoNaoOperado > 5000);
+      // DEBUG: sem filtro, mostra tudo com conta
+      rows = rows.filter((r) => r.accountId !== null);
       rows.sort((a, b) => b.valorAprovadoNaoOperado - a.valorAprovadoNaoOperado);
     }
 
-    const _debug = null;
+    const _debug = data.tab === "valor_aprovado" ? {
+      totalContacts: contacts.length,
+      totalWithAccount: rows.length,
+      sampleValues: rows.slice(0, 3).map((r) => ({
+        nome: r.razaoSocial,
+        valor: r.valorAprovadoNaoOperado,
+        apto: contacts.find((c) => c.id === r.contactId)?.cf["APTO"],
+      })),
+    } : null;
 
     const pageSize = 20;
     const total = rows.length;
