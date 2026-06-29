@@ -216,6 +216,7 @@ export type ListAlertasResult = {
   total: number;
   page: number;
   pageSize: number;
+  _debug?: { acctFieldKeys: string[]; sampleAcf: Record<string, string> } | null;
 };
 
 const tabSchema = z.object({
@@ -275,9 +276,17 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
       });
       rows.sort((a, b) => (a.ultimaOperacao! < b.ultimaOperacao! ? -1 : 1));
     } else if (data.tab === "valor_aprovado") {
-      rows = rows.filter((r) => r.valorAprovadoNaoOperado > 5000);
+      // DEBUG: temporarily show all contacts with an account so we can inspect field keys
+      rows = rows.filter((r) => r.accountId !== null);
       rows.sort((a, b) => b.valorAprovadoNaoOperado - a.valorAprovadoNaoOperado);
     }
+
+    // DEBUG: capture first account's raw field keys
+    const firstAcct = Object.values(accounts)[0] ?? null;
+    const _debug = data.tab === "valor_aprovado" ? {
+      acctFieldKeys: firstAcct ? Object.keys(firstAcct.cf) : [],
+      sampleAcf: firstAcct?.cf ?? {},
+    } : null;
 
     const pageSize = 20;
     const total = rows.length;
@@ -287,6 +296,7 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
       total,
       page: data.page,
       pageSize,
+      _debug,
     } satisfies ListAlertasResult;
   });
 
