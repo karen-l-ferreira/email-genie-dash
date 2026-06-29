@@ -156,43 +156,45 @@ type AccountData = {
 };
 
 async function loadAllAccounts(creds: Settings, acctFieldMap: Record<string, string>): Promise<Record<string, AccountData>> {
-  // Invert: fieldId → personalization
+  // fieldId → personalization (e.g. "42" → "ACCT_VALOR_APROVADO_NO_OPERADO")
   const fieldIdToPersonalization: Record<string, string> = {};
   for (const [personalization, id] of Object.entries(acctFieldMap)) {
     fieldIdToPersonalization[id] = personalization;
   }
 
-  // Step 1: load account names
   const byId: Record<string, AccountData> = {};
+
+  // Fetch accounts in batches — include custom field data in the same request
+  // (same pattern as listAccountsForAnalysis in ac.functions.ts)
   for (let page = 0; page < MAX_PAGES; page++) {
     const json = await acFetch(creds, "accounts", {
       limit: String(PAGE_SIZE),
       offset: String(page * PAGE_SIZE),
+      include: "accountCustomFieldData",
     });
-    for (const a of (json.accounts ?? []) as any[]) {
-      byId[String(a.id)] = { id: String(a.id), name: a.name ?? "", cf: {} };
-    }
-    if ((json.accounts ?? []).length < PAGE_SIZE) break;
-  }
 
-  // Step 2: load account custom field values from dedicated endpoint
-  // Uses customerAccountId (not accountId) as the account reference
-  for (let page = 0; page < MAX_PAGES * 5; page++) {
-    const json = await acFetch(creds, "accountCustomFieldData", {
-      limit: String(PAGE_SIZE),
-      offset: String(page * PAGE_SIZE),
-    });
-    const entries: any[] = json.accountCustomFieldData ?? [];
-    for (const fv of entries) {
-      const aid = String(fv.customerAccountId ?? fv.accountId ?? "");
-      const fieldId = String(fv.customFieldId ?? "");
-      const value = fv.fieldValue;
-      if (!aid || !fieldId || value == null || value === "") continue;
-      const personalization = fieldIdToPersonalization[fieldId];
-      if (!personalization) continue;
-      if (byId[aid]) byId[aid].cf[personalization] = String(value);
+    // accountCustomFieldData is a top-level array in the response
+    // each entry: { accountId, customFieldId, fieldValue }
+    if (page === 0 && (json.accountCustomFieldData ?? []).length === 0) {
+      throw new Error(`DEBUG: accountCustomFieldData vazio. Chaves no response: ${Object.keys(json).join(", ")}`);
     }
-    if (entries.length < PAGE_SIZE) break;
+    const cfByAcct: Record<string, Record<string, string>> = {};
+    for (const fv of (json.accountCustomFieldData ?? []) as any[]) {
+      const aid = String(fv.accountId ?? "");
+      const fid = String(fv.customFieldId ?? "");
+      const val = fv.fieldValue;
+      if (!aid || !fid || val == null || val === "") continue;
+      const personalization = fieldIdToPersonalization[fid];
+      if (!personalization) continue;
+      (cfByAcct[aid] ??= {})[personalization] = String(val);
+    }
+
+    for (const a of (json.accounts ?? []) as any[]) {
+      const id = String(a.id);
+      byId[id] = { id, name: a.name ?? "", cf: cfByAcct[id] ?? {} };
+    }
+
+    if ((json.accounts ?? []).length < PAGE_SIZE) break;
   }
 
   return byId;
