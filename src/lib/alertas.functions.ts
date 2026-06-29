@@ -78,24 +78,30 @@ function normalizeKey(s: string): string {
     .toUpperCase();
 }
 
+// Returns map of fieldId → all tags (perstag + normalized label) for that field
+async function loadAccountFieldsById(creds: Settings): Promise<Record<string, string[]>> {
+  const json = await acFetch(creds, "accountCustomFieldMeta", { limit: "100" });
+  const map: Record<string, string[]> = {};
+  for (const f of (json.accountCustomFieldMeta ?? []) as any[]) {
+    const id = String(f.id);
+    const tags: string[] = [];
+    if (f.perstag) tags.push(String(f.perstag).toUpperCase());
+    if (f.fieldLabel) tags.push(normalizeKey(f.fieldLabel));
+    if (tags.length) map[id] = tags;
+  }
+  return map;
+}
+
+// Keep old signature for contacts (unchanged)
 async function loadAccountFieldsByPerstag(creds: Settings): Promise<Record<string, string>> {
   const json = await acFetch(creds, "accountCustomFieldMeta", { limit: "100" });
   const map: Record<string, string> = {};
   for (const f of (json.accountCustomFieldMeta ?? []) as any[]) {
     const id = String(f.id);
-    // index by perstag
     if (f.perstag) map[String(f.perstag).toUpperCase()] = id;
-    // index by normalized fieldLabel as fallback
     if (f.fieldLabel) map[normalizeKey(f.fieldLabel)] = id;
   }
   return map;
-}
-
-function acfGet(acf: Record<string, string>, ...keys: string[]): string | undefined {
-  for (const k of keys) {
-    if (acf[k] !== undefined && acf[k] !== "") return acf[k];
-  }
-  return undefined;
 }
 
 async function loadAllContacts(creds: Settings, perstagToId: Record<string, string>): Promise<ContactRow[]> {
@@ -137,10 +143,7 @@ async function loadAllContacts(creds: Settings, perstagToId: Record<string, stri
   return out;
 }
 
-async function loadAllAccounts(creds: Settings, perstagToId: Record<string, string>): Promise<Record<string, AccountRow>> {
-  const idToPerstag: Record<string, string> = {};
-  for (const [k, v] of Object.entries(perstagToId)) idToPerstag[v] = k;
-
+async function loadAllAccounts(creds: Settings, fieldIdToTags: Record<string, string[]>): Promise<Record<string, AccountRow>> {
   const byId: Record<string, AccountRow> = {};
   for (let page = 0; page < MAX_PAGES; page++) {
     const json = await acFetch(creds, "accounts", {
@@ -152,9 +155,10 @@ async function loadAllAccounts(creds: Settings, perstagToId: Record<string, stri
     for (const fv of (json.accountCustomFieldData ?? []) as any[]) {
       if (!fv.accountId || !fv.customFieldId || fv.fieldValue == null || fv.fieldValue === "") continue;
       const aid = String(fv.accountId);
-      const tag = idToPerstag[String(fv.customFieldId)];
-      if (!tag) continue;
-      (fvByAcct[aid] ??= {})[tag] = String(fv.fieldValue);
+      const tags = fieldIdToTags[String(fv.customFieldId)] ?? [];
+      for (const tag of tags) {
+        (fvByAcct[aid] ??= {})[tag] = String(fv.fieldValue);
+      }
     }
     const rows: any[] = json.accounts ?? [];
     for (const a of rows) {
@@ -224,13 +228,13 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
   .inputValidator((d) => tabSchema.parse(d ?? {}))
   .handler(async ({ data, context }) => {
     const creds = await getCreds(context.supabase, context.userId);
-    const [contactPerstag, accountPerstag] = await Promise.all([
+    const [contactPerstag, accountFieldsById] = await Promise.all([
       loadContactFieldsByPerstag(creds),
-      loadAccountFieldsByPerstag(creds),
+      loadAccountFieldsById(creds),
     ]);
     const [contacts, accounts] = await Promise.all([
       loadAllContacts(creds, contactPerstag),
-      loadAllAccounts(creds, accountPerstag),
+      loadAllAccounts(creds, accountFieldsById),
     ]);
 
     const now = new Date();
@@ -250,8 +254,8 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
         ultimaOperacao: dataUlt ? dataUlt.toISOString() : null,
         email: c.email,
         phone: c.phone,
-        valorAprovadoNaoOperado: parseMoneyLoose(acfGet(acf, "ACCT_VALOR_APROVADO_NO_OPERADO", "ACCT_VALOR_APROVADO_NAO_OPERADO", "VALOR_APROVADO_NO_OPERADO", "VALOR_APROVADO_NAO_OPERADO", "ACCT_VALOR_APROVADO_NAO_OPERADO_", normalizeKey("Valor Aprovado Não Operado"))),
-        limiteDisponivel: parseMoneyLoose(acfGet(acf, "ACCT_LIMITE_DISPONVEL", "ACCT_LIMITE_DISPONIVEL", "LIMITE_DISPONVEL", "LIMITE_DISPONIVEL", normalizeKey("Limite Disponível"))),
+        valorAprovadoNaoOperado: parseMoneyLoose(acf["ACCT_VALOR_APROVADO_NO_OPERADO"]),
+        limiteDisponivel: parseMoneyLoose(acf["ACCT_LIMITE_DISPONVEL"] ?? acf["ACCT_LIMITE_DISPONIVEL"]),
       };
     });
 
