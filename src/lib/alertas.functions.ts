@@ -79,27 +79,16 @@ function normalizeKey(s: string): string {
 }
 
 // Returns map of fieldId → all tags (perstag + normalized label) for that field
+// Returns map of fieldId → all tags for that field (personalization + normalized label)
 async function loadAccountFieldsById(creds: Settings): Promise<Record<string, string[]>> {
   const json = await acFetch(creds, "accountCustomFieldMeta", { limit: "100" });
   const map: Record<string, string[]> = {};
   for (const f of (json.accountCustomFieldMeta ?? []) as any[]) {
     const id = String(f.id);
     const tags: string[] = [];
-    if (f.perstag) tags.push(String(f.perstag).toUpperCase());
+    if (f.personalization) tags.push(String(f.personalization).toUpperCase());
     if (f.fieldLabel) tags.push(normalizeKey(f.fieldLabel));
     if (tags.length) map[id] = tags;
-  }
-  return map;
-}
-
-// Keep old signature for contacts (unchanged)
-async function loadAccountFieldsByPerstag(creds: Settings): Promise<Record<string, string>> {
-  const json = await acFetch(creds, "accountCustomFieldMeta", { limit: "100" });
-  const map: Record<string, string> = {};
-  for (const f of (json.accountCustomFieldMeta ?? []) as any[]) {
-    const id = String(f.id);
-    if (f.perstag) map[String(f.perstag).toUpperCase()] = id;
-    if (f.fieldLabel) map[normalizeKey(f.fieldLabel)] = id;
   }
   return map;
 }
@@ -276,28 +265,11 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
       });
       rows.sort((a, b) => (a.ultimaOperacao! < b.ultimaOperacao! ? -1 : 1));
     } else if (data.tab === "valor_aprovado") {
-      // DEBUG: temporarily show all contacts with an account so we can inspect field keys
-      rows = rows.filter((r) => r.accountId !== null);
+      rows = rows.filter((r) => isApto(contacts.find((c) => c.id === r.contactId)?.cf["APTO"]) && r.valorAprovadoNaoOperado > 5000);
       rows.sort((a, b) => b.valorAprovadoNaoOperado - a.valorAprovadoNaoOperado);
     }
 
-    // DEBUG: raw account field metadata + first account raw custom field values
-    let _debug: any = null;
-    if (data.tab === "valor_aprovado") {
-      const metaRaw = await acFetch(creds, "accountCustomFieldMeta", { limit: "100" });
-      const firstAcctId = Object.keys(accounts)[0] ?? null;
-      let rawFieldValues: any[] = [];
-      if (firstAcctId) {
-        const acctRaw = await acFetch(creds, "accounts", { limit: "1", include: "accountCustomFieldData" });
-        rawFieldValues = (acctRaw.accountCustomFieldData ?? []).slice(0, 10);
-      }
-      _debug = {
-        metaCount: (metaRaw.accountCustomFieldMeta ?? []).length,
-        metaSample: (metaRaw.accountCustomFieldMeta ?? []).slice(0, 5),
-        firstAcctId,
-        rawFieldValues,
-      };
-    }
+    const _debug = null;
 
     const pageSize = 20;
     const total = rows.length;
