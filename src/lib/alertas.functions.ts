@@ -176,15 +176,11 @@ async function loadAllAccounts(creds: Settings, acctFieldMap: Record<string, str
     // accountCustomFieldData is a top-level array in the response
     // each entry: { accountId, customFieldId, fieldValue }
     const cfByAcct: Record<string, Record<string, string>> = {};
-    const rawEntries: any[] = json.customerAccountCustomFieldData ?? [];
-    if (page === 0 && rawEntries.length > 0) {
-      throw new Error(`DEBUG fv[0]: ${JSON.stringify(rawEntries[0])}`);
-    }
-    for (const fv of rawEntries) {
-      const aid = String(fv.customerAccountId ?? fv.accountId ?? "");
-      const fid = String(fv.customFieldId ?? "");
-      const val = fv.fieldValue;
-      if (!aid || !fid || val == null || val === "") continue;
+    for (const fv of (json.customerAccountCustomFieldData ?? []) as any[]) {
+      const aid = String(fv.customer_account_id ?? fv.customerAccount ?? "");
+      const fid = String(fv.custom_field_id ?? fv.customerAccountCustomFieldMetum ?? "");
+      const val = fv.custom_field_text_value ?? fv.custom_field_number_value ?? fv.custom_field_currency_value ?? null;
+      if (!aid || !fid || val == null || String(val) === "") continue;
       const personalization = fieldIdToPersonalization[fid];
       if (!personalization) continue;
       (cfByAcct[aid] ??= {})[personalization] = String(val);
@@ -214,7 +210,6 @@ export type AlertaClienteRow = {
   phone: string;
   valorAprovadoNaoOperado: number;
   limiteDisponivel: number;
-  _dbg?: string;
 };
 
 export type ListAlertasResult = {
@@ -282,7 +277,6 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
         phone: c.phone,
         valorAprovadoNaoOperado: parseMoneyLoose(valorRaw),
         limiteDisponivel: parseMoneyLoose(limiteRaw),
-        _dbg: `acctId=${c.accountId} acfKeys=${Object.keys(acf).join("|") || "vazio"} valorRaw=${valorRaw ?? "null"}`,
       };
     });
 
@@ -306,7 +300,7 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
     } else if (data.tab === "valor_aprovado") {
       rows = rows.filter((r) => {
         const c = contactById.get(r.contactId);
-        return isApto(c?.cf["APTO"]);
+        return isApto(c?.cf["APTO"]) && r.valorAprovadoNaoOperado > 5000;
       });
       rows.sort((a, b) => b.valorAprovadoNaoOperado - a.valorAprovadoNaoOperado);
     }
