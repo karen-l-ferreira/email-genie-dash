@@ -70,14 +70,32 @@ async function loadContactFieldsByPerstag(creds: Settings): Promise<Record<strin
   return map;
 }
 
+function normalizeKey(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^A-Z0-9]/gi, "_")
+    .toUpperCase();
+}
+
 async function loadAccountFieldsByPerstag(creds: Settings): Promise<Record<string, string>> {
   const json = await acFetch(creds, "accountCustomFieldMeta", { limit: "100" });
   const map: Record<string, string> = {};
   for (const f of (json.accountCustomFieldMeta ?? []) as any[]) {
-    const tag = f.perstag ?? f.fieldLabel;
-    if (tag) map[String(tag).toUpperCase()] = String(f.id);
+    const id = String(f.id);
+    // index by perstag
+    if (f.perstag) map[String(f.perstag).toUpperCase()] = id;
+    // index by normalized fieldLabel as fallback
+    if (f.fieldLabel) map[normalizeKey(f.fieldLabel)] = id;
   }
   return map;
+}
+
+function acfGet(acf: Record<string, string>, ...keys: string[]): string | undefined {
+  for (const k of keys) {
+    if (acf[k] !== undefined && acf[k] !== "") return acf[k];
+  }
+  return undefined;
 }
 
 async function loadAllContacts(creds: Settings, perstagToId: Record<string, string>): Promise<ContactRow[]> {
@@ -232,8 +250,8 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
         ultimaOperacao: dataUlt ? dataUlt.toISOString() : null,
         email: c.email,
         phone: c.phone,
-        valorAprovadoNaoOperado: parseMoneyLoose(acf["ACCT_VALOR_APROVADO_NO_OPERADO"]),
-        limiteDisponivel: parseMoneyLoose(acf["ACCT_LIMITE_DISPONVEL"]),
+        valorAprovadoNaoOperado: parseMoneyLoose(acfGet(acf, "ACCT_VALOR_APROVADO_NO_OPERADO", "ACCT_VALOR_APROVADO_NAO_OPERADO", "VALOR_APROVADO_NO_OPERADO", "VALOR_APROVADO_NAO_OPERADO", "ACCT_VALOR_APROVADO_NAO_OPERADO_", normalizeKey("Valor Aprovado Não Operado"))),
+        limiteDisponivel: parseMoneyLoose(acfGet(acf, "ACCT_LIMITE_DISPONVEL", "ACCT_LIMITE_DISPONIVEL", "LIMITE_DISPONVEL", "LIMITE_DISPONIVEL", normalizeKey("Limite Disponível"))),
       };
     });
 

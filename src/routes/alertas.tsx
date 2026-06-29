@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, ChevronLeft, ChevronRight, Bell } from "lucide-react";
+import { Loader2, ChevronLeft, ChevronRight, Bell, Building2, Mail, Phone, Clock, TrendingUp, AlertTriangle } from "lucide-react";
 import { listAlertasClientes, listAlertasEnviados } from "@/lib/alertas.functions";
 
 export const Route = createFileRoute("/alertas")({
@@ -32,6 +32,12 @@ function fmtDate(iso: string | null) {
 }
 function fmtMoney(n: number) {
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+function daysDiff(iso: string | null): number | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  return Math.floor((Date.now() - d.getTime()) / 86400000);
 }
 
 function AlertasPage() {
@@ -80,8 +86,8 @@ function AlertasPage() {
 function Pager({ page, total, pageSize, onChange }: { page: number; total: number; pageSize: number; onChange: (p: number) => void }) {
   const pages = Math.max(1, Math.ceil(total / pageSize));
   return (
-    <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
-      <span>{total} {total === 1 ? "registro" : "registros"} • Página {page} de {pages}</span>
+    <div className="mt-6 flex items-center justify-between text-sm text-muted-foreground">
+      <span>{total} {total === 1 ? "empresa" : "empresas"} • Página {page} de {pages}</span>
       <div className="flex items-center gap-2">
         <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => onChange(page - 1)}>
           <ChevronLeft className="h-4 w-4" /> Anterior
@@ -89,6 +95,24 @@ function Pager({ page, total, pageSize, onChange }: { page: number; total: numbe
         <Button variant="outline" size="sm" disabled={page >= pages} onClick={() => onChange(page + 1)}>
           Próxima <ChevronRight className="h-4 w-4" />
         </Button>
+      </div>
+    </div>
+  );
+}
+
+function SkeletonCard() {
+  return (
+    <div className="rounded-xl border border-border bg-card p-5 animate-pulse">
+      <div className="mb-3 flex items-start gap-3">
+        <div className="h-9 w-9 rounded-lg bg-muted" />
+        <div className="flex-1 space-y-2">
+          <div className="h-4 w-2/3 rounded bg-muted" />
+          <div className="h-3 w-1/3 rounded bg-muted" />
+        </div>
+      </div>
+      <div className="space-y-2 mt-4">
+        <div className="h-3 w-full rounded bg-muted" />
+        <div className="h-3 w-4/5 rounded bg-muted" />
       </div>
     </div>
   );
@@ -104,8 +128,8 @@ function ClientesTab({ tab, mode }: { tab: "sem_operar_15" | "sem_operar_30" | "
 
   if (q.isLoading) {
     return (
-      <div className="flex items-center justify-center py-16 text-muted-foreground">
-        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Carregando…
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
       </div>
     );
   }
@@ -113,108 +137,151 @@ function ClientesTab({ tab, mode }: { tab: "sem_operar_15" | "sem_operar_30" | "
 
   const rows = q.data?.rows ?? [];
   if (rows.length === 0) {
-    return <div className="rounded-lg border border-border bg-surface py-16 text-center text-sm text-muted-foreground">Nenhum alerta encontrado</div>;
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-border bg-card py-20 text-center">
+        <AlertTriangle className="h-8 w-8 text-muted-foreground/50" />
+        <p className="text-sm text-muted-foreground">Nenhum alerta encontrado</p>
+      </div>
+    );
   }
 
   return (
-    <div className="rounded-lg border border-border bg-surface">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Empresa</TableHead>
-            <TableHead>ID Cliente</TableHead>
-            <TableHead>CNPJ</TableHead>
-            {mode === "inativos" ? (
-              <>
-                <TableHead>Última Operação</TableHead>
-                <TableHead>Entre em contato</TableHead>
-              </>
-            ) : (
-              <>
-                <TableHead className="text-right">Valor Aprovado Não Operado</TableHead>
-                <TableHead className="text-right">Limite Disponível</TableHead>
-              </>
-            )}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {rows.map((r) => (
-            <TableRow key={r.contactId}>
-              <TableCell className="font-medium">{r.razaoSocial || "—"}</TableCell>
-              <TableCell className="font-mono text-xs">{r.clienteId || "—"}</TableCell>
-              <TableCell className="font-mono text-xs">{r.cnpj || "—"}</TableCell>
+    <div>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {rows.map((r) => {
+          const days = mode === "inativos" ? daysDiff(r.ultimaOperacao) : null;
+          const badgeColor =
+            tab === "sem_operar_15"
+              ? "border-yellow-500/30 bg-yellow-500/10 text-yellow-600 dark:text-yellow-400"
+              : tab === "sem_operar_30"
+              ? "border-destructive/30 bg-destructive/10 text-destructive"
+              : "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400";
+          const badgeLabel =
+            tab === "sem_operar_15"
+              ? `${days ?? "?"} dias sem operar`
+              : tab === "sem_operar_30"
+              ? `${days ?? "?"} dias sem operar`
+              : "Valor aprovado não operado";
+
+          return (
+            <div
+              key={r.contactId}
+              className="group relative flex flex-col gap-4 rounded-xl border border-border bg-card p-5 shadow-sm transition-shadow hover:shadow-md"
+            >
+              {/* Header */}
+              <div className="flex items-start gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Building2 className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-semibold leading-tight">{r.razaoSocial || "Empresa sem nome"}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {r.clienteId ? `ID: ${r.clienteId}` : ""}
+                    {r.clienteId && r.cnpj ? " · " : ""}
+                    {r.cnpj ? `CNPJ: ${r.cnpj}` : ""}
+                    {!r.clienteId && !r.cnpj ? "Sem identificação" : ""}
+                  </p>
+                </div>
+              </div>
+
+              {/* Badge */}
+              <Badge className={`self-start border text-xs font-medium ${badgeColor}`}>
+                {tab !== "valor_aprovado" && <Clock className="mr-1 h-3 w-3" />}
+                {tab === "valor_aprovado" && <TrendingUp className="mr-1 h-3 w-3" />}
+                {badgeLabel}
+              </Badge>
+
+              {/* Info */}
               {mode === "inativos" ? (
-                <>
-                  <TableCell>{fmtDate(r.ultimaOperacao)}</TableCell>
-                  <TableCell>
-                    <div className="text-xs">
-                      {r.email && <div>{r.email}</div>}
-                      {r.phone && <div className="text-muted-foreground">{r.phone}</div>}
-                      {!r.email && !r.phone && "—"}
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
+                    <span className="text-xs text-muted-foreground">Última operação</span>
+                    <span className="font-medium">{fmtDate(r.ultimaOperacao)}</span>
+                  </div>
+                  {(r.email || r.phone) && (
+                    <div className="space-y-1">
+                      {r.email && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Mail className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{r.email}</span>
+                        </div>
+                      )}
+                      {r.phone && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Phone className="h-3 w-3 shrink-0" />
+                          <span>{r.phone}</span>
+                        </div>
+                      )}
                     </div>
-                  </TableCell>
-                </>
+                  )}
+                </div>
               ) : (
-                <>
-                  <TableCell className="text-right font-mono">{fmtMoney(r.valorAprovadoNaoOperado)}</TableCell>
-                  <TableCell className="text-right font-mono">{fmtMoney(r.limiteDisponivel)}</TableCell>
-                </>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
+                    <span className="text-xs text-muted-foreground">Valor aprovado não operado</span>
+                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">{fmtMoney(r.valorAprovadoNaoOperado)}</span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
+                    <span className="text-xs text-muted-foreground">Limite disponível</span>
+                    <span className="font-medium">{fmtMoney(r.limiteDisponivel)}</span>
+                  </div>
+                </div>
               )}
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-      <div className="px-4 pb-4">
-        <Pager page={page} total={q.data?.total ?? 0} pageSize={q.data?.pageSize ?? 20} onChange={setPage} />
+            </div>
+          );
+        })}
       </div>
+      <Pager page={page} total={q.data?.total ?? 0} pageSize={q.data?.pageSize ?? 20} onChange={setPage} />
     </div>
   );
 }
 
 function CliquesTab() {
   const [page, setPage] = useState(1);
-  const [cliente, setCliente] = useState("");
   const [dataInicio, setDataInicio] = useState("");
   const [dataFim, setDataFim] = useState("");
-  const [applied, setApplied] = useState<{ cliente?: string; dataInicio?: string; dataFim?: string }>({});
+  const [applied, setApplied] = useState<{ dataInicio?: string; dataFim?: string }>({});
   const fetchFn = useServerFn(listAlertasEnviados);
   const q = useQuery({
     queryKey: ["alertas-enviados", page, applied],
     queryFn: () => fetchFn({ data: { page, ...applied } }),
   });
 
+  function applyFilter() {
+    setPage(1);
+    setApplied({
+      dataInicio: dataInicio || undefined,
+      dataFim: dataFim ? new Date(dataFim + "T23:59:59").toISOString() : undefined,
+    });
+  }
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface p-4">
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-muted-foreground">Cliente</label>
-          <Input value={cliente} onChange={(e) => setCliente(e.target.value)} placeholder="Nome ou ID" className="w-56" />
-        </div>
+      <div className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-4">
         <div className="flex flex-col gap-1">
           <label className="text-xs text-muted-foreground">De</label>
-          <Input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} />
+          <Input
+            type="date"
+            value={dataInicio}
+            onChange={(e) => setDataInicio(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && applyFilter()}
+          />
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-xs text-muted-foreground">Até</label>
-          <Input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} />
+          <Input
+            type="date"
+            value={dataFim}
+            onChange={(e) => setDataFim(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && applyFilter()}
+          />
         </div>
-        <Button
-          onClick={() => {
-            setPage(1);
-            setApplied({
-              cliente: cliente || undefined,
-              dataInicio: dataInicio || undefined,
-              dataFim: dataFim ? new Date(dataFim + "T23:59:59").toISOString() : undefined,
-            });
-          }}
-        >
-          Filtrar
-        </Button>
-        {(applied.cliente || applied.dataInicio || applied.dataFim) && (
+        <Button onClick={applyFilter}>Filtrar</Button>
+        {(applied.dataInicio || applied.dataFim) && (
           <Button
             variant="ghost"
             onClick={() => {
-              setCliente(""); setDataInicio(""); setDataFim(""); setApplied({}); setPage(1);
+              setDataInicio(""); setDataFim(""); setApplied({}); setPage(1);
             }}
           >
             Limpar
@@ -229,9 +296,12 @@ function CliquesTab() {
       ) : q.error ? (
         <div className="py-10 text-sm text-destructive">{(q.error as Error).message}</div>
       ) : (q.data?.rows ?? []).length === 0 ? (
-        <div className="rounded-lg border border-border bg-surface py-16 text-center text-sm text-muted-foreground">Nenhum alerta encontrado</div>
+        <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-border bg-card py-20 text-center">
+          <Bell className="h-8 w-8 text-muted-foreground/50" />
+          <p className="text-sm text-muted-foreground">Nenhum alerta encontrado</p>
+        </div>
       ) : (
-        <div className="rounded-lg border border-border bg-surface">
+        <div className="rounded-xl border border-border bg-card">
           <Table>
             <TableHeader>
               <TableRow>
