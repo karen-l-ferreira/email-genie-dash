@@ -175,12 +175,9 @@ async function loadAllAccounts(creds: Settings, acctFieldMap: Record<string, str
 
     // accountCustomFieldData is a top-level array in the response
     // each entry: { accountId, customFieldId, fieldValue }
-    if (page === 0 && (json.accountCustomFieldData ?? []).length === 0) {
-      throw new Error(`DEBUG: accountCustomFieldData vazio. Chaves no response: ${Object.keys(json).join(", ")}`);
-    }
     const cfByAcct: Record<string, Record<string, string>> = {};
-    for (const fv of (json.accountCustomFieldData ?? []) as any[]) {
-      const aid = String(fv.accountId ?? "");
+    for (const fv of (json.customerAccountCustomFieldData ?? []) as any[]) {
+      const aid = String(fv.customerAccountId ?? fv.accountId ?? "");
       const fid = String(fv.customFieldId ?? "");
       const val = fv.fieldValue;
       if (!aid || !fid || val == null || val === "") continue;
