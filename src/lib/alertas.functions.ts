@@ -281,12 +281,23 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
       rows.sort((a, b) => b.valorAprovadoNaoOperado - a.valorAprovadoNaoOperado);
     }
 
-    // DEBUG: capture first account's raw field keys
-    const firstAcct = Object.values(accounts)[0] ?? null;
-    const _debug = data.tab === "valor_aprovado" ? {
-      acctFieldKeys: firstAcct ? Object.keys(firstAcct.cf) : [],
-      sampleAcf: firstAcct?.cf ?? {},
-    } : null;
+    // DEBUG: raw account field metadata + first account raw custom field values
+    let _debug: any = null;
+    if (data.tab === "valor_aprovado") {
+      const metaRaw = await acFetch(creds, "accountCustomFieldMeta", { limit: "100" });
+      const firstAcctId = Object.keys(accounts)[0] ?? null;
+      let rawFieldValues: any[] = [];
+      if (firstAcctId) {
+        const acctRaw = await acFetch(creds, "accounts", { limit: "1", include: "accountCustomFieldData" });
+        rawFieldValues = (acctRaw.accountCustomFieldData ?? []).slice(0, 10);
+      }
+      _debug = {
+        metaCount: (metaRaw.accountCustomFieldMeta ?? []).length,
+        metaSample: (metaRaw.accountCustomFieldMeta ?? []).slice(0, 5),
+        firstAcctId,
+        rawFieldValues,
+      };
+    }
 
     const pageSize = 20;
     const total = rows.length;

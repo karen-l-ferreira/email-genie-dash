@@ -149,10 +149,12 @@ function ClientesTab({ tab, mode }: { tab: "sem_operar_15" | "sem_operar_30" | "
   return (
     <div>
       {debug && (
-        <div className="mb-4 rounded-lg border border-yellow-500/40 bg-yellow-500/10 p-4 text-xs font-mono">
-          <p className="mb-2 font-semibold text-yellow-700 dark:text-yellow-400">DEBUG — campos da primeira conta ({debug.acctFieldKeys.length} chaves)</p>
-          <p className="mb-1 text-muted-foreground">Chaves: {debug.acctFieldKeys.join(", ") || "(nenhuma)"}</p>
-          <p className="text-muted-foreground">Valores: {JSON.stringify(debug.sampleAcf)}</p>
+        <div className="mb-4 rounded-lg border border-yellow-500/40 bg-yellow-500/10 p-4 text-xs font-mono space-y-1">
+          <p className="font-semibold text-yellow-700 dark:text-yellow-400">DEBUG</p>
+          <p>accountCustomFieldMeta count: <b>{debug.metaCount}</b></p>
+          <p>metaSample: {JSON.stringify(debug.metaSample)}</p>
+          <p>firstAcctId: {debug.firstAcctId ?? "(nenhum)"}</p>
+          <p>rawFieldValues (primeiros 10): {JSON.stringify(debug.rawFieldValues)}</p>
         </div>
       )}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
