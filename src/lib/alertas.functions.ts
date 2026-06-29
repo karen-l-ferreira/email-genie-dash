@@ -132,7 +132,8 @@ async function loadAllContacts(creds: Settings, perstagToId: Record<string, stri
   return out;
 }
 
-async function loadAllAccounts(creds: Settings, fieldIdToTags: Record<string, string[]>): Promise<Record<string, AccountRow>> {
+// Stores account custom field values by raw numeric field ID (e.g. cf["42"] = "5500")
+async function loadAllAccounts(creds: Settings): Promise<Record<string, AccountRow>> {
   const byId: Record<string, AccountRow> = {};
   for (let page = 0; page < MAX_PAGES; page++) {
     const json = await acFetch(creds, "accounts", {
@@ -144,10 +145,7 @@ async function loadAllAccounts(creds: Settings, fieldIdToTags: Record<string, st
     for (const fv of (json.accountCustomFieldData ?? []) as any[]) {
       if (!fv.accountId || !fv.customFieldId || fv.fieldValue == null || fv.fieldValue === "") continue;
       const aid = String(fv.accountId);
-      const tags = fieldIdToTags[String(fv.customFieldId)] ?? [];
-      for (const tag of tags) {
-        (fvByAcct[aid] ??= {})[tag] = String(fv.fieldValue);
-      }
+      (fvByAcct[aid] ??= {})[String(fv.customFieldId)] = String(fv.fieldValue);
     }
     const rows: any[] = json.accounts ?? [];
     for (const a of rows) {
@@ -218,14 +216,21 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
   .inputValidator((d) => tabSchema.parse(d ?? {}))
   .handler(async ({ data, context }) => {
     const creds = await getCreds(context.supabase, context.userId);
-    const [contactPerstag, accountFieldsById] = await Promise.all([
+    const [contactPerstag, acctMeta] = await Promise.all([
       loadContactFieldsByPerstag(creds),
       loadAccountFieldsById(creds),
     ]);
     const [contacts, accounts] = await Promise.all([
       loadAllContacts(creds, contactPerstag),
-      loadAllAccounts(creds, accountFieldsById),
+      loadAllAccounts(creds),
     ]);
+
+    // Build personalization → fieldId lookup from account field metadata
+    const personalizationToId: Record<string, string> = {};
+    for (const [id, tags] of Object.entries(acctMeta)) {
+      for (const tag of tags) personalizationToId[tag] = id;
+    }
+    const fieldId = (p: string) => personalizationToId[p.toUpperCase()] ?? null;
 
     const now = new Date();
     const cutoff15 = new Date(now.getTime() - 15 * 86400000);
@@ -233,19 +238,23 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
 
     let rows: AlertaClienteRow[] = contacts.map((c) => {
       const acct = c.accountId ? accounts[c.accountId] : undefined;
-      const acf = acct?.cf ?? {};
+      const acf = acct?.cf ?? {}; // keyed by raw numeric fieldId
       const dataUlt = parseDateLoose(c.cf["DATA_DA_LTIMA_OPERAO"]);
+      const getAcctField = (personalization: string) => {
+        const id = fieldId(personalization);
+        return id ? acf[id] : undefined;
+      };
       return {
         contactId: c.id,
         accountId: c.accountId,
-        razaoSocial: acf["RAZAO_SOCIAL"] ?? acct?.name ?? "",
-        clienteId: acf["ACCT_CLIENTE_ID"] ?? "",
-        cnpj: acf["ACCT_CNPJ"] ?? "",
+        razaoSocial: getAcctField("RAZAO_SOCIAL") ?? acct?.name ?? "",
+        clienteId: getAcctField("ACCT_CLIENTE_ID") ?? "",
+        cnpj: getAcctField("ACCT_CNPJ") ?? "",
         ultimaOperacao: dataUlt ? dataUlt.toISOString() : null,
         email: c.email,
         phone: c.phone,
-        valorAprovadoNaoOperado: parseMoneyLoose(acf["ACCT_VALOR_APROVADO_NO_OPERADO"]),
-        limiteDisponivel: parseMoneyLoose(acf["ACCT_LIMITE_DISPONVEL"] ?? acf["ACCT_LIMITE_DISPONIVEL"]),
+        valorAprovadoNaoOperado: parseMoneyLoose(getAcctField("ACCT_VALOR_APROVADO_NO_OPERADO")),
+        limiteDisponivel: parseMoneyLoose(getAcctField("ACCT_LIMITE_DISPONVEL") ?? getAcctField("ACCT_LIMITE_DISPONIVEL")),
       };
     });
 
@@ -265,20 +274,11 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
       });
       rows.sort((a, b) => (a.ultimaOperacao! < b.ultimaOperacao! ? -1 : 1));
     } else if (data.tab === "valor_aprovado") {
-      // DEBUG: sem filtro, mostra tudo com conta
-      rows = rows.filter((r) => r.accountId !== null);
+      rows = rows.filter((r) => isApto(contacts.find((c) => c.id === r.contactId)?.cf["APTO"]) && r.valorAprovadoNaoOperado > 5000);
       rows.sort((a, b) => b.valorAprovadoNaoOperado - a.valorAprovadoNaoOperado);
     }
 
-    const _debug = data.tab === "valor_aprovado" ? {
-      totalContacts: contacts.length,
-      totalWithAccount: rows.length,
-      sampleValues: rows.slice(0, 3).map((r) => ({
-        nome: r.razaoSocial,
-        valor: r.valorAprovadoNaoOperado,
-        apto: contacts.find((c) => c.id === r.contactId)?.cf["APTO"],
-      })),
-    } : null;
+    const _debug = null;
 
     const pageSize = 20;
     const total = rows.length;
