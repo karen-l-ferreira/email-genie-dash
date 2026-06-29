@@ -132,28 +132,34 @@ async function loadAllContacts(creds: Settings, perstagToId: Record<string, stri
   return out;
 }
 
-// Stores account custom field values by raw numeric field ID (e.g. cf["42"] = "5500")
 async function loadAllAccounts(creds: Settings): Promise<Record<string, AccountRow>> {
+  // Step 1: load all accounts (names only)
   const byId: Record<string, AccountRow> = {};
   for (let page = 0; page < MAX_PAGES; page++) {
     const json = await acFetch(creds, "accounts", {
       limit: String(PAGE_SIZE),
       offset: String(page * PAGE_SIZE),
-      include: "accountCustomFieldData",
     });
-    const fvByAcct: Record<string, Record<string, string>> = {};
-    for (const fv of (json.accountCustomFieldData ?? []) as any[]) {
-      if (!fv.accountId || !fv.customFieldId || fv.fieldValue == null || fv.fieldValue === "") continue;
-      const aid = String(fv.accountId);
-      (fvByAcct[aid] ??= {})[String(fv.customFieldId)] = String(fv.fieldValue);
+    for (const a of (json.accounts ?? []) as any[]) {
+      byId[String(a.id)] = { id: String(a.id), name: a.name ?? "", cf: {} };
     }
-    const rows: any[] = json.accounts ?? [];
-    for (const a of rows) {
-      const id = String(a.id);
-      byId[id] = { id, name: a.name ?? "", cf: fvByAcct[id] ?? {} };
-    }
-    if (rows.length < PAGE_SIZE) break;
+    if ((json.accounts ?? []).length < PAGE_SIZE) break;
   }
+
+  // Step 2: load all account custom field values from dedicated endpoint
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const json = await acFetch(creds, "accountCustomFieldData", {
+      limit: String(PAGE_SIZE),
+      offset: String(page * PAGE_SIZE),
+    });
+    for (const fv of (json.accountCustomFieldData ?? []) as any[]) {
+      if (!fv.customerAccountId || !fv.customFieldId || fv.fieldValue == null || fv.fieldValue === "") continue;
+      const aid = String(fv.customerAccountId);
+      if (byId[aid]) byId[aid].cf[String(fv.customFieldId)] = String(fv.fieldValue);
+    }
+    if ((json.accountCustomFieldData ?? []).length < PAGE_SIZE) break;
+  }
+
   return byId;
 }
 
