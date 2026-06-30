@@ -404,7 +404,17 @@ export const listAlertasEnviados = createServerFn({ method: "GET" })
     const from = (data.page - 1) * pageSize;
     q = q.range(from, from + pageSize - 1);
     const { data: rows, count, error } = await q;
-    if (error) throw new Error(error.message);
+    if (error) throw new Error(`Erro Supabase: ${error.message} (userId=${context.userId})`);
+
+    if ((count ?? 0) === 0 && data.page === 1 && !data.dataInicio && !data.dataFim) {
+      const { count: totalSemFiltro, error: errCount } = await db
+        .from("alertas_enviados")
+        .select("id", { count: "exact", head: true });
+      throw new Error(
+        `DEBUG: 0 registros para userId=${context.userId}. Total na tabela (sem filtro de user_id, via RLS): ${totalSemFiltro ?? "erro: " + errCount?.message}`,
+      );
+    }
+
     return {
       rows: (rows ?? []) as AlertaEnviadoRow[],
       total: count ?? 0,
