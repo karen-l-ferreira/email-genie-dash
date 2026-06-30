@@ -43,6 +43,26 @@ async function acFetch(creds: Settings, path: string, params?: Record<string, st
   return res.json();
 }
 
+// Legacy ActiveCampaign API (admin/api.php) — used for per-contact link click data,
+// which is not exposed by the v3 REST API.
+async function acLegacyFetch(creds: Settings, params: Record<string, string>) {
+  const baseParsed = assertAllowedAcUrl(creds.ac_base_url);
+  const baseStr = baseParsed.toString().endsWith("/") ? baseParsed.toString() : baseParsed.toString() + "/";
+  const url = new URL("admin/api.php", baseStr);
+  if (url.protocol !== "https:" || url.hostname !== baseParsed.hostname) {
+    throw new Error("INVALID_AC_BASE_URL");
+  }
+  url.searchParams.set("api_key", creds.ac_api_key);
+  url.searchParams.set("api_output", "json");
+  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+  const res = await fetch(url.toString(), { redirect: "manual" });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`AC legacy ${res.status}: ${text.slice(0, 200)}`);
+  }
+  return res.json();
+}
+
 const MAX_PAGES = 20;
 const PAGE_SIZE = 100;
 
@@ -370,19 +390,21 @@ export const toggleAlertaContatado = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-// ─── Alertas enviados ───────────────────────────────────────────────────────
+// ─── Cliques em links de WhatsApp/Portal dentro de e-mails enviados ────────
 
-export type AlertaEnviadoRow = {
-  id: string;
-  cliente_id: string;
-  cliente_nome: string | null;
-  email_destino: string;
-  data_envio: string;
-  link_whatsapp_clicado: string | null;
-  link_portal_clicado: string | null;
+const WHATSAPP_LINK_RE = /wa\.me|api\.whatsapp\.com/i;
+const PORTAL_LINK_RE = /portal\.adiantesa\.com/i;
+
+export type CliqueAlertaRow = {
+  contactId: string;
+  email: string;
+  campanhaId: string;
+  campanhaNome: string;
+  tipo: "whatsapp" | "portal";
+  clicadoEm: string; // ISO
 };
 
-export const listAlertasEnviados = createServerFn({ method: "GET" })
+export const listCliquesAlertas = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) =>
     z.object({
@@ -392,35 +414,83 @@ export const listAlertasEnviados = createServerFn({ method: "GET" })
     }).parse(d ?? {}),
   )
   .handler(async ({ data, context }) => {
-    const db = context.supabase as any;
-    const pageSize = 20;
-    let q = db
-      .from("alertas_enviados")
-      .select("id, cliente_id, cliente_nome, email_destino, data_envio, link_whatsapp_clicado, link_portal_clicado", { count: "exact" })
-      .eq("user_id", context.userId)
-      .order("data_envio", { ascending: false });
-    if (data.dataInicio) q = q.gte("data_envio", data.dataInicio);
-    if (data.dataFim) q = q.lte("data_envio", data.dataFim);
-    const from = (data.page - 1) * pageSize;
-    q = q.range(from, from + pageSize - 1);
-    const { data: rows, count, error } = await q;
-    if (error) throw new Error(`Erro Supabase: ${error.message} (userId=${context.userId})`);
+    const creds = await getCreds(context.supabase, context.userId);
 
-    if ((count ?? 0) === 0 && data.page === 1) {
-      const { count: totalSemFiltroData, error: errCount } = await db
-        .from("alertas_enviados")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", context.userId);
-      throw new Error(
-        `DEBUG: 0 registros com filtro atual (dataInicio=${data.dataInicio ?? "nenhum"}, dataFim=${data.dataFim ?? "nenhum"}). ` +
-        `Total para este userId sem filtro de data: ${totalSemFiltroData ?? "erro: " + errCount?.message}. userId=${context.userId}`,
-      );
+    const cutoffStart = data.dataInicio ? new Date(data.dataInicio) : new Date(Date.now() - 60 * 86400000);
+    const cutoffEnd = data.dataFim ? new Date(data.dataFim) : new Date();
+
+    // 1. Load sent campaigns within the date range (campaigns are returned newest-first)
+    type CampaignMeta = { id: string; name: string; sdate: Date };
+    const campaigns: CampaignMeta[] = [];
+    for (let page = 0; page < 10; page++) {
+      const json = await acFetch(creds, "campaigns", {
+        limit: "100",
+        offset: String(page * 100),
+        "orders[sdate]": "DESC",
+      });
+      const rows: any[] = json.campaigns ?? [];
+      for (const c of rows) {
+        if (!c.sdate || String(c.sdate).startsWith("0000")) continue;
+        const sdate = new Date(c.sdate);
+        if (isNaN(sdate.getTime())) continue;
+        if (sdate >= cutoffStart && sdate <= cutoffEnd) {
+          campaigns.push({ id: String(c.id), name: c.name ?? "(sem nome)", sdate });
+        }
+      }
+      const last = rows[rows.length - 1];
+      const lastDate = last?.sdate && !String(last.sdate).startsWith("0000") ? new Date(last.sdate) : null;
+      if (rows.length < 100 || (lastDate && lastDate < cutoffStart)) break;
     }
 
+    // Cap how many campaigns we inspect per request to keep this bounded
+    const MAX_CAMPAIGNS = 40;
+    const targetCampaigns = campaigns.slice(0, MAX_CAMPAIGNS);
+
+    // 2. For each campaign, fetch per-link click data via the legacy API and
+    // keep only clicks on WhatsApp/Portal links
+    const rows: CliqueAlertaRow[] = [];
+    for (const camp of targetCampaigns) {
+      let json: any;
+      try {
+        json = await acLegacyFetch(creds, { api_action: "campaign_report_link_list", campaignid: camp.id });
+      } catch {
+        continue; // skip campaigns the legacy API can't report on
+      }
+      for (const key of Object.keys(json)) {
+        if (!/^\d+$/.test(key)) continue;
+        const linkEntry = json[key];
+        const url = String(linkEntry?.link ?? "");
+        const tipo: "whatsapp" | "portal" | null = WHATSAPP_LINK_RE.test(url)
+          ? "whatsapp"
+          : PORTAL_LINK_RE.test(url)
+          ? "portal"
+          : null;
+        if (!tipo) continue;
+        const infos: any[] = Array.isArray(linkEntry?.info) ? linkEntry.info : [];
+        for (const info of infos) {
+          const tstamp = info?.tstamp ? new Date(String(info.tstamp).replace(" ", "T")) : null;
+          rows.push({
+            contactId: String(info?.subscriberid ?? ""),
+            email: info?.email ?? "",
+            campanhaId: camp.id,
+            campanhaNome: camp.name,
+            tipo,
+            clicadoEm: tstamp && !isNaN(tstamp.getTime()) ? tstamp.toISOString() : camp.sdate.toISOString(),
+          });
+        }
+      }
+    }
+
+    rows.sort((a, b) => (a.clicadoEm < b.clicadoEm ? 1 : -1));
+
+    const pageSize = 20;
+    const total = rows.length;
+    const start = (data.page - 1) * pageSize;
     return {
-      rows: (rows ?? []) as AlertaEnviadoRow[],
-      total: count ?? 0,
+      rows: rows.slice(start, start + pageSize),
+      total,
       page: data.page,
       pageSize,
+      campaignsScanned: targetCampaigns.length,
     };
   });

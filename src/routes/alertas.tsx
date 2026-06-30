@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, ChevronLeft, ChevronRight, Bell, Building2, Mail, Phone, Clock, TrendingUp, AlertTriangle, CheckCircle2 } from "lucide-react";
-import { listAlertasClientes, listAlertasEnviados, toggleAlertaContatado } from "@/lib/alertas.functions";
+import { listAlertasClientes, listCliquesAlertas, toggleAlertaContatado } from "@/lib/alertas.functions";
 
 export const Route = createFileRoute("/alertas")({
   component: AlertasPage,
@@ -294,9 +294,9 @@ function CliquesTab() {
   const [dataInicio, setDataInicio] = useState("");
   const [dataFim, setDataFim] = useState("");
   const [applied, setApplied] = useState<{ dataInicio?: string; dataFim?: string }>({});
-  const fetchFn = useServerFn(listAlertasEnviados);
+  const fetchFn = useServerFn(listCliquesAlertas);
   const q = useQuery({
-    queryKey: ["alertas-enviados", page, applied],
+    queryKey: ["cliques-alertas", page, applied],
     queryFn: () => fetchFn({ data: { page, ...applied } }),
   });
 
@@ -344,14 +344,14 @@ function CliquesTab() {
 
       {q.isLoading ? (
         <div className="flex items-center justify-center py-16 text-muted-foreground">
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Carregando…
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Carregando… (isso pode levar um tempo, varrendo campanhas)
         </div>
       ) : q.error ? (
         <div className="py-10 text-sm text-destructive">{(q.error as Error).message}</div>
       ) : (q.data?.rows ?? []).length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-border bg-card py-20 text-center">
           <Bell className="h-8 w-8 text-muted-foreground/50" />
-          <p className="text-sm text-muted-foreground">Nenhum alerta encontrado</p>
+          <p className="text-sm text-muted-foreground">Nenhum clique encontrado no período</p>
         </div>
       ) : (
         <div className="rounded-xl border border-border bg-card">
@@ -359,20 +359,24 @@ function CliquesTab() {
             <TableHeader>
               <TableRow>
                 <TableHead>Cliente</TableHead>
-                <TableHead>E-mail enviado</TableHead>
-                <TableHead>Data envio</TableHead>
-                <TableHead>Clicou WhatsApp?</TableHead>
-                <TableHead>Clicou Portal?</TableHead>
+                <TableHead>E-mail</TableHead>
+                <TableHead>Campanha</TableHead>
+                <TableHead>Link clicado</TableHead>
+                <TableHead>Data do clique</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(q.data?.rows ?? []).map((r) => (
-                <TableRow key={r.id}>
-                  <TableCell className="font-medium">{r.cliente_nome || r.cliente_id}</TableCell>
-                  <TableCell className="text-xs">{r.email_destino}</TableCell>
-                  <TableCell>{fmtDate(r.data_envio)}</TableCell>
-                  <TableCell><ClickBadge ts={r.link_whatsapp_clicado} /></TableCell>
-                  <TableCell><ClickBadge ts={r.link_portal_clicado} /></TableCell>
+              {(q.data?.rows ?? []).map((r, i) => (
+                <TableRow key={`${r.contactId}-${r.campanhaId}-${r.tipo}-${i}`}>
+                  <TableCell className="font-medium">{r.contactId}</TableCell>
+                  <TableCell className="text-xs">{r.email}</TableCell>
+                  <TableCell className="text-xs">{r.campanhaNome}</TableCell>
+                  <TableCell>
+                    <Badge className={r.tipo === "whatsapp" ? "border-success/30 bg-success/15 text-success hover:bg-success/15" : "border-primary/30 bg-primary/15 text-primary hover:bg-primary/15"}>
+                      {r.tipo === "whatsapp" ? "WhatsApp" : "Portal"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{fmtDate(r.clicadoEm)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -386,17 +390,3 @@ function CliquesTab() {
   );
 }
 
-function ClickBadge({ ts }: { ts: string | null }) {
-  if (ts) {
-    return (
-      <Badge className="border-success/30 bg-success/15 text-success hover:bg-success/15">
-        Sim em {fmtDate(ts)}
-      </Badge>
-    );
-  }
-  return (
-    <Badge className="border-destructive/30 bg-destructive/15 text-destructive hover:bg-destructive/15">
-      Não
-    </Badge>
-  );
-}
