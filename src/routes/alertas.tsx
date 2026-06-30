@@ -196,12 +196,21 @@ function ClientesTab({ tab, mode }: { tab: "sem_operar_15" | "sem_operar_30" | "
                     {!r.clienteId && !r.cnpj ? "Sem identificação" : ""}
                   </p>
                 </div>
-                <label className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-muted-foreground hover:bg-muted">
-                  <Checkbox
-                    checked={r.contatado}
-                    onCheckedChange={(checked) => toggleMutation.mutate({ contactId: r.contactId, contatado: checked === true })}
-                  />
-                </label>
+                <button
+                  type="button"
+                  title="Marcar como contatado"
+                  onClick={() => {
+                    console.log("toggle click", r.contactId, !r.contatado);
+                    toggleMutation.mutate({ contactId: r.contactId, contatado: !r.contatado });
+                  }}
+                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition-colors ${
+                    r.contatado
+                      ? "border-emerald-500 bg-emerald-500 text-white"
+                      : "border-border bg-background text-transparent hover:border-primary"
+                  }`}
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                </button>
               </div>
 
               {r.contatado && (
