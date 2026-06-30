@@ -47,8 +47,8 @@ async function acFetch(creds: Settings, path: string, params?: Record<string, st
 // which is not exposed by the v3 REST API.
 async function acLegacyFetch(creds: Settings, params: Record<string, string>) {
   const baseParsed = assertAllowedAcUrl(creds.ac_base_url);
-  const baseStr = baseParsed.toString().endsWith("/") ? baseParsed.toString() : baseParsed.toString() + "/";
-  const url = new URL("admin/api.php", baseStr);
+  // The legacy admin/api.php endpoint lives at the account root, not under /api/3
+  const url = new URL("/admin/api.php", baseParsed.origin);
   if (url.protocol !== "https:" || url.hostname !== baseParsed.hostname) {
     throw new Error("INVALID_AC_BASE_URL");
   }
