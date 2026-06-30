@@ -451,7 +451,6 @@ function CliqueClienteItem({ c }: { c: CliqueRaw & { cliques: number } }) {
           )}
         </div>
       </div>
-      {(c as any)._dbg && <p className="mt-1 break-all font-mono text-[9px] text-yellow-600">{(c as any)._dbg}</p>}
     </div>
   );
 }
