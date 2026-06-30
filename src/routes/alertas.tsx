@@ -4,11 +4,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { AppHeader } from "@/components/app/Header";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, ChevronLeft, ChevronRight, Bell, Building2, Mail, Phone, Clock, TrendingUp, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { listAlertasClientes, listCliquesAlertas, toggleAlertaContatado } from "@/lib/alertas.functions";
 
@@ -291,100 +288,80 @@ function ClientesTab({ tab, mode }: { tab: "sem_operar_15" | "sem_operar_30" | "
 
 function CliquesTab() {
   const [page, setPage] = useState(1);
-  const [dataInicio, setDataInicio] = useState("");
-  const [dataFim, setDataFim] = useState("");
-  const [applied, setApplied] = useState<{ dataInicio?: string; dataFim?: string }>({});
   const fetchFn = useServerFn(listCliquesAlertas);
   const q = useQuery({
-    queryKey: ["cliques-alertas", page, applied],
-    queryFn: () => fetchFn({ data: { page, ...applied } }),
+    queryKey: ["cliques-alertas", page],
+    queryFn: () => fetchFn({ data: { page } }),
   });
-
-  function applyFilter() {
-    setPage(1);
-    setApplied({
-      dataInicio: dataInicio || undefined,
-      dataFim: dataFim ? new Date(dataFim + "T23:59:59").toISOString() : undefined,
-    });
-  }
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-4">
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-muted-foreground">De</label>
-          <Input
-            type="date"
-            value={dataInicio}
-            onChange={(e) => setDataInicio(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && applyFilter()}
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-muted-foreground">Até</label>
-          <Input
-            type="date"
-            value={dataFim}
-            onChange={(e) => setDataFim(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && applyFilter()}
-          />
-        </div>
-        <Button onClick={applyFilter}>Filtrar</Button>
-        {(applied.dataInicio || applied.dataFim) && (
-          <Button
-            variant="ghost"
-            onClick={() => {
-              setDataInicio(""); setDataFim(""); setApplied({}); setPage(1);
-            }}
-          >
-            Limpar
-          </Button>
-        )}
-      </div>
+      {q.data && (
+        <p className="text-xs text-muted-foreground">
+          Últimos 60 dias · {q.data.campanhasEscaneadas} campanhas verificadas
+          {q.data.campanhasComErro > 0 ? ` · ${q.data.campanhasComErro} com erro ao consultar` : ""}
+        </p>
+      )}
 
       {q.isLoading ? (
         <div className="flex items-center justify-center py-16 text-muted-foreground">
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Carregando… (isso pode levar um tempo, varrendo campanhas)
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Carregando… (varrendo campanhas dos últimos 60 dias)
         </div>
       ) : q.error ? (
-        <div className="py-10 text-sm text-destructive">{(q.error as Error).message}</div>
-      ) : (q.data?.rows ?? []).length === 0 ? (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">{(q.error as Error).message}</div>
+      ) : (q.data?.campanhas ?? []).length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-border bg-card py-20 text-center">
           <Bell className="h-8 w-8 text-muted-foreground/50" />
-          <p className="text-sm text-muted-foreground">Nenhum clique encontrado no período</p>
+          <p className="text-sm text-muted-foreground">Nenhum clique em link de WhatsApp/Portal encontrado nos últimos 60 dias</p>
         </div>
       ) : (
-        <div className="rounded-xl border border-border bg-card">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Cliente</TableHead>
-                <TableHead>E-mail</TableHead>
-                <TableHead>Campanha</TableHead>
-                <TableHead>Link clicado</TableHead>
-                <TableHead>Data do clique</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(q.data?.rows ?? []).map((r, i) => (
-                <TableRow key={`${r.contactId}-${r.campanhaId}-${r.tipo}-${i}`}>
-                  <TableCell className="font-medium">{r.contactId}</TableCell>
-                  <TableCell className="text-xs">{r.email}</TableCell>
-                  <TableCell className="text-xs">{r.campanhaNome}</TableCell>
-                  <TableCell>
-                    <Badge className={r.tipo === "whatsapp" ? "border-success/30 bg-success/15 text-success hover:bg-success/15" : "border-primary/30 bg-primary/15 text-primary hover:bg-primary/15"}>
-                      {r.tipo === "whatsapp" ? "WhatsApp" : "Portal"}
+        <>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {(q.data?.campanhas ?? []).map((camp) => (
+              <div key={camp.campanhaId} className="rounded-xl border border-border bg-card p-5 shadow-sm">
+                <div className="mb-3 flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold leading-tight">{camp.campanhaNome}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">Enviada em {fmtDate(camp.sdate)}</p>
+                  </div>
+                </div>
+
+                {camp.whatsapp.length > 0 && (
+                  <div className="mb-3">
+                    <Badge className="mb-2 border-success/30 bg-success/15 text-success hover:bg-success/15">
+                      WhatsApp · {camp.whatsapp.length} {camp.whatsapp.length === 1 ? "clique" : "cliques"}
                     </Badge>
-                  </TableCell>
-                  <TableCell>{fmtDate(r.clicadoEm)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          <div className="px-4 pb-4">
-            <Pager page={page} total={q.data?.total ?? 0} pageSize={q.data?.pageSize ?? 20} onChange={setPage} />
+                    <ul className="space-y-1">
+                      {camp.whatsapp.map((c, i) => (
+                        <li key={`wa-${i}`} className="flex items-center justify-between rounded-md bg-muted/50 px-2.5 py-1.5 text-xs">
+                          <span className="truncate">{c.email || c.contactId}</span>
+                          <span className="shrink-0 text-muted-foreground">{fmtDate(c.clicadoEm)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {camp.portal.length > 0 && (
+                  <div>
+                    <Badge className="mb-2 border-primary/30 bg-primary/15 text-primary hover:bg-primary/15">
+                      Portal · {camp.portal.length} {camp.portal.length === 1 ? "clique" : "cliques"}
+                    </Badge>
+                    <ul className="space-y-1">
+                      {camp.portal.map((c, i) => (
+                        <li key={`pt-${i}`} className="flex items-center justify-between rounded-md bg-muted/50 px-2.5 py-1.5 text-xs">
+                          <span className="truncate">{c.email || c.contactId}</span>
+                          <span className="shrink-0 text-muted-foreground">{fmtDate(c.clicadoEm)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
-        </div>
+          <Pager page={page} total={q.data?.total ?? 0} pageSize={q.data?.pageSize ?? 10} onChange={setPage} />
+        </>
       )}
     </div>
   );

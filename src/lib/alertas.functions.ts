@@ -395,31 +395,39 @@ export const toggleAlertaContatado = createServerFn({ method: "POST" })
 const WHATSAPP_LINK_RE = /wa\.me|api\.whatsapp\.com/i;
 const PORTAL_LINK_RE = /portal\.adiantesa\.com/i;
 
-export type CliqueAlertaRow = {
+export type CliqueInfo = {
   contactId: string;
   email: string;
-  campanhaId: string;
-  campanhaNome: string;
-  tipo: "whatsapp" | "portal";
   clicadoEm: string; // ISO
 };
 
+export type CampanhaCliquesRow = {
+  campanhaId: string;
+  campanhaNome: string;
+  sdate: string; // ISO
+  whatsapp: CliqueInfo[];
+  portal: CliqueInfo[];
+};
+
+export type ListCliquesResult = {
+  campanhas: CampanhaCliquesRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+  campanhasEscaneadas: number;
+  campanhasComErro: number;
+};
+
+const MAX_CAMPAIGNS = 40;
+
 export const listCliquesAlertas = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d) =>
-    z.object({
-      page: z.number().int().min(1).default(1),
-      dataInicio: z.string().optional(),
-      dataFim: z.string().optional(),
-    }).parse(d ?? {}),
-  )
+  .inputValidator((d) => z.object({ page: z.number().int().min(1).default(1) }).parse(d ?? {}))
   .handler(async ({ data, context }) => {
     const creds = await getCreds(context.supabase, context.userId);
+    const cutoffStart = new Date(Date.now() - 60 * 86400000);
 
-    const cutoffStart = data.dataInicio ? new Date(data.dataInicio) : new Date(Date.now() - 60 * 86400000);
-    const cutoffEnd = data.dataFim ? new Date(data.dataFim) : new Date();
-
-    // 1. Load sent campaigns within the date range (campaigns are returned newest-first)
+    // 1. Load recently sent campaigns (newest first)
     type CampaignMeta = { id: string; name: string; sdate: Date };
     const campaigns: CampaignMeta[] = [];
     for (let page = 0; page < 10; page++) {
@@ -433,29 +441,39 @@ export const listCliquesAlertas = createServerFn({ method: "GET" })
         if (!c.sdate || String(c.sdate).startsWith("0000")) continue;
         const sdate = new Date(c.sdate);
         if (isNaN(sdate.getTime())) continue;
-        if (sdate >= cutoffStart && sdate <= cutoffEnd) {
-          campaigns.push({ id: String(c.id), name: c.name ?? "(sem nome)", sdate });
-        }
+        if (sdate >= cutoffStart) campaigns.push({ id: String(c.id), name: c.name ?? "(sem nome)", sdate });
       }
       const last = rows[rows.length - 1];
       const lastDate = last?.sdate && !String(last.sdate).startsWith("0000") ? new Date(last.sdate) : null;
       if (rows.length < 100 || (lastDate && lastDate < cutoffStart)) break;
+      if (campaigns.length >= MAX_CAMPAIGNS) break;
     }
 
-    // Cap how many campaigns we inspect per request to keep this bounded
-    const MAX_CAMPAIGNS = 40;
     const targetCampaigns = campaigns.slice(0, MAX_CAMPAIGNS);
 
     // 2. For each campaign, fetch per-link click data via the legacy API and
     // keep only clicks on WhatsApp/Portal links
-    const rows: CliqueAlertaRow[] = [];
+    const campanhasOut: CampanhaCliquesRow[] = [];
+    let campanhasComErro = 0;
+    let firstError: string | null = null;
+
     for (const camp of targetCampaigns) {
       let json: any;
       try {
         json = await acLegacyFetch(creds, { api_action: "campaign_report_link_list", campaignid: camp.id });
-      } catch {
-        continue; // skip campaigns the legacy API can't report on
+      } catch (e) {
+        campanhasComErro++;
+        if (!firstError) firstError = (e as Error).message;
+        continue;
       }
+      if (json?.result_code === 0) {
+        campanhasComErro++;
+        if (!firstError) firstError = `result_code=0: ${json?.result_message ?? "sem mensagem"}`;
+        continue;
+      }
+
+      const whatsapp: CliqueInfo[] = [];
+      const portal: CliqueInfo[] = [];
       for (const key of Object.keys(json)) {
         if (!/^\d+$/.test(key)) continue;
         const linkEntry = json[key];
@@ -469,28 +487,35 @@ export const listCliquesAlertas = createServerFn({ method: "GET" })
         const infos: any[] = Array.isArray(linkEntry?.info) ? linkEntry.info : [];
         for (const info of infos) {
           const tstamp = info?.tstamp ? new Date(String(info.tstamp).replace(" ", "T")) : null;
-          rows.push({
+          const entry: CliqueInfo = {
             contactId: String(info?.subscriberid ?? ""),
             email: info?.email ?? "",
-            campanhaId: camp.id,
-            campanhaNome: camp.name,
-            tipo,
             clicadoEm: tstamp && !isNaN(tstamp.getTime()) ? tstamp.toISOString() : camp.sdate.toISOString(),
-          });
+          };
+          (tipo === "whatsapp" ? whatsapp : portal).push(entry);
         }
+      }
+
+      if (whatsapp.length > 0 || portal.length > 0) {
+        campanhasOut.push({ campanhaId: camp.id, campanhaNome: camp.name, sdate: camp.sdate.toISOString(), whatsapp, portal });
       }
     }
 
-    rows.sort((a, b) => (a.clicadoEm < b.clicadoEm ? 1 : -1));
+    if (campanhasOut.length === 0 && campanhasComErro === targetCampaigns.length && targetCampaigns.length > 0) {
+      throw new Error(`Falha ao consultar a API legada do AC em todas as ${targetCampaigns.length} campanhas. Erro: ${firstError}`);
+    }
 
-    const pageSize = 20;
-    const total = rows.length;
+    campanhasOut.sort((a, b) => (a.sdate < b.sdate ? 1 : -1));
+
+    const pageSize = 10;
+    const total = campanhasOut.length;
     const start = (data.page - 1) * pageSize;
     return {
-      rows: rows.slice(start, start + pageSize),
+      campanhas: campanhasOut.slice(start, start + pageSize),
       total,
       page: data.page,
       pageSize,
-      campaignsScanned: targetCampaigns.length,
-    };
+      campanhasEscaneadas: targetCampaigns.length,
+      campanhasComErro,
+    } satisfies ListCliquesResult;
   });
