@@ -179,11 +179,22 @@ async function loadAllAccounts(creds: Settings, acctFieldMap: Record<string, str
     for (const fv of (json.customerAccountCustomFieldData ?? []) as any[]) {
       const aid = String(fv.customer_account_id ?? fv.customerAccount ?? "");
       const fid = String(fv.custom_field_id ?? fv.customerAccountCustomFieldMetum ?? "");
-      const val = fv.custom_field_text_value ?? fv.custom_field_number_value ?? fv.custom_field_currency_value ?? null;
-      if (!aid || !fid || val == null || String(val) === "") continue;
+      if (!aid || !fid) continue;
       const personalization = fieldIdToPersonalization[fid];
       if (!personalization) continue;
-      (cfByAcct[aid] ??= {})[personalization] = String(val);
+
+      let val: string | null = null;
+      if (fv.custom_field_currency_value != null && fv.custom_field_currency_value !== "") {
+        // AC stores currency custom field values in cents
+        val = String(Number(fv.custom_field_currency_value) / 100);
+      } else if (fv.custom_field_number_value != null && fv.custom_field_number_value !== "") {
+        val = String(fv.custom_field_number_value);
+      } else if (fv.custom_field_text_value != null && fv.custom_field_text_value !== "") {
+        val = String(fv.custom_field_text_value);
+      }
+      if (val == null) continue;
+
+      (cfByAcct[aid] ??= {})[personalization] = val;
     }
 
     for (const a of (json.accounts ?? []) as any[]) {
