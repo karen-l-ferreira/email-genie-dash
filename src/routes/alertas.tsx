@@ -275,6 +275,22 @@ function ClientesTab({ tab, mode }: { tab: "sem_operar_15" | "sem_operar_30" | "
                     <span className="text-xs text-muted-foreground">Limite disponível</span>
                     <span className="font-medium">{fmtMoney(r.limiteDisponivel)}</span>
                   </div>
+                  {(r.email || r.phone) && (
+                    <div className="space-y-1 pt-1">
+                      {r.email && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Mail className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{r.email}</span>
+                        </div>
+                      )}
+                      {r.phone && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Phone className="h-3 w-3 shrink-0" />
+                          <span>{r.phone}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -331,14 +347,9 @@ function CliquesTab() {
                     <Badge className="mb-2 border-success/30 bg-success/15 text-success hover:bg-success/15">
                       WhatsApp · {camp.whatsapp.length} {camp.whatsapp.length === 1 ? "clique" : "cliques"}
                     </Badge>
-                    <ul className="space-y-1">
-                      {camp.whatsapp.map((c, i) => (
-                        <li key={`wa-${i}`} className="flex items-center justify-between rounded-md bg-muted/50 px-2.5 py-1.5 text-xs">
-                          <span className="truncate">{c.email || c.contactId}</span>
-                          <span className="shrink-0 text-muted-foreground">{fmtDate(c.clicadoEm)}</span>
-                        </li>
-                      ))}
-                    </ul>
+                    <div className="space-y-1.5">
+                      {camp.whatsapp.map((c, i) => <CliqueClienteItem key={`wa-${i}`} c={c} />)}
+                    </div>
                   </div>
                 )}
 
@@ -347,14 +358,9 @@ function CliquesTab() {
                     <Badge className="mb-2 border-primary/30 bg-primary/15 text-primary hover:bg-primary/15">
                       Portal · {camp.portal.length} {camp.portal.length === 1 ? "clique" : "cliques"}
                     </Badge>
-                    <ul className="space-y-1">
-                      {camp.portal.map((c, i) => (
-                        <li key={`pt-${i}`} className="flex items-center justify-between rounded-md bg-muted/50 px-2.5 py-1.5 text-xs">
-                          <span className="truncate">{c.email || c.contactId}</span>
-                          <span className="shrink-0 text-muted-foreground">{fmtDate(c.clicadoEm)}</span>
-                        </li>
-                      ))}
-                    </ul>
+                    <div className="space-y-1.5">
+                      {camp.portal.map((c, i) => <CliqueClienteItem key={`pt-${i}`} c={c} />)}
+                    </div>
                   </div>
                 )}
               </div>
@@ -362,6 +368,24 @@ function CliquesTab() {
           </div>
           <Pager page={page} total={q.data?.total ?? 0} pageSize={q.data?.pageSize ?? 10} onChange={setPage} />
         </>
+      )}
+    </div>
+  );
+}
+
+function CliqueClienteItem({ c }: { c: { razaoSocial: string; clienteId: string; cnpj: string; email: string; contactId: string; clicadoEm: string } }) {
+  return (
+    <div className="rounded-md bg-muted/50 px-2.5 py-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="truncate text-xs font-medium">{c.razaoSocial || c.email || c.contactId}</span>
+        <span className="shrink-0 text-xs text-muted-foreground">{fmtDate(c.clicadoEm)}</span>
+      </div>
+      {(c.clienteId || c.cnpj) && (
+        <p className="mt-0.5 text-[11px] text-muted-foreground">
+          {c.clienteId ? `ID: ${c.clienteId}` : ""}
+          {c.clienteId && c.cnpj ? " · " : ""}
+          {c.cnpj ? `CNPJ: ${c.cnpj}` : ""}
+        </p>
       )}
     </div>
   );

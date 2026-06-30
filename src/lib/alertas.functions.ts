@@ -399,6 +399,9 @@ export type CliqueInfo = {
   contactId: string;
   email: string;
   clicadoEm: string; // ISO
+  razaoSocial: string;
+  clienteId: string;
+  cnpj: string;
 };
 
 export type CampanhaCliquesRow = {
@@ -426,6 +429,32 @@ export const listCliquesAlertas = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     const creds = await getCreds(context.supabase, context.userId);
     const cutoffStart = new Date(Date.now() - 60 * 86400000);
+
+    // Kick off contact/account enrichment lookup in parallel with the campaign scan below
+    const enrichPromise = (async () => {
+      const [contactFieldMap, acctFieldMap] = await Promise.all([
+        loadContactFieldMap(creds),
+        loadAccountFieldMap(creds),
+      ]);
+      const contactFieldIdToPerstag: Record<string, string> = {};
+      for (const [perstag, id] of Object.entries(contactFieldMap)) contactFieldIdToPerstag[id] = perstag;
+      const [contacts, accounts] = await Promise.all([
+        loadAllContacts(creds, contactFieldIdToPerstag),
+        loadAllAccounts(creds, acctFieldMap),
+      ]);
+      const map = new Map<string, { razaoSocial: string; clienteId: string; cnpj: string }>();
+      for (const c of contacts) {
+        const acct = c.accountId ? accounts[c.accountId] : undefined;
+        const acf = acct?.cf ?? {};
+        const razaoSocialRaw = c.cf["RAZO_SOCIAL"] ?? acf["ACCT_RAZO_SOCIAL"] ?? null;
+        map.set(c.id, {
+          razaoSocial: razaoSocialRaw ?? acct?.name ?? "",
+          clienteId: acf["ACCT_CLIENTE_ID"] ?? c.cf["ACCT_CLIENTE_ID"] ?? "",
+          cnpj: acf["ACCT_CNPJ"] ?? c.cf["ACCT_CNPJ"] ?? "",
+        });
+      }
+      return map;
+    })();
 
     // 1. Load recently sent campaigns (newest first)
     type CampaignMeta = { id: string; name: string; sdate: Date };
@@ -491,6 +520,9 @@ export const listCliquesAlertas = createServerFn({ method: "GET" })
             contactId: String(info?.subscriberid ?? ""),
             email: info?.email ?? "",
             clicadoEm: tstamp && !isNaN(tstamp.getTime()) ? tstamp.toISOString() : camp.sdate.toISOString(),
+            razaoSocial: "",
+            clienteId: "",
+            cnpj: "",
           };
           (tipo === "whatsapp" ? whatsapp : portal).push(entry);
         }
@@ -503,6 +535,19 @@ export const listCliquesAlertas = createServerFn({ method: "GET" })
 
     if (campanhasOut.length === 0 && campanhasComErro === targetCampaigns.length && targetCampaigns.length > 0) {
       throw new Error(`Falha ao consultar a API legada do AC em todas as ${targetCampaigns.length} campanhas. Erro: ${firstError}`);
+    }
+
+    // Enrich each click with razão social / CNPJ / cliente ID
+    const enrichMap = await enrichPromise;
+    for (const camp of campanhasOut) {
+      for (const entry of [...camp.whatsapp, ...camp.portal]) {
+        const info = enrichMap.get(entry.contactId);
+        if (info) {
+          entry.razaoSocial = info.razaoSocial;
+          entry.clienteId = info.clienteId;
+          entry.cnpj = info.cnpj;
+        }
+      }
     }
 
     campanhasOut.sort((a, b) => (a.sdate < b.sdate ? 1 : -1));
