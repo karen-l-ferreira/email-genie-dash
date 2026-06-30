@@ -131,11 +131,28 @@ function ClientesTab({ tab, mode }: { tab: "sem_operar_15" | "sem_operar_30" | "
   const toggleFn = useServerFn(toggleAlertaContatado);
   const toggleMutation = useMutation({
     mutationFn: (vars: { contactId: string; contatado: boolean }) => toggleFn({ data: vars }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["alertas", tab] }),
-    onError: (err) => {
+    onMutate: async (vars) => {
+      await queryClient.cancelQueries({ queryKey: ["alertas", tab, page] });
+      const previous = queryClient.getQueryData(["alertas", tab, page]);
+      queryClient.setQueryData(["alertas", tab, page], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          rows: old.rows.map((row: any) =>
+            row.contactId === vars.contactId
+              ? { ...row, contatado: vars.contatado, contatadoEm: vars.contatado ? new Date().toISOString() : null }
+              : row,
+          ),
+        };
+      });
+      return { previous };
+    },
+    onError: (err, _vars, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(["alertas", tab, page], ctx.previous);
       // eslint-disable-next-line no-alert
       alert(`Erro ao marcar contato: ${(err as Error).message}`);
     },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["alertas", tab] }),
   });
 
   if (q.isLoading) {
