@@ -6,7 +6,7 @@ import { AppHeader } from "@/components/app/Header";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, ChevronLeft, ChevronRight, Bell, Building2, Mail, Phone, Clock, TrendingUp, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Loader2, ChevronLeft, ChevronRight, Bell, Building2, Mail, Phone, Clock, TrendingUp, AlertTriangle, CheckCircle2, MessageCircle, ExternalLink, MousePointerClick } from "lucide-react";
 import { listAlertasClientes, listCliquesAlertas, toggleAlertaContatado } from "@/lib/alertas.functions";
 
 export const Route = createFileRoute("/alertas")({
@@ -334,9 +334,12 @@ function CliquesTab() {
         <>
           <div className="grid gap-4 sm:grid-cols-2">
             {(q.data?.campanhas ?? []).map((camp) => (
-              <div key={camp.campanhaId} className="rounded-xl border border-border bg-card p-5 shadow-sm">
-                <div className="mb-3 flex items-start justify-between gap-2">
-                  <div className="min-w-0">
+              <div key={camp.campanhaId} className="rounded-xl border border-border bg-card p-5 shadow-sm transition-shadow hover:shadow-md">
+                <div className="mb-3 flex items-start gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <Mail className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
                     <p className="truncate font-semibold leading-tight">{camp.campanhaNome}</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">Enviada em {fmtDate(camp.sdate)}</p>
                   </div>
@@ -344,22 +347,26 @@ function CliquesTab() {
 
                 {camp.whatsapp.length > 0 && (
                   <div className="mb-3">
-                    <Badge className="mb-2 border-success/30 bg-success/15 text-success hover:bg-success/15">
-                      WhatsApp · {camp.whatsapp.length} {camp.whatsapp.length === 1 ? "clique" : "cliques"}
-                    </Badge>
+                    <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-success">
+                      <MessageCircle className="h-3.5 w-3.5" />
+                      WhatsApp
+                      <span className="font-normal text-muted-foreground">· {dedupeClientes(camp.whatsapp).length} {dedupeClientes(camp.whatsapp).length === 1 ? "cliente" : "clientes"}</span>
+                    </div>
                     <div className="space-y-1.5">
-                      {camp.whatsapp.map((c, i) => <CliqueClienteItem key={`wa-${i}`} c={c} />)}
+                      {dedupeClientes(camp.whatsapp).map((c) => <CliqueClienteItem key={c.contactId} c={c} />)}
                     </div>
                   </div>
                 )}
 
                 {camp.portal.length > 0 && (
                   <div>
-                    <Badge className="mb-2 border-primary/30 bg-primary/15 text-primary hover:bg-primary/15">
-                      Portal · {camp.portal.length} {camp.portal.length === 1 ? "clique" : "cliques"}
-                    </Badge>
+                    <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-primary">
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      Portal
+                      <span className="font-normal text-muted-foreground">· {dedupeClientes(camp.portal).length} {dedupeClientes(camp.portal).length === 1 ? "cliente" : "clientes"}</span>
+                    </div>
                     <div className="space-y-1.5">
-                      {camp.portal.map((c, i) => <CliqueClienteItem key={`pt-${i}`} c={c} />)}
+                      {dedupeClientes(camp.portal).map((c) => <CliqueClienteItem key={c.contactId} c={c} />)}
                     </div>
                   </div>
                 )}
@@ -373,20 +380,44 @@ function CliquesTab() {
   );
 }
 
-function CliqueClienteItem({ c }: { c: { razaoSocial: string; clienteId: string; cnpj: string; email: string; contactId: string; clicadoEm: string } }) {
+type CliqueRaw = { razaoSocial: string; clienteId: string; cnpj: string; email: string; contactId: string; clicadoEm: string };
+
+function dedupeClientes(items: CliqueRaw[]): (CliqueRaw & { cliques: number })[] {
+  const map = new Map<string, CliqueRaw & { cliques: number }>();
+  for (const c of items) {
+    const existing = map.get(c.contactId);
+    if (!existing) {
+      map.set(c.contactId, { ...c, cliques: 1 });
+    } else {
+      existing.cliques += 1;
+      if (c.clicadoEm > existing.clicadoEm) existing.clicadoEm = c.clicadoEm;
+    }
+  }
+  return [...map.values()].sort((a, b) => (a.clicadoEm < b.clicadoEm ? 1 : -1));
+}
+
+function CliqueClienteItem({ c }: { c: CliqueRaw & { cliques: number } }) {
   return (
-    <div className="rounded-md bg-muted/50 px-2.5 py-1.5">
-      <div className="flex items-center justify-between gap-2">
-        <span className="truncate text-xs font-medium">{c.razaoSocial || c.email || c.contactId}</span>
-        <span className="shrink-0 text-xs text-muted-foreground">{fmtDate(c.clicadoEm)}</span>
+    <div className="flex items-center gap-2.5 rounded-md bg-muted/50 px-2.5 py-2">
+      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-background text-muted-foreground">
+        <Building2 className="h-3.5 w-3.5" />
       </div>
-      {(c.clienteId || c.cnpj) && (
-        <p className="mt-0.5 text-[11px] text-muted-foreground">
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-xs font-medium">{c.razaoSocial || c.email || c.contactId}</p>
+        <p className="truncate text-[11px] text-muted-foreground">
           {c.clienteId ? `ID: ${c.clienteId}` : ""}
           {c.clienteId && c.cnpj ? " · " : ""}
           {c.cnpj ? `CNPJ: ${c.cnpj}` : ""}
         </p>
-      )}
+      </div>
+      <div className="flex shrink-0 flex-col items-end gap-0.5">
+        <span className="text-[11px] text-muted-foreground">{fmtDate(c.clicadoEm)}</span>
+        {c.cliques > 1 && (
+          <span className="flex items-center gap-0.5 text-[10px] font-medium text-muted-foreground">
+            <MousePointerClick className="h-2.5 w-2.5" /> {c.cliques}x
+          </span>
+        )}
+      </div>
     </div>
   );
 }
