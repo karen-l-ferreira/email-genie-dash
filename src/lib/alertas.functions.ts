@@ -278,14 +278,13 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
       contactFieldIdToPerstag[id] = perstag;
     }
 
-    // Load contacts, accounts and "já contatado" status in parallel
+    // Load contacts, accounts and "já contatado" status (compartilhado entre a equipe) em paralelo
     const [contacts, accounts, contatadosRows] = await Promise.all([
       loadAllContacts(creds, contactFieldIdToPerstag),
       loadAllAccounts(creds, acctFieldMap),
       context.supabase
         .from("alertas_contatos")
         .select("contact_id, contatado, contatado_em")
-        .eq("user_id", context.userId)
         .then((r: any) => r.data ?? []),
     ]);
     const contatadosMap = new Map<string, { contatado: boolean; em: string }>(
@@ -386,15 +385,14 @@ export const toggleAlertaContatado = createServerFn({ method: "POST" })
       const { error } = await db
         .from("alertas_contatos")
         .upsert(
-          { user_id: context.userId, contact_id: data.contactId, contatado: true, contatado_em: new Date().toISOString() },
-          { onConflict: "user_id,contact_id" },
+          { contatado_por: context.userId, contact_id: data.contactId, contatado: true, contatado_em: new Date().toISOString() },
+          { onConflict: "contact_id" },
         );
       if (error) throw new Error(error.message);
     } else {
       const { error } = await db
         .from("alertas_contatos")
         .delete()
-        .eq("user_id", context.userId)
         .eq("contact_id", data.contactId);
       if (error) throw new Error(error.message);
     }
