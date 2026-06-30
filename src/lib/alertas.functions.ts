@@ -328,7 +328,7 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
 
     // sort "desc" = mais dias sem operar primeiro (data mais antiga primeiro)
     // sort "asc" = menos dias sem operar primeiro (data mais recente primeiro)
-    const daysSortMult = data.sort === "desc" ? -1 : 1;
+    const daysSortMult = data.sort === "desc" ? 1 : -1;
 
     if (data.tab === "sem_operar_15") {
       rows = rows.filter((r) => {
