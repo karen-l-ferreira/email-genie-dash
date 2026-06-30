@@ -221,6 +221,8 @@ export type AlertaClienteRow = {
   phone: string;
   valorAprovadoNaoOperado: number;
   limiteDisponivel: number;
+  contatado: boolean;
+  contatadoEm: string | null;
 };
 
 export type ListAlertasResult = {
@@ -255,11 +257,19 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
       contactFieldIdToPerstag[id] = perstag;
     }
 
-    // Load contacts and accounts in parallel
-    const [contacts, accounts] = await Promise.all([
+    // Load contacts, accounts and "já contatado" status in parallel
+    const [contacts, accounts, contatadosRows] = await Promise.all([
       loadAllContacts(creds, contactFieldIdToPerstag),
       loadAllAccounts(creds, acctFieldMap),
+      context.supabase
+        .from("alertas_contatos")
+        .select("contact_id, contatado, contatado_em")
+        .eq("user_id", context.userId)
+        .then((r: any) => r.data ?? []),
     ]);
+    const contatadosMap = new Map<string, { contatado: boolean; em: string }>(
+      contatadosRows.map((r: any) => [String(r.contact_id), { contatado: r.contatado, em: r.contatado_em }]),
+    );
 
     const now = new Date();
     const cutoff15 = new Date(now.getTime() - 15 * 86400000);
@@ -277,10 +287,16 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
       const valorRaw = c.cf["ACCT_VALOR_APROVADO_NO_OPERADO"] ?? acf["ACCT_VALOR_APROVADO_NO_OPERADO"] ?? null;
       const limiteRaw = c.cf["ACCT_LIMITE_DISPONVEL"] ?? acf["ACCT_LIMITE_DISPONVEL"] ?? c.cf["ACCT_LIMITE_DISPONIVEL"] ?? acf["ACCT_LIMITE_DISPONIVEL"] ?? null;
 
+      const razaoSocialRaw =
+        c.cf["RAZAO_SOCIAL"] ?? acf["RAZAO_SOCIAL"] ??
+        c.cf["ACCT_RAZAO_SOCIAL"] ?? acf["ACCT_RAZAO_SOCIAL"] ??
+        c.cf["RAZAOSOCIAL"] ?? acf["RAZAOSOCIAL"] ??
+        null;
+
       return {
         contactId: c.id,
         accountId: c.accountId,
-        razaoSocial: acf["RAZAO_SOCIAL"] ?? acct?.name ?? "",
+        razaoSocial: razaoSocialRaw ?? acct?.name ?? "",
         clienteId: acf["ACCT_CLIENTE_ID"] ?? c.cf["ACCT_CLIENTE_ID"] ?? "",
         cnpj: acf["ACCT_CNPJ"] ?? c.cf["ACCT_CNPJ"] ?? "",
         ultimaOperacao: dataUlt ? dataUlt.toISOString() : null,
@@ -288,6 +304,8 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
         phone: c.phone,
         valorAprovadoNaoOperado: parseMoneyLoose(valorRaw),
         limiteDisponivel: parseMoneyLoose(limiteRaw),
+        contatado: contatadosMap.get(c.id)?.contatado ?? false,
+        contatadoEm: contatadosMap.get(c.id)?.em ?? null,
       };
     });
 
@@ -325,6 +343,35 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
       page: data.page,
       pageSize,
     } satisfies ListAlertasResult;
+  });
+
+export const toggleAlertaContatado = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) =>
+    z.object({
+      contactId: z.string().min(1),
+      contatado: z.boolean(),
+    }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const db = context.supabase as any;
+    if (data.contatado) {
+      const { error } = await db
+        .from("alertas_contatos")
+        .upsert(
+          { user_id: context.userId, contact_id: data.contactId, contatado: true, contatado_em: new Date().toISOString() },
+          { onConflict: "user_id,contact_id" },
+        );
+      if (error) throw new Error(error.message);
+    } else {
+      const { error } = await db
+        .from("alertas_contatos")
+        .delete()
+        .eq("user_id", context.userId)
+        .eq("contact_id", data.contactId);
+      if (error) throw new Error(error.message);
+    }
+    return { ok: true };
   });
 
 // ─── Alertas enviados ───────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { AppHeader } from "@/components/app/Header";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -8,8 +8,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, ChevronLeft, ChevronRight, Bell, Building2, Mail, Phone, Clock, TrendingUp, AlertTriangle } from "lucide-react";
-import { listAlertasClientes, listAlertasEnviados } from "@/lib/alertas.functions";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Loader2, ChevronLeft, ChevronRight, Bell, Building2, Mail, Phone, Clock, TrendingUp, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { listAlertasClientes, listAlertasEnviados, toggleAlertaContatado } from "@/lib/alertas.functions";
 
 export const Route = createFileRoute("/alertas")({
   component: AlertasPage,
@@ -121,9 +122,16 @@ function SkeletonCard() {
 function ClientesTab({ tab, mode }: { tab: "sem_operar_15" | "sem_operar_30" | "valor_aprovado"; mode: "inativos" | "valor" }) {
   const [page, setPage] = useState(1);
   const fetchFn = useServerFn(listAlertasClientes);
+  const queryClient = useQueryClient();
   const q = useQuery({
     queryKey: ["alertas", tab, page],
     queryFn: () => fetchFn({ data: { tab, page } }),
+  });
+
+  const toggleFn = useServerFn(toggleAlertaContatado);
+  const toggleMutation = useMutation({
+    mutationFn: (vars: { contactId: string; contatado: boolean }) => toggleFn({ data: vars }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["alertas", tab] }),
   });
 
   if (q.isLoading) {
@@ -166,7 +174,9 @@ function ClientesTab({ tab, mode }: { tab: "sem_operar_15" | "sem_operar_30" | "
           return (
             <div
               key={r.contactId}
-              className="group relative flex flex-col gap-4 rounded-xl border border-border bg-card p-5 shadow-sm transition-shadow hover:shadow-md"
+              className={`group relative flex flex-col gap-4 rounded-xl border p-5 shadow-sm transition-shadow hover:shadow-md ${
+                r.contatado ? "border-emerald-500/30 bg-emerald-500/5 opacity-70" : "border-border bg-card"
+              }`}
             >
               {/* Header */}
               <div className="flex items-start gap-3">
@@ -182,7 +192,20 @@ function ClientesTab({ tab, mode }: { tab: "sem_operar_15" | "sem_operar_30" | "
                     {!r.clienteId && !r.cnpj ? "Sem identificação" : ""}
                   </p>
                 </div>
+                <label className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-muted-foreground hover:bg-muted">
+                  <Checkbox
+                    checked={r.contatado}
+                    onCheckedChange={(checked) => toggleMutation.mutate({ contactId: r.contactId, contatado: checked === true })}
+                  />
+                </label>
               </div>
+
+              {r.contatado && (
+                <div className="-mt-2 flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Contatado {r.contatadoEm ? `em ${fmtDate(r.contatadoEm)}` : ""}
+                </div>
+              )}
 
               {/* Badge */}
               <Badge className={`self-start border text-xs font-medium ${badgeColor}`}>
