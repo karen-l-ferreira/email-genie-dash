@@ -255,7 +255,7 @@ export type ListAlertasResult = {
 // ─── Server function ───────────────────────────────────────────────────────
 
 const tabSchema = z.object({
-  tab: z.enum(["sem_operar_15", "sem_operar_30", "valor_aprovado"]),
+  tab: z.enum(["sem_operar_15", "sem_operar_30", "valor_aprovado", "limite_disponivel"]),
   page: z.number().int().min(1).default(1),
 });
 
@@ -348,6 +348,12 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
         return isApto(c?.cf["APTO"]) && r.valorAprovadoNaoOperado > 5000;
       });
       rows.sort((a, b) => b.valorAprovadoNaoOperado - a.valorAprovadoNaoOperado);
+    } else if (data.tab === "limite_disponivel") {
+      rows = rows.filter((r) => {
+        const c = contactById.get(r.contactId);
+        return isApto(c?.cf["APTO"]) && r.limiteDisponivel > 5000 && r.valorAprovadoNaoOperado <= 0;
+      });
+      rows.sort((a, b) => b.limiteDisponivel - a.limiteDisponivel);
     }
 
     const pageSize = 20;

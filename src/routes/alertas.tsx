@@ -20,7 +20,7 @@ export const Route = createFileRoute("/alertas")({
   notFoundComponent: () => <div>Não encontrado</div>,
 });
 
-type TabKey = "sem_operar_15" | "sem_operar_30" | "valor_aprovado" | "cliques";
+type TabKey = "sem_operar_15" | "sem_operar_30" | "valor_aprovado" | "limite_disponivel" | "cliques";
 
 function fmtDate(iso: string | null) {
   if (!iso) return "—";
@@ -60,6 +60,7 @@ function AlertasPage() {
             <TabsTrigger value="sem_operar_15">15 dias sem operar</TabsTrigger>
             <TabsTrigger value="sem_operar_30">30 dias sem operar</TabsTrigger>
             <TabsTrigger value="valor_aprovado">Valor Aprovado Não Operado</TabsTrigger>
+            <TabsTrigger value="limite_disponivel">Limite Disponível</TabsTrigger>
             <TabsTrigger value="cliques">Alertas de Clique</TabsTrigger>
           </TabsList>
 
@@ -71,6 +72,9 @@ function AlertasPage() {
           </TabsContent>
           <TabsContent value="valor_aprovado" className="mt-6">
             <ClientesTab tab="valor_aprovado" mode="valor" />
+          </TabsContent>
+          <TabsContent value="limite_disponivel" className="mt-6">
+            <ClientesTab tab="limite_disponivel" mode="limite" />
           </TabsContent>
           <TabsContent value="cliques" className="mt-6">
             <CliquesTab />
@@ -116,7 +120,7 @@ function SkeletonCard() {
   );
 }
 
-function ClientesTab({ tab, mode }: { tab: "sem_operar_15" | "sem_operar_30" | "valor_aprovado"; mode: "inativos" | "valor" }) {
+function ClientesTab({ tab, mode }: { tab: "sem_operar_15" | "sem_operar_30" | "valor_aprovado" | "limite_disponivel"; mode: "inativos" | "valor" | "limite" }) {
   const [page, setPage] = useState(1);
   const fetchFn = useServerFn(listAlertasClientes);
   const queryClient = useQueryClient();
@@ -181,12 +185,16 @@ function ClientesTab({ tab, mode }: { tab: "sem_operar_15" | "sem_operar_30" | "
               ? "border-yellow-500/30 bg-yellow-500/10 text-yellow-600 dark:text-yellow-400"
               : tab === "sem_operar_30"
               ? "border-destructive/30 bg-destructive/10 text-destructive"
+              : tab === "limite_disponivel"
+              ? "border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400"
               : "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400";
           const badgeLabel =
             tab === "sem_operar_15"
               ? `${days ?? "?"} dias sem operar`
               : tab === "sem_operar_30"
               ? `${days ?? "?"} dias sem operar`
+              : tab === "limite_disponivel"
+              ? "Limite disponível sem valor aprovado"
               : "Valor aprovado não operado";
 
           return (
@@ -236,8 +244,8 @@ function ClientesTab({ tab, mode }: { tab: "sem_operar_15" | "sem_operar_30" | "
 
               {/* Badge */}
               <Badge className={`self-start border text-xs font-medium ${badgeColor}`}>
-                {tab !== "valor_aprovado" && <Clock className="mr-1 h-3 w-3" />}
-                {tab === "valor_aprovado" && <TrendingUp className="mr-1 h-3 w-3" />}
+                {(tab === "sem_operar_15" || tab === "sem_operar_30") && <Clock className="mr-1 h-3 w-3" />}
+                {(tab === "valor_aprovado" || tab === "limite_disponivel") && <TrendingUp className="mr-1 h-3 w-3" />}
                 {badgeLabel}
               </Badge>
 
@@ -250,6 +258,29 @@ function ClientesTab({ tab, mode }: { tab: "sem_operar_15" | "sem_operar_30" | "
                   </div>
                   {(r.email || r.phone) && (
                     <div className="space-y-1">
+                      {r.email && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Mail className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{r.email}</span>
+                        </div>
+                      )}
+                      {r.phone && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Phone className="h-3 w-3 shrink-0" />
+                          <span>{r.phone}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : mode === "limite" ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
+                    <span className="text-xs text-muted-foreground">Limite disponível</span>
+                    <span className="font-semibold text-blue-600 dark:text-blue-400">{fmtMoney(r.limiteDisponivel)}</span>
+                  </div>
+                  {(r.email || r.phone) && (
+                    <div className="space-y-1 pt-1">
                       {r.email && (
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <Mail className="h-3 w-3 shrink-0" />
