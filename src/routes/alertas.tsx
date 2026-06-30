@@ -132,6 +132,10 @@ function ClientesTab({ tab, mode }: { tab: "sem_operar_15" | "sem_operar_30" | "
   const toggleMutation = useMutation({
     mutationFn: (vars: { contactId: string; contatado: boolean }) => toggleFn({ data: vars }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["alertas", tab] }),
+    onError: (err) => {
+      // eslint-disable-next-line no-alert
+      alert(`Erro ao marcar contato: ${(err as Error).message}`);
+    },
   });
 
   if (q.isLoading) {
