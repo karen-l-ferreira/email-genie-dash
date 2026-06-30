@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      alertas_contatos: {
+        Row: {
+          contact_id: string
+          contatado: boolean
+          contatado_em: string
+          contatado_por: string | null
+          created_at: string
+          id: string
+        }
+        Insert: {
+          contact_id: string
+          contatado?: boolean
+          contatado_em?: string
+          contatado_por?: string | null
+          created_at?: string
+          id?: string
+        }
+        Update: {
+          contact_id?: string
+          contatado?: boolean
+          contatado_em?: string
+          contatado_por?: string | null
+          created_at?: string
+          id?: string
+        }
+        Relationships: []
+      }
       alertas_enviados: {
         Row: {
           cliente_id: string
