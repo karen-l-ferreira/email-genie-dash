@@ -122,20 +122,21 @@ function SkeletonCard() {
 
 function ClientesTab({ tab, mode }: { tab: "sem_operar_15" | "sem_operar_30" | "valor_aprovado" | "limite_disponivel"; mode: "inativos" | "valor" | "limite" }) {
   const [page, setPage] = useState(1);
+  const [sort, setSort] = useState<"asc" | "desc">("desc");
   const fetchFn = useServerFn(listAlertasClientes);
   const queryClient = useQueryClient();
   const q = useQuery({
-    queryKey: ["alertas", tab, page],
-    queryFn: () => fetchFn({ data: { tab, page } }),
+    queryKey: ["alertas", tab, page, sort],
+    queryFn: () => fetchFn({ data: { tab, page, sort } }),
   });
 
   const toggleFn = useServerFn(toggleAlertaContatado);
   const toggleMutation = useMutation({
     mutationFn: (vars: { contactId: string; contatado: boolean }) => toggleFn({ data: vars }),
     onMutate: async (vars) => {
-      await queryClient.cancelQueries({ queryKey: ["alertas", tab, page] });
-      const previous = queryClient.getQueryData(["alertas", tab, page]);
-      queryClient.setQueryData(["alertas", tab, page], (old: any) => {
+      await queryClient.cancelQueries({ queryKey: ["alertas", tab, page, sort] });
+      const previous = queryClient.getQueryData(["alertas", tab, page, sort]);
+      queryClient.setQueryData(["alertas", tab, page, sort], (old: any) => {
         if (!old) return old;
         return {
           ...old,
@@ -149,17 +150,40 @@ function ClientesTab({ tab, mode }: { tab: "sem_operar_15" | "sem_operar_30" | "
       return { previous };
     },
     onError: (err, _vars, ctx) => {
-      if (ctx?.previous) queryClient.setQueryData(["alertas", tab, page], ctx.previous);
+      if (ctx?.previous) queryClient.setQueryData(["alertas", tab, page, sort], ctx.previous);
       // eslint-disable-next-line no-alert
       alert(`Erro ao marcar contato: ${(err as Error).message}`);
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: ["alertas", tab] }),
   });
 
+  const sortControl = mode === "inativos" && (
+    <div className="mb-4 flex items-center justify-end gap-2">
+      <span className="text-xs text-muted-foreground">Ordenar por dias sem operar:</span>
+      <Button
+        variant={sort === "desc" ? "default" : "outline"}
+        size="sm"
+        onClick={() => { setSort("desc"); setPage(1); }}
+      >
+        Maior → Menor
+      </Button>
+      <Button
+        variant={sort === "asc" ? "default" : "outline"}
+        size="sm"
+        onClick={() => { setSort("asc"); setPage(1); }}
+      >
+        Menor → Maior
+      </Button>
+    </div>
+  );
+
   if (q.isLoading) {
     return (
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+      <div>
+        {sortControl}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+        </div>
       </div>
     );
   }
@@ -168,15 +192,19 @@ function ClientesTab({ tab, mode }: { tab: "sem_operar_15" | "sem_operar_30" | "
   const rows = q.data?.rows ?? [];
   if (rows.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-border bg-card py-20 text-center">
-        <AlertTriangle className="h-8 w-8 text-muted-foreground/50" />
-        <p className="text-sm text-muted-foreground">Nenhum alerta encontrado</p>
+      <div>
+        {sortControl}
+        <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-border bg-card py-20 text-center">
+          <AlertTriangle className="h-8 w-8 text-muted-foreground/50" />
+          <p className="text-sm text-muted-foreground">Nenhum alerta encontrado</p>
+        </div>
       </div>
     );
   }
 
   return (
     <div>
+      {sortControl}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {rows.map((r) => {
           const days = mode === "inativos" ? daysDiff(r.ultimaOperacao) : null;

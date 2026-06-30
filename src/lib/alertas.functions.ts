@@ -257,6 +257,7 @@ export type ListAlertasResult = {
 const tabSchema = z.object({
   tab: z.enum(["sem_operar_15", "sem_operar_30", "valor_aprovado", "limite_disponivel"]),
   page: z.number().int().min(1).default(1),
+  sort: z.enum(["asc", "desc"]).default("desc"),
 });
 
 export const listAlertasClientes = createServerFn({ method: "GET" })
@@ -325,6 +326,10 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
       };
     });
 
+    // sort "desc" = mais dias sem operar primeiro (data mais antiga primeiro)
+    // sort "asc" = menos dias sem operar primeiro (data mais recente primeiro)
+    const daysSortMult = data.sort === "desc" ? -1 : 1;
+
     if (data.tab === "sem_operar_15") {
       rows = rows.filter((r) => {
         const c = contactById.get(r.contactId);
@@ -333,7 +338,7 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
         const d = new Date(r.ultimaOperacao);
         return d < cutoff15 && d >= cutoff30;
       });
-      rows.sort((a, b) => (a.ultimaOperacao! < b.ultimaOperacao! ? -1 : 1));
+      rows.sort((a, b) => (a.ultimaOperacao! < b.ultimaOperacao! ? -daysSortMult : daysSortMult));
     } else if (data.tab === "sem_operar_30") {
       rows = rows.filter((r) => {
         const c = contactById.get(r.contactId);
@@ -341,7 +346,7 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
         if (!r.ultimaOperacao) return false;
         return new Date(r.ultimaOperacao) < cutoff30;
       });
-      rows.sort((a, b) => (a.ultimaOperacao! < b.ultimaOperacao! ? -1 : 1));
+      rows.sort((a, b) => (a.ultimaOperacao! < b.ultimaOperacao! ? -daysSortMult : daysSortMult));
     } else if (data.tab === "valor_aprovado") {
       rows = rows.filter((r) => {
         const c = contactById.get(r.contactId);
