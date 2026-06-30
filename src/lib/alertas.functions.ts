@@ -429,6 +429,58 @@ export type ListCliquesResult = {
 
 const MAX_CAMPAIGNS = 40;
 
+// Fetch a single contact (and its linked account) directly by ID — used to enrich
+// click data without depending on the capped 2000-contact bulk load.
+async function fetchContactEnrichment(
+  creds: Settings,
+  contactId: string,
+  contactFieldIdToPerstag: Record<string, string>,
+  acctFieldIdToPersonalization: Record<string, string>,
+): Promise<{ razaoSocial: string; clienteId: string; cnpj: string } | null> {
+  try {
+    const json = await acFetch(creds, `contacts/${contactId}`, { include: "fieldValues,accountContacts" });
+    if (!json?.contact) return null;
+
+    const cf: Record<string, string> = {};
+    for (const fv of (json.fieldValues ?? []) as any[]) {
+      if (!fv.field || fv.value == null || fv.value === "") continue;
+      const perstag = contactFieldIdToPerstag[String(fv.field)];
+      if (perstag) cf[perstag] = String(fv.value);
+    }
+
+    const accountId = (json.accountContacts ?? [])[0]?.account ? String(json.accountContacts[0].account) : null;
+    let acf: Record<string, string> = {};
+    let acctName = "";
+    if (accountId) {
+      const acctJson = await acFetch(creds, `accounts/${accountId}`, { include: "accountCustomFieldData" });
+      acctName = acctJson?.account?.name ?? "";
+      for (const fv of (acctJson.customerAccountCustomFieldData ?? []) as any[]) {
+        const fid = String(fv.custom_field_id ?? fv.customerAccountCustomFieldMetum ?? "");
+        const personalization = acctFieldIdToPersonalization[fid];
+        if (!personalization) continue;
+        let val: string | null = null;
+        if (fv.custom_field_currency_value != null && fv.custom_field_currency_value !== "") {
+          val = String(Number(fv.custom_field_currency_value) / 100);
+        } else if (fv.custom_field_number_value != null && fv.custom_field_number_value !== "") {
+          val = String(fv.custom_field_number_value);
+        } else if (fv.custom_field_text_value != null && fv.custom_field_text_value !== "") {
+          val = String(fv.custom_field_text_value);
+        }
+        if (val != null) acf[personalization] = val;
+      }
+    }
+
+    const razaoSocialRaw = cf["RAZO_SOCIAL"] ?? acf["ACCT_RAZO_SOCIAL"] ?? null;
+    return {
+      razaoSocial: razaoSocialRaw ?? acctName ?? "",
+      clienteId: acf["ACCT_CLIENTE_ID"] ?? cf["ACCT_CLIENTE_ID"] ?? "",
+      cnpj: acf["ACCT_CNPJ"] ?? cf["ACCT_CNPJ"] ?? "",
+    };
+  } catch {
+    return null;
+  }
+}
+
 export const listCliquesAlertas = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ page: z.number().int().min(1).default(1) }).parse(d ?? {}))
@@ -436,31 +488,8 @@ export const listCliquesAlertas = createServerFn({ method: "GET" })
     const creds = await getCreds(context.supabase, context.userId);
     const cutoffStart = new Date(Date.now() - 60 * 86400000);
 
-    // Kick off contact/account enrichment lookup in parallel with the campaign scan below
-    const enrichPromise = (async () => {
-      const [contactFieldMap, acctFieldMap] = await Promise.all([
-        loadContactFieldMap(creds),
-        loadAccountFieldMap(creds),
-      ]);
-      const contactFieldIdToPerstag: Record<string, string> = {};
-      for (const [perstag, id] of Object.entries(contactFieldMap)) contactFieldIdToPerstag[id] = perstag;
-      const [contacts, accounts] = await Promise.all([
-        loadAllContacts(creds, contactFieldIdToPerstag),
-        loadAllAccounts(creds, acctFieldMap),
-      ]);
-      const map = new Map<string, { razaoSocial: string; clienteId: string; cnpj: string }>();
-      for (const c of contacts) {
-        const acct = c.accountId ? accounts[c.accountId] : undefined;
-        const acf = acct?.cf ?? {};
-        const razaoSocialRaw = c.cf["RAZO_SOCIAL"] ?? acf["ACCT_RAZO_SOCIAL"] ?? null;
-        map.set(c.id, {
-          razaoSocial: razaoSocialRaw ?? acct?.name ?? "",
-          clienteId: acf["ACCT_CLIENTE_ID"] ?? c.cf["ACCT_CLIENTE_ID"] ?? "",
-          cnpj: acf["ACCT_CNPJ"] ?? c.cf["ACCT_CNPJ"] ?? "",
-        });
-      }
-      return map;
-    })();
+    // Field maps needed to enrich individual contacts/accounts later
+    const fieldMapsPromise = Promise.all([loadContactFieldMap(creds), loadAccountFieldMap(creds)]);
 
     // 1. Load recently sent campaigns (newest first)
     type CampaignMeta = { id: string; name: string; sdate: Date };
@@ -543,8 +572,29 @@ export const listCliquesAlertas = createServerFn({ method: "GET" })
       throw new Error(`Falha ao consultar a API legada do AC em todas as ${targetCampaigns.length} campanhas. Erro: ${firstError}`);
     }
 
-    // Enrich each click with razão social / CNPJ / cliente ID
-    const enrichMap = await enrichPromise;
+    // Enrich each click with razão social / CNPJ / cliente ID — fetched directly
+    // by contact ID so it works regardless of how many total contacts the account has
+    const [contactFieldMap, acctFieldMap] = await fieldMapsPromise;
+    const contactFieldIdToPerstag: Record<string, string> = {};
+    for (const [perstag, id] of Object.entries(contactFieldMap)) contactFieldIdToPerstag[id] = perstag;
+    const acctFieldIdToPersonalization: Record<string, string> = {};
+    for (const [personalization, id] of Object.entries(acctFieldMap)) acctFieldIdToPersonalization[id] = personalization;
+
+    const distinctContactIds = new Set<string>();
+    for (const camp of campanhasOut) {
+      for (const entry of [...camp.whatsapp, ...camp.portal]) {
+        if (entry.contactId) distinctContactIds.add(entry.contactId);
+      }
+    }
+
+    const enrichMap = new Map<string, { razaoSocial: string; clienteId: string; cnpj: string }>();
+    await Promise.all(
+      [...distinctContactIds].map(async (cid) => {
+        const info = await fetchContactEnrichment(creds, cid, contactFieldIdToPerstag, acctFieldIdToPersonalization);
+        if (info) enrichMap.set(cid, info);
+      }),
+    );
+
     for (const camp of campanhasOut) {
       for (const entry of [...camp.whatsapp, ...camp.portal]) {
         const info = enrichMap.get(entry.contactId);
