@@ -429,26 +429,29 @@ function dedupeClientes(items: CliqueRaw[]): (CliqueRaw & { cliques: number })[]
 
 function CliqueClienteItem({ c }: { c: CliqueRaw & { cliques: number } }) {
   return (
-    <div className="flex items-center gap-2.5 rounded-md bg-muted/50 px-2.5 py-2">
-      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-background text-muted-foreground">
-        <Building2 className="h-3.5 w-3.5" />
+    <div className="rounded-md bg-muted/50 px-2.5 py-2">
+      <div className="flex items-center gap-2.5">
+        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-background text-muted-foreground">
+          <Building2 className="h-3.5 w-3.5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-xs font-medium">{c.razaoSocial || c.email || c.contactId}</p>
+          <p className="truncate text-[11px] text-muted-foreground">
+            {c.clienteId ? `ID: ${c.clienteId}` : ""}
+            {c.clienteId && c.cnpj ? " · " : ""}
+            {c.cnpj ? `CNPJ: ${c.cnpj}` : ""}
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-0.5">
+          <span className="text-[11px] text-muted-foreground">{fmtDate(c.clicadoEm)}</span>
+          {c.cliques > 1 && (
+            <span className="flex items-center gap-0.5 text-[10px] font-medium text-muted-foreground">
+              <MousePointerClick className="h-2.5 w-2.5" /> {c.cliques}x
+            </span>
+          )}
+        </div>
       </div>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-xs font-medium">{c.razaoSocial || c.email || c.contactId}</p>
-        <p className="truncate text-[11px] text-muted-foreground">
-          {c.clienteId ? `ID: ${c.clienteId}` : ""}
-          {c.clienteId && c.cnpj ? " · " : ""}
-          {c.cnpj ? `CNPJ: ${c.cnpj}` : ""}
-        </p>
-      </div>
-      <div className="flex shrink-0 flex-col items-end gap-0.5">
-        <span className="text-[11px] text-muted-foreground">{fmtDate(c.clicadoEm)}</span>
-        {c.cliques > 1 && (
-          <span className="flex items-center gap-0.5 text-[10px] font-medium text-muted-foreground">
-            <MousePointerClick className="h-2.5 w-2.5" /> {c.cliques}x
-          </span>
-        )}
-      </div>
+      {(c as any)._dbg && <p className="mt-1 break-all font-mono text-[9px] text-yellow-600">{(c as any)._dbg}</p>}
     </div>
   );
 }

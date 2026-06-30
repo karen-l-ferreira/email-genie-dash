@@ -436,7 +436,7 @@ async function fetchContactEnrichment(
   contactId: string,
   contactFieldIdToPerstag: Record<string, string>,
   acctFieldIdToPersonalization: Record<string, string>,
-): Promise<{ razaoSocial: string; clienteId: string; cnpj: string } | null> {
+): Promise<{ razaoSocial: string; clienteId: string; cnpj: string; _dbg?: string } | null> {
   try {
     const json = await acFetch(creds, `contacts/${contactId}`, { include: "fieldValues,accountContacts" });
     if (!json?.contact) return null;
@@ -451,9 +451,11 @@ async function fetchContactEnrichment(
     const accountId = (json.accountContacts ?? [])[0]?.account ? String(json.accountContacts[0].account) : null;
     let acf: Record<string, string> = {};
     let acctName = "";
+    let _dbg = "";
     if (accountId) {
       const acctJson = await acFetch(creds, `accounts/${accountId}`, { include: "accountCustomFieldData" });
       acctName = acctJson?.account?.name ?? "";
+      _dbg = `keys=${Object.keys(acctJson).join("|")} sample=${JSON.stringify(acctJson).slice(0, 500)}`;
       for (const fv of (acctJson.customerAccountCustomFieldData ?? []) as any[]) {
         const fid = String(fv.custom_field_id ?? fv.customerAccountCustomFieldMetum ?? "");
         const personalization = acctFieldIdToPersonalization[fid];
@@ -475,9 +477,10 @@ async function fetchContactEnrichment(
       razaoSocial: razaoSocialRaw ?? acctName ?? "",
       clienteId: acf["ACCT_CLIENTE_ID"] ?? cf["ACCT_CLIENTE_ID"] ?? "",
       cnpj: acf["ACCT_CNPJ"] ?? cf["ACCT_CNPJ"] ?? "",
+      _dbg,
     };
-  } catch {
-    return null;
+  } catch (e) {
+    return { razaoSocial: "", clienteId: "", cnpj: "", _dbg: `EXCEPTION: ${(e as Error).message}` };
   }
 }
 
@@ -602,6 +605,7 @@ export const listCliquesAlertas = createServerFn({ method: "GET" })
           entry.razaoSocial = info.razaoSocial;
           entry.clienteId = info.clienteId;
           entry.cnpj = info.cnpj;
+          (entry as any)._dbg = info._dbg;
         }
       }
     }
