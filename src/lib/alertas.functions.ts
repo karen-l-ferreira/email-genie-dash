@@ -223,7 +223,6 @@ export type AlertaClienteRow = {
   limiteDisponivel: number;
   contatado: boolean;
   contatadoEm: string | null;
-  _dbgRazao?: string;
 };
 
 export type ListAlertasResult = {
@@ -288,21 +287,12 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
       const valorRaw = c.cf["ACCT_VALOR_APROVADO_NO_OPERADO"] ?? acf["ACCT_VALOR_APROVADO_NO_OPERADO"] ?? null;
       const limiteRaw = c.cf["ACCT_LIMITE_DISPONVEL"] ?? acf["ACCT_LIMITE_DISPONVEL"] ?? c.cf["ACCT_LIMITE_DISPONIVEL"] ?? acf["ACCT_LIMITE_DISPONIVEL"] ?? null;
 
-      const razaoSocialRaw =
-        c.cf["RAZAO_SOCIAL"] ?? acf["RAZAO_SOCIAL"] ??
-        c.cf["ACCT_RAZAO_SOCIAL"] ?? acf["ACCT_RAZAO_SOCIAL"] ??
-        c.cf["RAZAOSOCIAL"] ?? acf["RAZAOSOCIAL"] ??
-        null;
-
-      const _dbgRazao = !razaoSocialRaw
-        ? `acctName=${acct?.name ?? "null"} acfKeys=${Object.keys(acf).join(",") || "vazio"} cfKeys=${Object.keys(c.cf).join(",") || "vazio"}`
-        : undefined;
+      const razaoSocialRaw = c.cf["RAZO_SOCIAL"] ?? acf["ACCT_RAZO_SOCIAL"] ?? null;
 
       return {
         contactId: c.id,
         accountId: c.accountId,
         razaoSocial: razaoSocialRaw ?? acct?.name ?? "",
-        _dbgRazao,
         clienteId: acf["ACCT_CLIENTE_ID"] ?? c.cf["ACCT_CLIENTE_ID"] ?? "",
         cnpj: acf["ACCT_CNPJ"] ?? c.cf["ACCT_CNPJ"] ?? "",
         ultimaOperacao: dataUlt ? dataUlt.toISOString() : null,

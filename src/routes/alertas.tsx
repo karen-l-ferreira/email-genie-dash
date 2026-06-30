@@ -212,9 +212,6 @@ function ClientesTab({ tab, mode }: { tab: "sem_operar_15" | "sem_operar_30" | "
                     {r.cnpj ? `CNPJ: ${r.cnpj}` : ""}
                     {!r.clienteId && !r.cnpj ? "Sem identificação" : ""}
                   </p>
-                  {(r as any)._dbgRazao && (
-                    <p className="mt-1 break-all font-mono text-[9px] text-yellow-600">{(r as any)._dbgRazao}</p>
-                  )}
                 </div>
                 <button
                   type="button"
