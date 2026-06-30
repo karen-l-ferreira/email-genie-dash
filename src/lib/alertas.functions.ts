@@ -223,6 +223,7 @@ export type AlertaClienteRow = {
   limiteDisponivel: number;
   contatado: boolean;
   contatadoEm: string | null;
+  _dbgRazao?: string;
 };
 
 export type ListAlertasResult = {
@@ -293,10 +294,15 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
         c.cf["RAZAOSOCIAL"] ?? acf["RAZAOSOCIAL"] ??
         null;
 
+      const _dbgRazao = !razaoSocialRaw
+        ? `acctName=${acct?.name ?? "null"} acfKeys=${Object.keys(acf).join(",") || "vazio"} cfKeys=${Object.keys(c.cf).join(",") || "vazio"}`
+        : undefined;
+
       return {
         contactId: c.id,
         accountId: c.accountId,
         razaoSocial: razaoSocialRaw ?? acct?.name ?? "",
+        _dbgRazao,
         clienteId: acf["ACCT_CLIENTE_ID"] ?? c.cf["ACCT_CLIENTE_ID"] ?? "",
         cnpj: acf["ACCT_CNPJ"] ?? c.cf["ACCT_CNPJ"] ?? "",
         ultimaOperacao: dataUlt ? dataUlt.toISOString() : null,
