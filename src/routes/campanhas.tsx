@@ -450,7 +450,7 @@ function AutomacoesInline() {
   const autos: Automation[] = autosQ.data?.automations ?? [];
 
   if (autosQ.isLoading) {
-    return <div className="space-y-2">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-12 animate-pulse rounded-md bg-muted" />)}</div>;
+    return <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-20 animate-pulse rounded-lg bg-muted" />)}</div>;
   }
   if (autosQ.error) {
     return <div className="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">{(autosQ.error as Error).message}</div>;
@@ -459,17 +459,18 @@ function AutomacoesInline() {
     return <div className="rounded-md border border-border px-6 py-16 text-center text-sm text-muted-foreground">Nenhuma automação encontrada.</div>;
   }
   return (
-    <div className="rounded-md border border-border divide-y divide-border">
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {autos.map((a) => (
         <button
           key={a.id}
           type="button"
           onClick={() => navigate({ to: "/automation/$id", params: { id: a.id } })}
-          className="flex w-full items-center gap-4 px-4 py-3 text-left transition-colors hover:bg-muted/30"
+          className="flex flex-col gap-2 rounded-lg border border-border bg-card p-4 text-left transition-colors hover:bg-muted/30"
         >
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium">{a.name}</p>
-            <p className="text-xs text-muted-foreground">{a.entered.toLocaleString("pt-BR")} entradas · {a.completion_rate.toFixed(1)}% conclusão</p>
+          <p className="truncate text-sm font-medium">{a.name}</p>
+          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+            <span>{a.entered.toLocaleString("pt-BR")} entradas</span>
+            <span>{a.completion_rate.toFixed(1)}% conclusão</span>
           </div>
         </button>
       ))}
