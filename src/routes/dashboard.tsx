@@ -14,9 +14,10 @@ import {
   Download,
   GitBranch,
   Mail,
+  MousePointerClick,
   Settings as SettingsIcon,
-  Sparkles,
   TrendingUp,
+  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, subDays, subMonths, subYears } from "date-fns";
@@ -149,25 +150,23 @@ function DashboardPage() {
     <div className="min-h-screen bg-background">
       <AppHeader />
       <main className="mx-auto max-w-[1400px] px-6 py-8">
-        {/* Header row */}
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+
+        {/* Page header */}
+        <div className="mb-8 flex flex-wrap items-end justify-between gap-4 border-b border-border pb-6">
           <div>
-            <h1 className="text-2xl font-semibold">Dashboard</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Visão geral das campanhas e automações no ActiveCampaign.
-            </p>
+            <p className="mb-1 text-xs font-medium uppercase tracking-widest text-muted-foreground">Visão geral</p>
+            <h1 className="text-xl font-semibold">Dashboard</h1>
           </div>
           <div className="flex items-center gap-2">
-            {/* Period filter */}
-            <div className="flex items-center gap-1 rounded-lg border border-border bg-surface p-1">
+            <div className="flex items-center rounded-lg border border-border bg-card p-0.5">
               {PERIODS.map((p) => (
                 <button
                   key={p.key}
                   onClick={() => setPeriod(p.key)}
                   className={cn(
-                    "rounded-md px-3 py-1 text-xs font-medium transition-colors",
+                    "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
                     period === p.key
-                      ? "bg-primary text-primary-foreground"
+                      ? "bg-foreground text-background"
                       : "text-muted-foreground hover:text-foreground",
                   )}
                 >
@@ -178,7 +177,7 @@ function DashboardPage() {
             {allSent.length > 0 && (
               <Button variant="outline" size="sm" onClick={() => exportCampaignsCSV(allSent)}>
                 <Download className="mr-1.5 h-3.5 w-3.5" />
-                Exportar CSV
+                Exportar
               </Button>
             )}
           </div>
@@ -195,100 +194,64 @@ function DashboardPage() {
           </div>
         ) : (
           <>
-            {/* Campaign KPIs */}
-            <div className="mb-2">
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Campanhas</p>
-            </div>
+            {/* KPI row */}
             {isLoading ? (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {[0, 1, 2, 3].map((i) => <div key={i} className="h-28 animate-pulse rounded-xl bg-surface" />)}
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {[0, 1, 2, 3].map((i) => <div key={i} className="h-24 animate-pulse rounded-lg bg-muted" />)}
               </div>
             ) : (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <KpiCard
-                  icon={<Mail className="h-4 w-4 text-primary" />}
-                  label="Enviadas"
+                  icon={<Mail className="h-3.5 w-3.5" />}
+                  label="Campanhas enviadas"
                   value={sent.length.toLocaleString("pt-BR")}
                   sub={period !== "all" ? `de ${allSent.length} no total` : `${allCampaigns.length - allSent.length} rascunhos`}
                 />
                 <KpiCard
-                  icon={<TrendingUp className="h-4 w-4 text-primary" />}
-                  label="Média de abertura"
+                  icon={<TrendingUp className="h-3.5 w-3.5" />}
+                  label="Taxa de abertura"
                   value={`${avgOpenRate.toFixed(1)}%`}
-                  sub={`benchmark ${benchOR}%`}
+                  sub={`meta ${benchOR}%`}
                   good={sent.length > 0 ? avgOpenRate >= benchOR : undefined}
                 />
                 <KpiCard
-                  icon={<BarChart3 className="h-4 w-4 text-primary" />}
-                  label="Média de CTR"
+                  icon={<MousePointerClick className="h-3.5 w-3.5" />}
+                  label="CTR médio"
                   value={`${avgCTR.toFixed(2)}%`}
-                  sub={`benchmark ${benchCTR}%`}
+                  sub={`meta ${benchCTR}%`}
                   good={sent.length > 0 ? avgCTR >= benchCTR : undefined}
                 />
                 <KpiCard
-                  icon={<Sparkles className="h-4 w-4 text-primary" />}
-                  label="Score médio (IA)"
-                  value={sent.length ? `${avgScore.toFixed(0)}/100` : "—"}
-                  sub={avgScore >= 70 ? "Bom desempenho" : avgScore >= 40 ? "Moderado" : sent.length ? "Precisa atenção" : "Sem dados"}
-                  good={sent.length > 0 ? avgScore >= 70 : undefined}
-                />
-              </div>
-            )}
-
-            {/* Automation KPIs */}
-            <div className="mt-6 mb-2">
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Automações</p>
-            </div>
-            {automationsQ.isLoading ? (
-              <div className="grid gap-4 sm:grid-cols-3">
-                {[0, 1, 2].map((i) => <div key={i} className="h-28 animate-pulse rounded-xl bg-surface" />)}
-              </div>
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-3">
-                <KpiCard
-                  icon={<GitBranch className="h-4 w-4 text-primary" />}
+                  icon={<Zap className="h-3.5 w-3.5" />}
                   label="Automações ativas"
-                  value={activeAutos.length.toLocaleString("pt-BR")}
-                  sub={`de ${automations.length} no total`}
-                  good={activeAutos.length > 0 ? true : undefined}
-                />
-                <KpiCard
-                  icon={<TrendingUp className="h-4 w-4 text-primary" />}
-                  label="Total de entradas"
-                  value={totalEntered.toLocaleString("pt-BR")}
-                  sub="contatos que iniciaram fluxos"
-                />
-                <KpiCard
-                  icon={<BarChart3 className="h-4 w-4 text-primary" />}
-                  label="Conclusão média"
-                  value={automations.length ? `${avgCompletion.toFixed(1)}%` : "—"}
-                  sub="taxa de saída dos fluxos"
-                  good={automations.length > 0 ? avgCompletion >= 50 : undefined}
+                  value={automationsQ.isLoading ? "—" : activeAutos.length.toLocaleString("pt-BR")}
+                  sub={automationsQ.isLoading ? "" : `de ${automations.length} no total`}
+                  good={!automationsQ.isLoading && automations.length > 0 ? activeAutos.length > 0 : undefined}
                 />
               </div>
             )}
 
             {/* Below-benchmark alert */}
             {belowBench.length > 0 && (
-              <div className="mt-6 rounded-xl border border-warning/30 bg-warning/5 p-5">
-                <div className="mb-3 flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 text-warning" />
-                  <span className="text-sm font-semibold text-warning">
-                    {belowBench.length} campanha{belowBench.length > 1 ? "s" : ""} com performance crítica
+              <div className="mt-5 rounded-lg border border-amber-500/20 bg-amber-500/5 p-4">
+                <div className="mb-2.5 flex items-center gap-2">
+                  <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                  <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+                    {belowBench.length} campanha{belowBench.length > 1 ? "s" : ""} abaixo do esperado
                   </span>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   {belowBench.map((c) => (
                     <button
                       key={c.id}
                       onClick={() => navigate({ to: "/campaigns/$id", params: { id: c.id } })}
-                      className="flex w-full items-center justify-between rounded-lg border border-warning/20 bg-warning/5 px-4 py-2.5 text-left transition-colors hover:bg-warning/10"
+                      className="flex w-full items-center justify-between rounded-md border border-amber-500/10 bg-background px-3 py-2 text-left transition-colors hover:bg-muted/50"
                     >
-                      <span className="truncate text-sm font-medium">{c.name}</span>
-                      <div className="ml-4 flex shrink-0 gap-4 font-mono text-xs">
-                        <span className="text-destructive">{c.open_rate.toFixed(1)}% ab.</span>
-                        <span className="text-destructive">{c.ctr.toFixed(2)}% CTR</span>
-                        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="truncate text-sm">{c.name}</span>
+                      <div className="ml-4 flex shrink-0 items-center gap-3 font-mono text-xs text-muted-foreground">
+                        <span>{c.open_rate.toFixed(1)}% ab.</span>
+                        <span>{c.ctr.toFixed(2)}% CTR</span>
+                        <ChevronRight className="h-3.5 w-3.5" />
                       </div>
                     </button>
                   ))}
@@ -296,60 +259,65 @@ function DashboardPage() {
               </div>
             )}
 
-            {/* Bottom grid: top campaigns + quick access */}
-            <div className="mt-6 grid gap-6 lg:grid-cols-3">
-              <div className="lg:col-span-2 overflow-hidden rounded-xl border border-border bg-card">
-                <div className="flex items-center justify-between border-b border-border px-5 py-4">
-                  <h2 className="text-sm font-semibold">Top campanhas por pontuação</h2>
-                  <Button asChild variant="ghost" size="sm">
+            {/* Main content: top campaigns table + sidebar */}
+            <div className="mt-6 grid gap-5 lg:grid-cols-[1fr_260px]">
+
+              {/* Top campaigns */}
+              <div className="overflow-hidden rounded-lg border border-border bg-card">
+                <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
+                  <h2 className="text-sm font-medium">Melhores campanhas</h2>
+                  <Button asChild variant="ghost" size="sm" className="h-7 text-xs">
                     <Link to="/campanhas">
-                      Ver todas <ChevronRight className="ml-1 h-3.5 w-3.5" />
+                      Ver todas <ChevronRight className="ml-0.5 h-3 w-3" />
                     </Link>
                   </Button>
                 </div>
                 {isLoading ? (
-                  <div className="space-y-3 p-5">
-                    {[0, 1, 2, 3, 4].map((i) => <div key={i} className="h-10 animate-pulse rounded-lg bg-surface" />)}
+                  <div className="space-y-2 p-4">
+                    {[0, 1, 2, 3, 4].map((i) => <div key={i} className="h-9 animate-pulse rounded bg-muted" />)}
                   </div>
                 ) : topCampaigns.length === 0 ? (
-                  <div className="px-5 py-10 text-center text-sm text-muted-foreground">
-                    Nenhuma campanha enviada no período selecionado.
+                  <div className="px-5 py-12 text-center text-sm text-muted-foreground">
+                    Nenhuma campanha enviada no período.
                   </div>
                 ) : (
                   <table className="w-full text-sm">
-                    <thead className="bg-surface text-[11px] uppercase tracking-wider text-muted-foreground">
+                    <thead className="border-b border-border bg-muted/30 text-[11px] uppercase tracking-wider text-muted-foreground">
                       <tr>
-                        <th className="px-5 py-2 text-left font-medium">Campanha</th>
-                        <th className="px-3 py-2 text-right font-medium">Abertura</th>
-                        <th className="px-3 py-2 text-right font-medium">CTR</th>
-                        <th className="px-3 py-2 text-right font-medium">Score</th>
-                        <th className="w-8 px-3 py-2" />
+                        <th className="px-5 py-2.5 text-left font-medium">Campanha</th>
+                        <th className="px-4 py-2.5 text-right font-medium">Abertura</th>
+                        <th className="px-4 py-2.5 text-right font-medium">CTR</th>
+                        <th className="px-4 py-2.5 text-right font-medium">Score</th>
+                        <th className="w-8 px-3 py-2.5" />
                       </tr>
                     </thead>
                     <tbody>
-                      {topCampaigns.map((c) => (
+                      {topCampaigns.map((c, i) => (
                         <tr
                           key={c.id}
                           onClick={() => navigate({ to: "/campaigns/$id", params: { id: c.id } })}
-                          className="cursor-pointer border-t border-border transition-colors hover:bg-surface-2"
+                          className={cn(
+                            "cursor-pointer transition-colors hover:bg-muted/30",
+                            i !== 0 && "border-t border-border",
+                          )}
                         >
                           <td className="px-5 py-3">
-                            <div className="max-w-[260px] truncate font-medium">{c.name}</div>
+                            <div className="max-w-[280px] truncate font-medium">{c.name}</div>
                             <div className="font-mono text-[11px] text-muted-foreground">
-                              {c.sdate ? format(new Date(c.sdate), "d 'de' MMM, yyyy", { locale: ptBR }) : "—"}
+                              {c.sdate ? format(new Date(c.sdate), "d MMM yyyy", { locale: ptBR }) : "—"}
                             </div>
                           </td>
-                          <td className="px-3 py-3 text-right">
-                            <span className={cn("font-mono text-xs tabular-nums", c.open_rate >= benchOR ? "text-success" : "text-destructive")}>
+                          <td className="px-4 py-3 text-right">
+                            <span className={cn("font-mono text-xs tabular-nums", c.open_rate >= benchOR ? "text-emerald-600 dark:text-emerald-400" : "text-destructive")}>
                               {c.open_rate.toFixed(1)}%
                             </span>
                           </td>
-                          <td className="px-3 py-3 text-right">
-                            <span className={cn("font-mono text-xs tabular-nums", c.ctr >= benchCTR ? "text-success" : "text-destructive")}>
+                          <td className="px-4 py-3 text-right">
+                            <span className={cn("font-mono text-xs tabular-nums", c.ctr >= benchCTR ? "text-emerald-600 dark:text-emerald-400" : "text-destructive")}>
                               {c.ctr.toFixed(2)}%
                             </span>
                           </td>
-                          <td className="px-3 py-3 text-right">
+                          <td className="px-4 py-3 text-right">
                             <ScorePill score={c.score} />
                           </td>
                           <td className="px-3 py-3 text-muted-foreground">
@@ -362,23 +330,28 @@ function DashboardPage() {
                 )}
               </div>
 
-              <div className="space-y-4">
+              {/* Sidebar quick links */}
+              <div className="space-y-3">
                 <QuickCard
-                  icon={<Mail className="h-5 w-5 text-primary" />}
-                  title="Campanhas"
-                  description={isLoading ? "Carregando…" : `${allSent.length} enviadas • ${allCampaigns.length - allSent.length} rascunhos`}
+                  icon={<BarChart3 className="h-4 w-4 text-primary" />}
+                  title="Fluxos"
+                  description={
+                    isLoading
+                      ? "Carregando…"
+                      : `${allSent.length} campanhas · ${activeAutos.length} automações ativas`
+                  }
                   to="/campanhas"
                 />
                 <QuickCard
-                  icon={<GitBranch className="h-5 w-5 text-primary" />}
-                  title="Automações"
-                  description={automationsQ.isLoading ? "Carregando…" : `${activeAutos.length} ativas • ${automations.length} no total`}
-                  to="/automations"
+                  icon={<AlertTriangle className="h-4 w-4 text-amber-500" />}
+                  title="Alertas"
+                  description="Clientes para acionar"
+                  to="/alertas"
                 />
                 <QuickCard
-                  icon={<SettingsIcon className="h-5 w-5 text-muted-foreground" />}
+                  icon={<SettingsIcon className="h-4 w-4 text-muted-foreground" />}
                   title="Configurações"
-                  description="API key, URL base e benchmarks"
+                  description="API key e benchmarks"
                   to="/settings"
                 />
               </div>
@@ -398,18 +371,20 @@ function KpiCard({ icon, label, value, sub, good }: {
   good?: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+    <div className="rounded-lg border border-border bg-card px-5 py-4">
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
         {icon}
         {label}
       </div>
       <div className={cn(
-        "mt-2 font-mono text-3xl font-semibold",
-        good === true ? "text-success" : good === false ? "text-destructive" : "text-foreground",
+        "mt-2 text-2xl font-semibold tabular-nums",
+        good === true ? "text-emerald-600 dark:text-emerald-400"
+        : good === false ? "text-destructive"
+        : "text-foreground",
       )}>
         {value}
       </div>
-      <div className="mt-1 text-xs text-muted-foreground">{sub}</div>
+      <div className="mt-0.5 text-xs text-muted-foreground">{sub}</div>
     </div>
   );
 }
@@ -432,17 +407,15 @@ function QuickCard({ icon, title, description, to }: {
   to: string;
 }) {
   return (
-    <Link to={to} className="block rounded-xl border border-border bg-card p-5 transition-colors hover:bg-surface-2">
-      <div className="flex items-start gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-          {icon}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-sm font-medium">{title}</div>
-          <div className="mt-0.5 text-xs text-muted-foreground">{description}</div>
-        </div>
-        <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+    <Link to={to} className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3.5 transition-colors hover:bg-muted/30">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted">
+        {icon}
       </div>
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-medium">{title}</div>
+        <div className="truncate text-xs text-muted-foreground">{description}</div>
+      </div>
+      <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
     </Link>
   );
 }

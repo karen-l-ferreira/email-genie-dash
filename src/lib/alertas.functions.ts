@@ -347,21 +347,10 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
       contactFieldIdToPerstag[id] = perstag;
     }
 
-    const [contacts, accounts, contatadosRows] = await Promise.all([
+    const [contacts, accounts] = await Promise.all([
       loadAllContacts(creds, contactFieldIdToPerstag),
       loadAllAccounts(creds, acctFieldMap),
-      context.supabase
-        .from("alertas_contatos")
-        .select("contact_id, contatado, contatado_em, contatado_por")
-        .then((r: any) => r.data ?? []),
     ]);
-
-    const contatadosMap = new Map<string, { contatado: boolean; em: string; por: string }>(
-      contatadosRows.map((r: any) => [
-        String(r.contact_id),
-        { contatado: r.contatado, em: r.contatado_em, por: r.contatado_por ?? "" },
-      ]),
-    );
 
     const now = new Date();
     const cutoff15 = new Date(now.getTime() - 15 * 86400000);
@@ -373,7 +362,6 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
       const acct = c.accountId ? accounts[c.accountId] : undefined;
       const acf = acct?.cf ?? {};
       const dataUlt = parseDateLoose(c.cf[AC.ULTIMA_OPERACAO]);
-      const status = contatadosMap.get(c.id);
 
       return {
         contactId: c.id,
@@ -386,8 +374,8 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
         phone: c.phone,
         valorAprovadoNaoOperado: extractValorAprovado(c.cf, acf),
         limiteDisponivel: extractLimite(c.cf, acf),
-        contatado: status?.contatado ?? false,
-        contatadoEm: status?.em ?? null,
+        contatado: false,
+        contatadoEm: null,
       };
     });
 
@@ -435,10 +423,7 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
       );
     }
 
-    // Contatados ficam sempre no fim — evita que mudem de página após o check
-    const naoContatados = rows.filter((r) => !r.contatado);
-    const contatados   = rows.filter((r) => r.contatado);
-    const rowsOrdenados = [...naoContatados, ...contatados];
+    const rowsOrdenados = rows;
 
     const pageSize = 25;
     const total = rowsOrdenados.length;

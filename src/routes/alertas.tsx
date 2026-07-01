@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { AppHeader } from "@/components/app/Header";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,6 +9,22 @@ import {
   ArrowDown, ArrowUp, MessageCircle, ExternalLink, MousePointerClick, Search, X,
 } from "lucide-react";
 import { listAlertasClientes, listCliquesAlertas, toggleAlertaContatado } from "@/lib/alertas.functions";
+import { supabase } from "@/integrations/supabase/client";
+
+// Busca contatados direto do Supabase no browser — leve e rápido (5s refresh)
+// Separado do server function que carrega dados do AC (pesado)
+function useContatados() {
+  return useQuery({
+    queryKey: ["contatados"],
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from("alertas_contatos")
+        .select("contact_id, contatado, contatado_em");
+      return (data ?? []) as { contact_id: string; contatado: boolean; contatado_em: string | null }[];
+    },
+    refetchInterval: 5000,
+  });
+}
 
 export const Route = createFileRoute("/alertas")({
   component: AlertasPage,
@@ -156,6 +172,7 @@ function ClientesTab({
   const fetchFn  = useServerFn(listAlertasClientes);
   const toggleFn = useServerFn(toggleAlertaContatado);
   const queryClient = useQueryClient();
+  const contatadosQ = useContatados();
 
   function handleSearch(value: string) {
     setSearchInput(value);
@@ -166,32 +183,26 @@ function ClientesTab({
   const q = useQuery({
     queryKey: ["alertas", tab, page, sort, search],
     queryFn: () => fetchFn({ data: { tab, page, sort, search } }),
-    refetchInterval: 15 * 1000,
   });
+
+  // Mapa de contatados do Supabase (atualizado a cada 5s independente do AC)
+  const contatadosMap = useMemo(() => {
+    const map = new Map<string, { contatado: boolean; em: string | null }>();
+    for (const r of contatadosQ.data ?? []) {
+      map.set(String(r.contact_id), { contatado: r.contatado, em: r.contatado_em });
+    }
+    return map;
+  }, [contatadosQ.data]);
 
   const toggleMutation = useMutation({
     mutationFn: (vars: { contactId: string; contatado: boolean }) => toggleFn({ data: vars }),
-    onMutate: async (vars) => {
-      await queryClient.cancelQueries({ queryKey: ["alertas", tab, page, sort, search] });
-      const previous = queryClient.getQueryData(["alertas", tab, page, sort, search]);
-      queryClient.setQueryData(["alertas", tab, page, sort, search], (old: any) => {
-        if (!old) return old;
-        return {
-          ...old,
-          rows: old.rows.map((row: any) =>
-            row.contactId === vars.contactId
-              ? { ...row, contatado: vars.contatado, contatadoEm: vars.contatado ? new Date().toISOString() : null }
-              : row,
-          ),
-        };
-      });
-      return { previous };
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ["contatados"] });
     },
-    onError: (err, _vars, ctx) => {
-      if (ctx?.previous) queryClient.setQueryData(["alertas", tab, page, sort, search], ctx.previous);
+    onError: (err) => {
       alert(`Erro ao marcar contato: ${(err as Error).message}`);
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ["alertas", tab] }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["contatados"] }),
   });
 
   if (q.isLoading) return <SkeletonRows />;
@@ -204,7 +215,13 @@ function ClientesTab({
     );
   }
 
-  const rows = q.data?.rows ?? [];
+  const rows = (q.data?.rows ?? []).map((r) => {
+    const ct = contatadosMap.get(r.contactId);
+    return ct ? { ...r, contatado: ct.contatado, contatadoEm: ct.em } : r;
+  });
+
+  // Contatados sempre no fim
+  const rowsOrdenados = [...rows.filter((r) => !r.contatado), ...rows.filter((r) => r.contatado)];
 
   return (
     <div>
@@ -267,13 +284,13 @@ function ClientesTab({
         )}
       </div>
 
-      {rows.length === 0 ? (
+      {rowsOrdenados.length === 0 ? (
         <div className="rounded-xl border border-border bg-card px-6 py-16 text-center text-sm text-muted-foreground">
           Nenhum cliente encontrado para este critério.
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {rows.map((r) => {
+          {rowsOrdenados.map((r) => {
             const days = mode === "inativos" ? daysDiff(r.ultimaOperacao) : null;
             const accentBorder =
               tab === "sem_operar_15"     ? "border-l-amber-400"

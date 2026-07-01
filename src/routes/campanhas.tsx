@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { listCampaigns, type Campaign } from "@/lib/ac.functions";
+import { listCampaigns, listAutomations, type Campaign, type Automation } from "@/lib/ac.functions";
 import { getSettings } from "@/lib/settings.functions";
 import { AuthGate } from "@/components/app/AuthGate";
 import { AppHeader } from "@/components/app/Header";
@@ -53,10 +53,45 @@ export const Route = createFileRoute("/campanhas")({
   ssr: false,
   component: () => (
     <AuthGate>
-      <CampaignListPage />
+      <FluxosPage />
     </AuthGate>
   ),
 });
+
+function FluxosPage() {
+  const [tab, setTab] = useState<"campanhas" | "automacoes">("campanhas");
+  return (
+    <div className="min-h-screen bg-background">
+      <AppHeader />
+      <div className="mx-auto max-w-[1400px] px-6 py-8">
+        <div className="mb-7 border-b border-border pb-5">
+          <h1 className="text-lg font-semibold">Fluxos</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">Campanhas de e-mail e automações do ActiveCampaign.</p>
+        </div>
+        <div className="mb-6 border-b border-border">
+          <nav className="-mb-px flex">
+            {(["campanhas", "automacoes"] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setTab(t)}
+                className={[
+                  "shrink-0 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm transition-colors",
+                  tab === t
+                    ? "border-foreground font-medium text-foreground"
+                    : "border-transparent text-muted-foreground hover:text-foreground",
+                ].join(" ")}
+              >
+                {t === "campanhas" ? "Campanhas" : "Automações"}
+              </button>
+            ))}
+          </nav>
+        </div>
+        {tab === "campanhas" ? <CampaignListPage /> : <AutomacoesInline />}
+      </div>
+    </div>
+  );
+}
 
 type SortKey = "open_rate" | "ctr" | "send_amt";
 
@@ -145,10 +180,8 @@ function CampaignListPage() {
   const isError = campaignsQ.isError;
 
   return (
-    <div className="min-h-screen bg-background">
-      <AppHeader campaignCount={allCampaigns.length} />
-      <main className="mx-auto max-w-[1400px] px-6 py-8">
-        <Tabs
+    <div>
+      <Tabs
           value={tab}
           onValueChange={(v) => {
             const next = v as typeof tab;
@@ -362,7 +395,6 @@ function CampaignListPage() {
             )}
           </TabsContent>
         </Tabs>
-      </main>
     </div>
   );
 }
@@ -404,5 +436,56 @@ function RateCell({ value, bench }: { value: number; bench: number }) {
     <span className={cn("font-mono tabular-nums", above ? "text-success" : "text-destructive")}>
       {value.toFixed(1)}%
     </span>
+  );
+}
+
+function AutomacoesInline() {
+  const fetchSettings  = useServerFn(getSettings);
+  const fetchAutos     = useServerFn(listAutomations);
+  const settingsQ      = useQuery({ queryKey: ["settings"], queryFn: () => fetchSettings() });
+  const autosQ         = useQuery({
+    queryKey: ["automations"],
+    queryFn: () => fetchAutos(),
+    enabled: !!settingsQ.data?.hasApiKey,
+    retry: false,
+  });
+  const navigate = useNavigate();
+  const autos: Automation[] = autosQ.data?.automations ?? [];
+
+  if (autosQ.isLoading) {
+    return <div className="space-y-2">{Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-12 animate-pulse rounded-md bg-muted" />)}</div>;
+  }
+  if (autosQ.error) {
+    return <div className="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">{(autosQ.error as Error).message}</div>;
+  }
+  if (autos.length === 0) {
+    return <div className="rounded-md border border-border px-6 py-16 text-center text-sm text-muted-foreground">Nenhuma automação encontrada.</div>;
+  }
+  return (
+    <div className="rounded-md border border-border divide-y divide-border">
+      {autos.map((a) => (
+        <button
+          key={a.id}
+          type="button"
+          onClick={() => navigate({ to: "/automation/$id", params: { id: a.id } })}
+          className="flex w-full items-center gap-4 px-4 py-3 text-left transition-colors hover:bg-muted/30"
+        >
+          <div className={[
+            "h-1.5 w-1.5 shrink-0 rounded-full",
+            a.status === "active" ? "bg-emerald-500" : "bg-muted-foreground",
+          ].join(" ")} />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium">{a.name}</p>
+            <p className="text-xs text-muted-foreground">{a.entered.toLocaleString("pt-BR")} entradas · {a.completion_rate.toFixed(1)}% conclusão</p>
+          </div>
+          <span className={[
+            "shrink-0 rounded px-2 py-0.5 text-xs font-medium",
+            a.status === "active" ? "bg-emerald-500/10 text-emerald-600" : "bg-muted text-muted-foreground",
+          ].join(" ")}>
+            {a.status === "active" ? "Ativa" : "Inativa"}
+          </span>
+        </button>
+      ))}
+    </div>
   );
 }
