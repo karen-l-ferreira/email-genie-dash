@@ -6,7 +6,7 @@ import { listCampaigns, listAutomations, type Campaign, type Automation } from "
 import { getSettings } from "@/lib/settings.functions";
 import { AuthGate } from "@/components/app/AuthGate";
 import { AppHeader } from "@/components/app/Header";
-import { CampaignStatusBadge } from "@/components/app/StatusBadge";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -287,10 +287,7 @@ function CampaignListPage() {
                         className="cursor-pointer border-t border-border transition-colors hover:bg-surface-2"
                       >
                         <td className="px-5 py-4">
-                          <div className="flex items-center gap-3">
-                            <CampaignStatusBadge status={c.status} />
-                            <span className="font-medium">{c.name}</span>
-                          </div>
+                          <span className="font-medium">{c.name}</span>
                         </td>
                         <td className="px-3 py-4 font-mono text-xs text-muted-foreground">
                           {c.sdate ? format(new Date(c.sdate), "d 'de' MMM, yyyy", { locale: ptBR }) : "—"}
@@ -470,20 +467,10 @@ function AutomacoesInline() {
           onClick={() => navigate({ to: "/automation/$id", params: { id: a.id } })}
           className="flex w-full items-center gap-4 px-4 py-3 text-left transition-colors hover:bg-muted/30"
         >
-          <div className={[
-            "h-1.5 w-1.5 shrink-0 rounded-full",
-            a.status === "active" ? "bg-emerald-500" : "bg-muted-foreground",
-          ].join(" ")} />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium">{a.name}</p>
             <p className="text-xs text-muted-foreground">{a.entered.toLocaleString("pt-BR")} entradas · {a.completion_rate.toFixed(1)}% conclusão</p>
           </div>
-          <span className={[
-            "shrink-0 rounded px-2 py-0.5 text-xs font-medium",
-            a.status === "active" ? "bg-emerald-500/10 text-emerald-600" : "bg-muted text-muted-foreground",
-          ].join(" ")}>
-            {a.status === "active" ? "Ativa" : "Inativa"}
-          </span>
         </button>
       ))}
     </div>
