@@ -328,6 +328,7 @@ const tabSchema = z.object({
   tab: z.enum(["sem_operar_15", "sem_operar_30", "valor_aprovado", "limite_disponivel"]),
   page: z.number().int().min(1).default(1),
   sort: z.enum(["asc", "desc"]).default("desc"),
+  search: z.string().default(""),
 });
 
 export const listAlertasClientes = createServerFn({ method: "GET" })
@@ -421,6 +422,17 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
         return isApto(c?.cf[AC.APTO]) && r.limiteDisponivel > 5000 && r.valorAprovadoNaoOperado <= 0;
       });
       rows.sort((a, b) => b.limiteDisponivel - a.limiteDisponivel);
+    }
+
+    // Busca por nome, CNPJ ou ID
+    if (data.search.trim()) {
+      const q = data.search.trim().toLowerCase();
+      rows = rows.filter((r) =>
+        r.razaoSocial.toLowerCase().includes(q) ||
+        r.cnpj.toLowerCase().includes(q) ||
+        r.clienteId.toLowerCase().includes(q) ||
+        r.email.toLowerCase().includes(q),
+      );
     }
 
     // Contatados ficam sempre no fim — evita que mudem de página após o check

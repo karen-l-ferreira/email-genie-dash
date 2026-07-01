@@ -1,12 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { AppHeader } from "@/components/app/Header";
 import { Button } from "@/components/ui/button";
 import {
   Loader2, ChevronLeft, ChevronRight, Mail, Phone, Check,
-  ArrowDown, ArrowUp, MessageCircle, ExternalLink, MousePointerClick,
+  ArrowDown, ArrowUp, MessageCircle, ExternalLink, MousePointerClick, Search, X,
 } from "lucide-react";
 import { listAlertasClientes, listCliquesAlertas, toggleAlertaContatado } from "@/lib/alertas.functions";
 
@@ -150,22 +150,31 @@ function ClientesTab({
 }) {
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<"asc" | "desc">("desc");
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fetchFn  = useServerFn(listAlertasClientes);
   const toggleFn = useServerFn(toggleAlertaContatado);
   const queryClient = useQueryClient();
 
+  function handleSearch(value: string) {
+    setSearchInput(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => { setSearch(value); setPage(1); }, 400);
+  }
+
   const q = useQuery({
-    queryKey: ["alertas", tab, page, sort],
-    queryFn: () => fetchFn({ data: { tab, page, sort } }),
-    refetchInterval: 15 * 1000, // verifica status "contatado" da equipe a cada 15s
+    queryKey: ["alertas", tab, page, sort, search],
+    queryFn: () => fetchFn({ data: { tab, page, sort, search } }),
+    refetchInterval: 15 * 1000,
   });
 
   const toggleMutation = useMutation({
     mutationFn: (vars: { contactId: string; contatado: boolean }) => toggleFn({ data: vars }),
     onMutate: async (vars) => {
-      await queryClient.cancelQueries({ queryKey: ["alertas", tab, page, sort] });
-      const previous = queryClient.getQueryData(["alertas", tab, page, sort]);
-      queryClient.setQueryData(["alertas", tab, page, sort], (old: any) => {
+      await queryClient.cancelQueries({ queryKey: ["alertas", tab, page, sort, search] });
+      const previous = queryClient.getQueryData(["alertas", tab, page, sort, search]);
+      queryClient.setQueryData(["alertas", tab, page, sort, search], (old: any) => {
         if (!old) return old;
         return {
           ...old,
@@ -179,7 +188,7 @@ function ClientesTab({
       return { previous };
     },
     onError: (err, _vars, ctx) => {
-      if (ctx?.previous) queryClient.setQueryData(["alertas", tab, page, sort], ctx.previous);
+      if (ctx?.previous) queryClient.setQueryData(["alertas", tab, page, sort, search], ctx.previous);
       alert(`Erro ao marcar contato: ${(err as Error).message}`);
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: ["alertas", tab] }),
@@ -199,10 +208,32 @@ function ClientesTab({
 
   return (
     <div>
+      {/* Search bar */}
+      <div className="mb-3 relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+        <input
+          type="text"
+          value={searchInput}
+          onChange={(e) => handleSearch(e.target.value)}
+          placeholder="Buscar por empresa, CNPJ, ID ou e-mail…"
+          className="w-full rounded-md border border-border bg-background pl-9 pr-8 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+        />
+        {searchInput && (
+          <button
+            type="button"
+            onClick={() => handleSearch("")}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+
       {/* Toolbar */}
       <div className="mb-3 flex items-center justify-between">
         <span className="text-xs text-muted-foreground">
           {q.data?.total ?? 0} {(q.data?.total ?? 0) === 1 ? "empresa" : "empresas"}
+          {search && <span className="ml-1">· filtrado por "{search}"</span>}
         </span>
 
         {mode === "inativos" && (
