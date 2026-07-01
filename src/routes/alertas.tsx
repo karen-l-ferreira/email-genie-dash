@@ -139,16 +139,6 @@ function Pager({ page, total, pageSize, onChange }: { page: number; total: numbe
   );
 }
 
-// ─── Accent dot color per tab ────────────────────────────────────────────────
-
-function accentDot(tab: string) {
-  if (tab === "sem_operar_15")    return "bg-amber-400";
-  if (tab === "sem_operar_30")    return "bg-red-500";
-  if (tab === "valor_aprovado")   return "bg-emerald-500";
-  if (tab === "limite_disponivel")return "bg-blue-500";
-  return "bg-muted-foreground";
-}
-
 // ─── ClientesTab ─────────────────────────────────────────────────────────────
 
 function ClientesTab({
@@ -247,96 +237,116 @@ function ClientesTab({
       </div>
 
       {rows.length === 0 ? (
-        <div className="rounded-md border border-border px-6 py-16 text-center text-sm text-muted-foreground">
+        <div className="rounded-xl border border-border bg-card px-6 py-16 text-center text-sm text-muted-foreground">
           Nenhum cliente encontrado para este critério.
         </div>
       ) : (
-        <div className="rounded-md border border-border divide-y divide-border">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {rows.map((r) => {
             const days = mode === "inativos" ? daysDiff(r.ultimaOperacao) : null;
-            const dot  = accentDot(tab);
+            const accentBorder =
+              tab === "sem_operar_15"     ? "border-l-amber-400"
+              : tab === "sem_operar_30"   ? "border-l-red-500"
+              : tab === "valor_aprovado"  ? "border-l-emerald-500"
+              : "border-l-blue-500";
 
             return (
               <div
                 key={r.contactId}
                 className={[
-                  "flex items-center gap-4 px-4 py-3.5 transition-colors hover:bg-muted/30",
-                  r.contatado ? "opacity-50" : "",
+                  "relative flex flex-col gap-3 rounded-xl border border-border border-l-4 bg-card p-4 transition-shadow hover:shadow-md",
+                  accentBorder,
+                  r.contatado ? "opacity-60" : "",
                 ].join(" ")}
               >
-                {/* Accent dot */}
-                <div className={`h-2 w-2 shrink-0 rounded-full ${dot}`} />
-
-                {/* Company info */}
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-medium text-foreground">
-                      {r.razaoSocial || "Empresa sem nome"}
-                    </span>
-                    {r.contatado && (
-                      <span className="inline-flex items-center gap-1 rounded bg-emerald-500/10 px-1.5 py-0.5 text-[11px] font-medium text-emerald-600">
-                        <Check className="h-2.5 w-2.5" />
-                        Contatado{r.contatadoEm ? ` · ${fmtDate(r.contatadoEm)}` : ""}
-                      </span>
-                    )}
+                {/* Header */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-semibold text-sm leading-tight">{r.razaoSocial || "Empresa sem nome"}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {r.clienteId ? `ID ${r.clienteId}` : ""}
+                      {r.clienteId && r.cnpj ? " · " : ""}
+                      {r.cnpj ?? ""}
+                      {!r.clienteId && !r.cnpj ? "Sem identificação" : ""}
+                    </p>
                   </div>
 
-                  <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-                    {r.clienteId && <span>ID {r.clienteId}</span>}
-                    {r.cnpj      && <span>{r.cnpj}</span>}
-                    {r.email && (
-                      <span className="flex items-center gap-1">
-                        <Mail className="h-3 w-3" />{r.email}
-                      </span>
-                    )}
-                    {r.phone && (
-                      <span className="flex items-center gap-1">
-                        <Phone className="h-3 w-3" />{r.phone}
-                      </span>
-                    )}
-                  </div>
+                  {/* Contatado toggle */}
+                  <button
+                    type="button"
+                    title={r.contatado ? "Desmarcar como contatado" : "Marcar como contatado"}
+                    onClick={() => toggleMutation.mutate({ contactId: r.contactId, contatado: !r.contatado })}
+                    className={[
+                      "shrink-0 flex h-6 w-6 items-center justify-center rounded border transition-all",
+                      r.contatado
+                        ? "border-emerald-500 bg-emerald-500 text-white"
+                        : "border-border bg-background text-transparent hover:border-foreground/50",
+                    ].join(" ")}
+                  >
+                    <Check className="h-3.5 w-3.5" />
+                  </button>
                 </div>
+
+                {r.contatado && (
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-600">
+                    <Check className="h-3 w-3" />
+                    Contatado{r.contatadoEm ? ` em ${fmtDate(r.contatadoEm)}` : ""}
+                  </div>
+                )}
 
                 {/* Key metric */}
-                <div className="shrink-0 text-right">
-                  {mode === "inativos" && (
-                    <>
-                      <div className="text-xl font-semibold tabular-nums leading-none">{days ?? "?"}</div>
+                {mode === "inativos" && (
+                  <div className="flex items-end justify-between rounded-lg bg-muted/50 px-3 py-2">
+                    <div>
+                      <div className="text-2xl font-bold tabular-nums leading-none">{days ?? "?"}</div>
                       <div className="mt-0.5 text-[11px] text-muted-foreground">dias sem operar</div>
-                      <div className="text-[11px] text-muted-foreground">{fmtDate(r.ultimaOperacao)}</div>
-                    </>
-                  )}
-                  {mode === "valor" && (
-                    <>
-                      <div className="text-sm font-semibold text-emerald-600">{fmtMoney(r.valorAprovadoNaoOperado)}</div>
-                      <div className="text-[11px] text-muted-foreground">aprovado não operado</div>
-                      {r.limiteDisponivel > 0 && (
-                        <div className="text-[11px] text-muted-foreground">limite: {fmtMoney(r.limiteDisponivel)}</div>
-                      )}
-                    </>
-                  )}
-                  {mode === "limite" && (
-                    <>
-                      <div className="text-sm font-semibold text-blue-600">{fmtMoney(r.limiteDisponivel)}</div>
+                    </div>
+                    <div className="text-right text-xs text-muted-foreground">
+                      <div>Última operação</div>
+                      <div className="font-medium text-foreground">{fmtDate(r.ultimaOperacao)}</div>
+                    </div>
+                  </div>
+                )}
+                {mode === "valor" && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
+                      <span className="text-xs text-muted-foreground">Aprovado não operado</span>
+                      <span className="font-semibold text-sm text-emerald-600">{fmtMoney(r.valorAprovadoNaoOperado)}</span>
+                    </div>
+                    {r.limiteDisponivel > 0 && (
+                      <div className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
+                        <span className="text-xs text-muted-foreground">Limite disponível</span>
+                        <span className="text-sm font-medium">{fmtMoney(r.limiteDisponivel)}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {mode === "limite" && (
+                  <div className="flex items-end justify-between rounded-lg bg-muted/50 px-3 py-2">
+                    <div>
+                      <div className="text-lg font-bold text-blue-600">{fmtMoney(r.limiteDisponivel)}</div>
                       <div className="text-[11px] text-muted-foreground">limite disponível</div>
-                    </>
-                  )}
-                </div>
+                    </div>
+                  </div>
+                )}
 
-                {/* Contatado toggle */}
-                <button
-                  type="button"
-                  title={r.contatado ? "Desmarcar como contatado" : "Marcar como contatado"}
-                  onClick={() => toggleMutation.mutate({ contactId: r.contactId, contatado: !r.contatado })}
-                  className={[
-                    "shrink-0 flex h-6 w-6 items-center justify-center rounded border transition-all",
-                    r.contatado
-                      ? "border-emerald-500 bg-emerald-500 text-white"
-                      : "border-border bg-background text-transparent hover:border-foreground/50",
-                  ].join(" ")}
-                >
-                  <Check className="h-3.5 w-3.5" />
-                </button>
+                {/* Contact info */}
+                {(r.email || r.phone) && (
+                  <div className="space-y-1 border-t border-border pt-2">
+                    {r.email && (
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Mail className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{r.email}</span>
+                      </div>
+                    )}
+                    {r.phone && (
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Phone className="h-3 w-3 shrink-0" />
+                        <span>{r.phone}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
