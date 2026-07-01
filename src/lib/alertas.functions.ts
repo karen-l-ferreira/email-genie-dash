@@ -6,6 +6,39 @@ type Settings = { ac_api_key: string; ac_base_url: string };
 
 const AC_HOST_RE = /^[a-z0-9-]+\.(api-[a-z0-9]+\.com|activehosted\.com)$/i;
 
+// ─── AC field name constants ────────────────────────────────────────────────
+// These are the exact personalization/perstag values from ActiveCampaign.
+// Centralized here to avoid scattered magic strings.
+const AC = {
+  APTO:               "APTO",
+  ULTIMA_OPERACAO:    "DATA_DA_LTIMA_OPERAO",
+  RAZO_SOCIAL:        "RAZO_SOCIAL",
+  ACCT_RAZO_SOCIAL:   "ACCT_RAZO_SOCIAL",
+  ACCT_VALOR_APROVADO:"ACCT_VALOR_APROVADO_NO_OPERADO",
+  ACCT_LIMITE:        "ACCT_LIMITE_DISPONVEL",
+  ACCT_LIMITE_ALT:    "ACCT_LIMITE_DISPONIVEL",
+  ACCT_CLIENTE_ID:    "ACCT_CLIENTE_ID",
+  ACCT_CNPJ:          "ACCT_CNPJ",
+} as const;
+
+// ─── Server-side in-memory cache (5-min TTL) ───────────────────────────────
+// Avoids re-fetching AC field maps and contact/account data on every request.
+type CacheEntry<T> = { data: T; expiresAt: number };
+const _cache = new Map<string, CacheEntry<unknown>>();
+const CACHE_TTL = 5 * 60 * 1000;
+
+function cacheGet<T>(key: string): T | null {
+  const e = _cache.get(key);
+  if (!e || Date.now() > e.expiresAt) { _cache.delete(key); return null; }
+  return e.data as T;
+}
+function cacheSet<T>(key: string, data: T): T {
+  _cache.set(key, { data, expiresAt: Date.now() + CACHE_TTL });
+  return data;
+}
+
+// ─── URL validation ─────────────────────────────────────────────────────────
+
 function assertAllowedAcUrl(u: string): URL {
   const parsed = new URL(u);
   if (parsed.protocol !== "https:" || !AC_HOST_RE.test(parsed.hostname)) {
@@ -43,11 +76,9 @@ async function acFetch(creds: Settings, path: string, params?: Record<string, st
   return res.json();
 }
 
-// Legacy ActiveCampaign API (admin/api.php) — used for per-contact link click data,
-// which is not exposed by the v3 REST API.
+// Legacy AC API — used for per-contact link click data (not in v3 REST)
 async function acLegacyFetch(creds: Settings, params: Record<string, string>) {
   const baseParsed = assertAllowedAcUrl(creds.ac_base_url);
-  // The legacy admin/api.php endpoint lives at the account root, not under /api/3
   const url = new URL("/admin/api.php", baseParsed.origin);
   if (url.protocol !== "https:" || url.hostname !== baseParsed.hostname) {
     throw new Error("INVALID_AC_BASE_URL");
@@ -93,7 +124,7 @@ function isApto(s: string | undefined): boolean {
 
 // ─── Contact fields (perstag → fieldId) ────────────────────────────────────
 
-async function loadContactFieldMap(creds: Settings): Promise<Record<string, string>> {
+async function _loadContactFieldMap(creds: Settings): Promise<Record<string, string>> {
   const json = await acFetch(creds, "fields", { limit: "100" });
   const map: Record<string, string> = {};
   for (const f of (json.fields ?? []) as any[]) {
@@ -102,9 +133,14 @@ async function loadContactFieldMap(creds: Settings): Promise<Record<string, stri
   return map;
 }
 
+async function loadContactFieldMap(creds: Settings): Promise<Record<string, string>> {
+  const key = `cf:${creds.ac_api_key}`;
+  return cacheGet<Record<string, string>>(key) ?? cacheSet(key, await _loadContactFieldMap(creds));
+}
+
 // ─── Account fields (personalization → fieldId) ────────────────────────────
 
-async function loadAccountFieldMap(creds: Settings): Promise<Record<string, string>> {
+async function _loadAccountFieldMap(creds: Settings): Promise<Record<string, string>> {
   const map: Record<string, string> = {};
   for (let page = 0; page < 5; page++) {
     const json = await acFetch(creds, "accountCustomFieldMeta", {
@@ -120,6 +156,11 @@ async function loadAccountFieldMap(creds: Settings): Promise<Record<string, stri
   return map;
 }
 
+async function loadAccountFieldMap(creds: Settings): Promise<Record<string, string>> {
+  const key = `acf:${creds.ac_api_key}`;
+  return cacheGet<Record<string, string>>(key) ?? cacheSet(key, await _loadAccountFieldMap(creds));
+}
+
 // ─── Load all contacts with custom fields ──────────────────────────────────
 
 type ContactData = {
@@ -127,10 +168,10 @@ type ContactData = {
   email: string;
   phone: string;
   accountId: string | null;
-  cf: Record<string, string>; // perstag → value
+  cf: Record<string, string>;
 };
 
-async function loadAllContacts(creds: Settings, fieldIdToPerstag: Record<string, string>): Promise<ContactData[]> {
+async function _loadAllContacts(creds: Settings, fieldIdToPerstag: Record<string, string>): Promise<ContactData[]> {
   const out: ContactData[] = [];
   for (let page = 0; page < MAX_PAGES; page++) {
     const json = await acFetch(creds, "contacts", {
@@ -167,16 +208,20 @@ async function loadAllContacts(creds: Settings, fieldIdToPerstag: Record<string,
   return out;
 }
 
+async function loadAllContacts(creds: Settings, fieldIdToPerstag: Record<string, string>): Promise<ContactData[]> {
+  const key = `contacts:${creds.ac_api_key}`;
+  return cacheGet<ContactData[]>(key) ?? cacheSet(key, await _loadAllContacts(creds, fieldIdToPerstag));
+}
+
 // ─── Load all accounts with custom fields ──────────────────────────────────
 
 type AccountData = {
   id: string;
   name: string;
-  cf: Record<string, string>; // personalization → value
+  cf: Record<string, string>;
 };
 
-async function loadAllAccounts(creds: Settings, acctFieldMap: Record<string, string>): Promise<Record<string, AccountData>> {
-  // fieldId → personalization (e.g. "42" → "ACCT_VALOR_APROVADO_NO_OPERADO")
+async function _loadAllAccounts(creds: Settings, acctFieldMap: Record<string, string>): Promise<Record<string, AccountData>> {
   const fieldIdToPersonalization: Record<string, string> = {};
   for (const [personalization, id] of Object.entries(acctFieldMap)) {
     fieldIdToPersonalization[id] = personalization;
@@ -184,8 +229,6 @@ async function loadAllAccounts(creds: Settings, acctFieldMap: Record<string, str
 
   const byId: Record<string, AccountData> = {};
 
-  // Fetch accounts in batches — include custom field data in the same request
-  // (same pattern as listAccountsForAnalysis in ac.functions.ts)
   for (let page = 0; page < MAX_PAGES; page++) {
     const json = await acFetch(creds, "accounts", {
       limit: String(PAGE_SIZE),
@@ -193,8 +236,6 @@ async function loadAllAccounts(creds: Settings, acctFieldMap: Record<string, str
       include: "accountCustomFieldData",
     });
 
-    // accountCustomFieldData is a top-level array in the response
-    // each entry: { accountId, customFieldId, fieldValue }
     const cfByAcct: Record<string, Record<string, string>> = {};
     for (const fv of (json.customerAccountCustomFieldData ?? []) as any[]) {
       const aid = String(fv.customer_account_id ?? fv.customerAccount ?? "");
@@ -205,7 +246,6 @@ async function loadAllAccounts(creds: Settings, acctFieldMap: Record<string, str
 
       let val: string | null = null;
       if (fv.custom_field_currency_value != null && fv.custom_field_currency_value !== "") {
-        // AC stores currency custom field values in cents
         val = String(Number(fv.custom_field_currency_value) / 100);
       } else if (fv.custom_field_number_value != null && fv.custom_field_number_value !== "") {
         val = String(fv.custom_field_number_value);
@@ -226,6 +266,36 @@ async function loadAllAccounts(creds: Settings, acctFieldMap: Record<string, str
   }
 
   return byId;
+}
+
+async function loadAllAccounts(creds: Settings, acctFieldMap: Record<string, string>): Promise<Record<string, AccountData>> {
+  const key = `accounts:${creds.ac_api_key}`;
+  return cacheGet<Record<string, AccountData>>(key) ?? cacheSet(key, await _loadAllAccounts(creds, acctFieldMap));
+}
+
+// ─── Shared helpers to extract contact fields ───────────────────────────────
+
+function extractRazaoSocial(cf: Record<string, string>, acf: Record<string, string>, acctName: string): string {
+  return cf[AC.RAZO_SOCIAL] ?? acf[AC.ACCT_RAZO_SOCIAL] ?? acctName ?? "";
+}
+
+function extractClienteId(cf: Record<string, string>, acf: Record<string, string>): string {
+  return acf[AC.ACCT_CLIENTE_ID] ?? cf[AC.ACCT_CLIENTE_ID] ?? "";
+}
+
+function extractCnpj(cf: Record<string, string>, acf: Record<string, string>): string {
+  return acf[AC.ACCT_CNPJ] ?? cf[AC.ACCT_CNPJ] ?? "";
+}
+
+function extractValorAprovado(cf: Record<string, string>, acf: Record<string, string>): number {
+  return parseMoneyLoose(cf[AC.ACCT_VALOR_APROVADO] ?? acf[AC.ACCT_VALOR_APROVADO] ?? null);
+}
+
+function extractLimite(cf: Record<string, string>, acf: Record<string, string>): number {
+  return parseMoneyLoose(
+    cf[AC.ACCT_LIMITE] ?? acf[AC.ACCT_LIMITE] ??
+    cf[AC.ACCT_LIMITE_ALT] ?? acf[AC.ACCT_LIMITE_ALT] ?? null,
+  );
 }
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -252,7 +322,7 @@ export type ListAlertasResult = {
   pageSize: number;
 };
 
-// ─── Server function ───────────────────────────────────────────────────────
+// ─── listAlertasClientes ───────────────────────────────────────────────────
 
 const tabSchema = z.object({
   tab: z.enum(["sem_operar_15", "sem_operar_30", "valor_aprovado", "limite_disponivel"]),
@@ -266,29 +336,30 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
   .handler(async ({ data, context }) => {
     const creds = await getCreds(context.supabase, context.userId);
 
-    // Load field maps in parallel
     const [contactFieldMap, acctFieldMap] = await Promise.all([
       loadContactFieldMap(creds),
       loadAccountFieldMap(creds),
     ]);
 
-    // Invert contact field map: fieldId → perstag
     const contactFieldIdToPerstag: Record<string, string> = {};
     for (const [perstag, id] of Object.entries(contactFieldMap)) {
       contactFieldIdToPerstag[id] = perstag;
     }
 
-    // Load contacts, accounts and "já contatado" status (compartilhado entre a equipe) em paralelo
     const [contacts, accounts, contatadosRows] = await Promise.all([
       loadAllContacts(creds, contactFieldIdToPerstag),
       loadAllAccounts(creds, acctFieldMap),
       context.supabase
         .from("alertas_contatos")
-        .select("contact_id, contatado, contatado_em")
+        .select("contact_id, contatado, contatado_em, contatado_por")
         .then((r: any) => r.data ?? []),
     ]);
-    const contatadosMap = new Map<string, { contatado: boolean; em: string }>(
-      contatadosRows.map((r: any) => [String(r.contact_id), { contatado: r.contatado, em: r.contatado_em }]),
+
+    const contatadosMap = new Map<string, { contatado: boolean; em: string; por: string }>(
+      contatadosRows.map((r: any) => [
+        String(r.contact_id),
+        { contatado: r.contatado, em: r.contatado_em, por: r.contatado_por ?? "" },
+      ]),
     );
 
     const now = new Date();
@@ -299,40 +370,32 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
 
     let rows: AlertaClienteRow[] = contacts.map((c) => {
       const acct = c.accountId ? accounts[c.accountId] : undefined;
-      const acf = acct?.cf ?? {}; // personalization → value
-
-      const dataUlt = parseDateLoose(c.cf["DATA_DA_LTIMA_OPERAO"]);
-
-      // ACCT_VALOR_APROVADO_NO_OPERADO: try contact field first, then account field
-      const valorRaw = c.cf["ACCT_VALOR_APROVADO_NO_OPERADO"] ?? acf["ACCT_VALOR_APROVADO_NO_OPERADO"] ?? null;
-      const limiteRaw = c.cf["ACCT_LIMITE_DISPONVEL"] ?? acf["ACCT_LIMITE_DISPONVEL"] ?? c.cf["ACCT_LIMITE_DISPONIVEL"] ?? acf["ACCT_LIMITE_DISPONIVEL"] ?? null;
-
-      const razaoSocialRaw = c.cf["RAZO_SOCIAL"] ?? acf["ACCT_RAZO_SOCIAL"] ?? null;
+      const acf = acct?.cf ?? {};
+      const dataUlt = parseDateLoose(c.cf[AC.ULTIMA_OPERACAO]);
+      const status = contatadosMap.get(c.id);
 
       return {
         contactId: c.id,
         accountId: c.accountId,
-        razaoSocial: razaoSocialRaw ?? acct?.name ?? "",
-        clienteId: acf["ACCT_CLIENTE_ID"] ?? c.cf["ACCT_CLIENTE_ID"] ?? "",
-        cnpj: acf["ACCT_CNPJ"] ?? c.cf["ACCT_CNPJ"] ?? "",
+        razaoSocial: extractRazaoSocial(c.cf, acf, acct?.name ?? ""),
+        clienteId: extractClienteId(c.cf, acf),
+        cnpj: extractCnpj(c.cf, acf),
         ultimaOperacao: dataUlt ? dataUlt.toISOString() : null,
         email: c.email,
         phone: c.phone,
-        valorAprovadoNaoOperado: parseMoneyLoose(valorRaw),
-        limiteDisponivel: parseMoneyLoose(limiteRaw),
-        contatado: contatadosMap.get(c.id)?.contatado ?? false,
-        contatadoEm: contatadosMap.get(c.id)?.em ?? null,
+        valorAprovadoNaoOperado: extractValorAprovado(c.cf, acf),
+        limiteDisponivel: extractLimite(c.cf, acf),
+        contatado: status?.contatado ?? false,
+        contatadoEm: status?.em ?? null,
       };
     });
 
-    // sort "desc" = mais dias sem operar primeiro (data mais antiga primeiro)
-    // sort "asc" = menos dias sem operar primeiro (data mais recente primeiro)
     const daysSortMult = data.sort === "desc" ? 1 : -1;
 
     if (data.tab === "sem_operar_15") {
       rows = rows.filter((r) => {
         const c = contactById.get(r.contactId);
-        if (!isApto(c?.cf["APTO"])) return false;
+        if (!isApto(c?.cf[AC.APTO])) return false;
         if (!r.ultimaOperacao) return false;
         const d = new Date(r.ultimaOperacao);
         return d < cutoff15 && d >= cutoff30;
@@ -341,7 +404,7 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
     } else if (data.tab === "sem_operar_30") {
       rows = rows.filter((r) => {
         const c = contactById.get(r.contactId);
-        if (!isApto(c?.cf["APTO"])) return false;
+        if (!isApto(c?.cf[AC.APTO])) return false;
         if (!r.ultimaOperacao) return false;
         return new Date(r.ultimaOperacao) < cutoff30;
       });
@@ -349,18 +412,18 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
     } else if (data.tab === "valor_aprovado") {
       rows = rows.filter((r) => {
         const c = contactById.get(r.contactId);
-        return isApto(c?.cf["APTO"]) && r.valorAprovadoNaoOperado > 5000;
+        return isApto(c?.cf[AC.APTO]) && r.valorAprovadoNaoOperado > 5000;
       });
       rows.sort((a, b) => b.valorAprovadoNaoOperado - a.valorAprovadoNaoOperado);
     } else if (data.tab === "limite_disponivel") {
       rows = rows.filter((r) => {
         const c = contactById.get(r.contactId);
-        return isApto(c?.cf["APTO"]) && r.limiteDisponivel > 5000 && r.valorAprovadoNaoOperado <= 0;
+        return isApto(c?.cf[AC.APTO]) && r.limiteDisponivel > 5000 && r.valorAprovadoNaoOperado <= 0;
       });
       rows.sort((a, b) => b.limiteDisponivel - a.limiteDisponivel);
     }
 
-    const pageSize = 20;
+    const pageSize = 25;
     const total = rows.length;
     const start = (data.page - 1) * pageSize;
     return {
@@ -370,6 +433,8 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
       pageSize,
     } satisfies ListAlertasResult;
   });
+
+// ─── toggleAlertaContatado ─────────────────────────────────────────────────
 
 export const toggleAlertaContatado = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -399,7 +464,7 @@ export const toggleAlertaContatado = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-// ─── Cliques em links de WhatsApp/Portal dentro de e-mails enviados ────────
+// ─── listCliquesAlertas ────────────────────────────────────────────────────
 
 const WHATSAPP_LINK_RE = /wa\.me|api\.whatsapp\.com/i;
 const PORTAL_LINK_RE = /portal\.adiantesa\.com/i;
@@ -407,7 +472,7 @@ const PORTAL_LINK_RE = /portal\.adiantesa\.com/i;
 export type CliqueInfo = {
   contactId: string;
   email: string;
-  clicadoEm: string; // ISO
+  clicadoEm: string;
   razaoSocial: string;
   clienteId: string;
   cnpj: string;
@@ -416,7 +481,7 @@ export type CliqueInfo = {
 export type CampanhaCliquesRow = {
   campanhaId: string;
   campanhaNome: string;
-  sdate: string; // ISO
+  sdate: string;
   whatsapp: CliqueInfo[];
   portal: CliqueInfo[];
 };
@@ -432,14 +497,16 @@ export type ListCliquesResult = {
 
 const MAX_CAMPAIGNS = 40;
 
-// Fetch a single contact (and its linked account) directly by ID — used to enrich
-// click data without depending on the capped 2000-contact bulk load.
 async function fetchContactEnrichment(
   creds: Settings,
   contactId: string,
   contactFieldIdToPerstag: Record<string, string>,
   acctFieldIdToPersonalization: Record<string, string>,
 ): Promise<{ razaoSocial: string; clienteId: string; cnpj: string } | null> {
+  const cacheKey = `enrich:${creds.ac_api_key}:${contactId}`;
+  const cached = cacheGet<{ razaoSocial: string; clienteId: string; cnpj: string }>(cacheKey);
+  if (cached) return cached;
+
   try {
     const json = await acFetch(creds, `contacts/${contactId}`, { include: "fieldValues,accountContacts" });
     if (!json?.contact) return null;
@@ -476,12 +543,12 @@ async function fetchContactEnrichment(
       }
     }
 
-    const razaoSocialRaw = cf["RAZO_SOCIAL"] ?? acf["ACCT_RAZO_SOCIAL"] ?? null;
-    return {
-      razaoSocial: razaoSocialRaw ?? acctName ?? "",
-      clienteId: acf["ACCT_CLIENTE_ID"] ?? cf["ACCT_CLIENTE_ID"] ?? "",
-      cnpj: acf["ACCT_CNPJ"] ?? cf["ACCT_CNPJ"] ?? "",
+    const result = {
+      razaoSocial: extractRazaoSocial(cf, acf, acctName),
+      clienteId: extractClienteId(cf, acf),
+      cnpj: extractCnpj(cf, acf),
     };
+    return cacheSet(cacheKey, result);
   } catch {
     return null;
   }
@@ -494,10 +561,8 @@ export const listCliquesAlertas = createServerFn({ method: "GET" })
     const creds = await getCreds(context.supabase, context.userId);
     const cutoffStart = new Date(Date.now() - 60 * 86400000);
 
-    // Field maps needed to enrich individual contacts/accounts later
     const fieldMapsPromise = Promise.all([loadContactFieldMap(creds), loadAccountFieldMap(creds)]);
 
-    // 1. Load recently sent campaigns (newest first)
     type CampaignMeta = { id: string; name: string; sdate: Date };
     const campaigns: CampaignMeta[] = [];
     for (let page = 0; page < 10; page++) {
@@ -521,8 +586,6 @@ export const listCliquesAlertas = createServerFn({ method: "GET" })
 
     const targetCampaigns = campaigns.slice(0, MAX_CAMPAIGNS);
 
-    // 2. For each campaign, fetch per-link click data via the legacy API and
-    // keep only clicks on WhatsApp/Portal links
     const campanhasOut: CampanhaCliquesRow[] = [];
     let campanhasComErro = 0;
     let firstError: string | null = null;
@@ -578,8 +641,6 @@ export const listCliquesAlertas = createServerFn({ method: "GET" })
       throw new Error(`Falha ao consultar a API legada do AC em todas as ${targetCampaigns.length} campanhas. Erro: ${firstError}`);
     }
 
-    // Enrich each click with razão social / CNPJ / cliente ID — fetched directly
-    // by contact ID so it works regardless of how many total contacts the account has
     const [contactFieldMap, acctFieldMap] = await fieldMapsPromise;
     const contactFieldIdToPerstag: Record<string, string> = {};
     for (const [perstag, id] of Object.entries(contactFieldMap)) contactFieldIdToPerstag[id] = perstag;
