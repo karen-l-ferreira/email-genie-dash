@@ -423,11 +423,16 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
       rows.sort((a, b) => b.limiteDisponivel - a.limiteDisponivel);
     }
 
+    // Contatados ficam sempre no fim — evita que mudem de página após o check
+    const naoContatados = rows.filter((r) => !r.contatado);
+    const contatados   = rows.filter((r) => r.contatado);
+    const rowsOrdenados = [...naoContatados, ...contatados];
+
     const pageSize = 25;
-    const total = rows.length;
+    const total = rowsOrdenados.length;
     const start = (data.page - 1) * pageSize;
     return {
-      rows: rows.slice(start, start + pageSize),
+      rows: rowsOrdenados.slice(start, start + pageSize),
       total,
       page: data.page,
       pageSize,
