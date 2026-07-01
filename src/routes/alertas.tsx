@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppHeader } from "@/components/app/Header";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
   Loader2, ChevronLeft, ChevronRight, Mail, Phone, Check,
@@ -157,8 +158,19 @@ function ClientesTab({
   const q = useQuery({
     queryKey: ["alertas", tab, page, sort],
     queryFn: () => fetchFn({ data: { tab, page, sort } }),
-    refetchInterval: 2 * 60 * 1000, // auto-refresh every 2 min to sync team contatado status
+    refetchInterval: 2 * 60 * 1000,
   });
+
+  // Realtime: quando qualquer pessoa da equipe marca/desmarca, atualiza instantaneamente
+  useEffect(() => {
+    const channel = supabase
+      .channel("alertas_contatos_changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "alertas_contatos" }, () => {
+        queryClient.invalidateQueries({ queryKey: ["alertas", tab] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [tab, queryClient]);
 
   const toggleMutation = useMutation({
     mutationFn: (vars: { contactId: string; contatado: boolean }) => toggleFn({ data: vars }),
