@@ -207,33 +207,30 @@ export const listCobrancaHoje = createServerFn({ method: "GET" })
       return n.includes("vencimento") || n.includes("vencido") || /^d[+-]\d+$/i.test(c.name.trim());
     });
 
-    // 2. Para cada campanha de cobrança, conta aberturas do dia via legacy API
-    //    campaign_report_open_list retorna {subscriberid, email, tstamp} por abertura
-    const campaigns: Campaign[] = await Promise.all(
-      billing.map(async (c) => {
+    // 2. Investiga o que a legacy API retorna para UMA campanha de cobrança
+    let debugRaw: any = null;
+    if (billing.length > 0) {
+      const sample = billing[0];
+      try {
+        const subList = await acLegacyFetch(creds, {
+          api_action: "campaign_report_subscriber_list",
+          campaignid: sample.id,
+        });
+        debugRaw = { action: "campaign_report_subscriber_list", name: sample.name, keys: Object.keys(subList).slice(0, 5), sample: Object.values(subList).slice(0, 2) };
+      } catch (e) {
         try {
-          const json = await acLegacyFetch(creds, {
-            api_action: "campaign_report_open_list",
-            campaignid: c.id,
+          const summ = await acLegacyFetch(creds, {
+            api_action: "campaign_getsummary_a",
+            campaignid: sample.id,
           });
-          // Conta subscribeids únicos com tstamp de hoje
-          const seen = new Set<string>();
-          for (const key of Object.keys(json)) {
-            if (!/^\d+$/.test(key)) continue;
-            const row = json[key];
-            const tstamp: string = String(row?.tstamp ?? "");
-            if (tstamp.startsWith(today) && row?.subscriberid) {
-              seen.add(String(row.subscriberid));
-            }
-          }
-          return { ...c, send_amt: seen.size };
-        } catch {
-          return c; // fallback: mantém send_amt acumulado
+          debugRaw = { action: "campaign_getsummary_a", name: sample.name, data: summ };
+        } catch (e2) {
+          debugRaw = { error: String(e), error2: String(e2) };
         }
-      }),
-    );
+      }
+    }
 
-    return { campaigns, today };
+    return { campaigns: billing, today, debugRaw };
   });
 
 export const getCampaign = createServerFn({ method: "GET" })
