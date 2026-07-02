@@ -173,23 +173,28 @@ export const listCobrancaHoje = createServerFn({ method: "GET" })
     const today = new Date().toISOString().slice(0, 10); // "2026-07-02"
     const allCampaigns: Campaign[] = [];
 
-    // Busca até 5 páginas (500 campanhas) até achar todas de hoje
+    // Campanhas de automação têm sdate="0000-00-00", só ldate reflete o envio real.
+    // Busca até 5 páginas ordenadas por ldate DESC para achar as de hoje.
     for (let page = 0; page < 5; page++) {
       const json = await acFetch(creds, "campaigns", {
         limit: "100",
         offset: String(page * 100),
-        orders: "sdate",
-        "orders[sdate]": "DESC",
+        orders: "ldate",
+        "orders[ldate]": "DESC",
       });
       const batch: Campaign[] = (json.campaigns ?? []).map(mapCampaign);
       if (batch.length === 0) break;
 
-      const deHoje = batch.filter((c) => (c.sdate ?? "").startsWith(today));
+      // Aceita se sdate OU ldate for hoje
+      const deHoje = batch.filter(
+        (c) => (c.sdate ?? "").startsWith(today) || (c.ldate ?? "").startsWith(today),
+      );
       allCampaigns.push(...deHoje);
 
-      // Se a última da página é anterior a hoje, parar
+      // Se a última da página já passou de hoje em ambos os campos, podemos parar
       const last = batch[batch.length - 1];
-      if (last && !(last.sdate ?? "").startsWith(today) && (last.sdate ?? "") < today) break;
+      const lastDate = last?.ldate ?? last?.sdate ?? "";
+      if (lastDate && lastDate < today) break;
     }
 
     return { campaigns: allCampaigns };
