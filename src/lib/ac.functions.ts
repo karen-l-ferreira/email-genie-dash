@@ -172,25 +172,38 @@ export const listCobrancaHoje = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const creds = await getCreds(context.supabase, context.userId);
-    const today = new Date().toISOString().slice(0, 10); // "2026-07-02"
-    const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10);
 
-    // Filtra na API da AC diretamente por sdate de hoje
-    const json = await acFetch(creds, "campaigns", {
-      limit: "100",
-      offset: "0",
-      "filters[sdate][after]":  `${today} 00:00:00`,
-      "filters[sdate][before]": `${tomorrow} 00:00:00`,
-    });
-    const campaigns: Campaign[] = (json.campaigns ?? []).map(mapCampaign);
-    const total: number = Number(json.meta?.total ?? campaigns.length);
+    // Campanhas geradas por automação são do tipo "auto".
+    // Cada disparo cria um registro novo, então send_amt é só daquela rodada.
+    const allCampaigns: Campaign[] = [];
+    for (let page = 0; page < 5; page++) {
+      const json = await acFetch(creds, "campaigns", {
+        limit: "100",
+        offset: String(page * 100),
+        "filters[type]": "auto",
+        orders: "ldate",
+        "orders[ldate]": "DESC",
+      });
+      const batch: Campaign[] = (json.campaigns ?? []).map(mapCampaign);
+      if (batch.length === 0) break;
 
-    // Debug: mostra o que a API retornou com filtro de sdate
-    const debugSample = campaigns.slice(0, 8).map((c) => ({
+      const deHoje = batch.filter(
+        (c) => (c.ldate ?? "").startsWith(today) || (c.sdate ?? "").startsWith(today),
+      );
+      allCampaigns.push(...deHoje);
+
+      const last = batch[batch.length - 1];
+      const lastDate = (last?.ldate ?? last?.sdate ?? "").slice(0, 10);
+      if (lastDate && lastDate < today) break;
+    }
+
+    // Debug temporário
+    const debugSample = allCampaigns.slice(0, 8).map((c) => ({
       name: c.name, cdate: c.cdate, sdate: c.sdate, ldate: c.ldate, send_amt: c.send_amt,
     }));
 
-    return { campaigns, total, today, debugSample };
+    return { campaigns: allCampaigns, today, debugSample };
   });
 
 export const getCampaign = createServerFn({ method: "GET" })
