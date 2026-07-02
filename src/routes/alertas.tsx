@@ -415,7 +415,7 @@ function ClientesTab({
 
 // ─── CliquesTab ──────────────────────────────────────────────────────────────
 
-type CliqueRaw = { razaoSocial: string; clienteId: string; cnpj: string; email: string; contactId: string; clicadoEm: string };
+type CliqueRaw = { razaoSocial: string; clienteId: string; cnpj: string; email: string; phone: string; contactId: string; clicadoEm: string };
 
 function dedupeClientes(items: CliqueRaw[]): (CliqueRaw & { cliques: number })[] {
   const map = new Map<string, CliqueRaw & { cliques: number }>();
@@ -538,7 +538,7 @@ function CliquesTab() {
 
 function CliqueRow({ c }: { c: CliqueRaw & { cliques: number } }) {
   return (
-    <div className="flex items-center gap-3 px-4 py-2.5">
+    <div className="flex items-start gap-3 px-4 py-2.5">
       <div className="min-w-0 flex-1">
         <div className="text-sm font-medium text-foreground">
           {c.razaoSocial || c.email || c.contactId}
@@ -546,8 +546,21 @@ function CliqueRow({ c }: { c: CliqueRaw & { cliques: number } }) {
         <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0 text-xs text-muted-foreground">
           {c.clienteId && <span>ID {c.clienteId}</span>}
           {c.cnpj && <span>{c.cnpj}</span>}
-          {c.email && !c.razaoSocial && <span>{c.email}</span>}
         </div>
+        {(c.email || c.phone) && (
+          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+            {c.email && (
+              <span className="flex items-center gap-1">
+                <Mail className="h-3 w-3 shrink-0" />{c.email}
+              </span>
+            )}
+            {c.phone && (
+              <span className="flex items-center gap-1">
+                <Phone className="h-3 w-3 shrink-0" />{c.phone}
+              </span>
+            )}
+          </div>
+        )}
       </div>
       <div className="shrink-0 text-right">
         <div className="text-xs text-muted-foreground">{fmtDate(c.clicadoEm)}</div>

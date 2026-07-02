@@ -474,6 +474,7 @@ const PORTAL_LINK_RE = /portal\.adiantesa\.com/i;
 export type CliqueInfo = {
   contactId: string;
   email: string;
+  phone: string;
   clicadoEm: string;
   razaoSocial: string;
   clienteId: string;
@@ -504,9 +505,9 @@ async function fetchContactEnrichment(
   contactId: string,
   contactFieldIdToPerstag: Record<string, string>,
   acctFieldIdToPersonalization: Record<string, string>,
-): Promise<{ razaoSocial: string; clienteId: string; cnpj: string } | null> {
+): Promise<{ razaoSocial: string; clienteId: string; cnpj: string; phone: string } | null> {
   const cacheKey = `enrich:${creds.ac_api_key}:${contactId}`;
-  const cached = cacheGet<{ razaoSocial: string; clienteId: string; cnpj: string }>(cacheKey);
+  const cached = cacheGet<{ razaoSocial: string; clienteId: string; cnpj: string; phone: string }>(cacheKey);
   if (cached) return cached;
 
   try {
@@ -549,6 +550,7 @@ async function fetchContactEnrichment(
       razaoSocial: extractRazaoSocial(cf, acf, acctName),
       clienteId: extractClienteId(cf, acf),
       cnpj: extractCnpj(cf, acf),
+      phone: json.contact?.phone ?? "",
     };
     return cacheSet(cacheKey, result);
   } catch {
@@ -625,6 +627,7 @@ export const listCliquesAlertas = createServerFn({ method: "GET" })
           const entry: CliqueInfo = {
             contactId: String(info?.subscriberid ?? ""),
             email: info?.email ?? "",
+            phone: "",
             clicadoEm: tstamp && !isNaN(tstamp.getTime()) ? tstamp.toISOString() : camp.sdate.toISOString(),
             razaoSocial: "",
             clienteId: "",
@@ -656,7 +659,7 @@ export const listCliquesAlertas = createServerFn({ method: "GET" })
       }
     }
 
-    const enrichMap = new Map<string, { razaoSocial: string; clienteId: string; cnpj: string }>();
+    const enrichMap = new Map<string, { razaoSocial: string; clienteId: string; cnpj: string; phone: string }>();
     await Promise.all(
       [...distinctContactIds].map(async (cid) => {
         const info = await fetchContactEnrichment(creds, cid, contactFieldIdToPerstag, acctFieldIdToPersonalization);
@@ -671,6 +674,7 @@ export const listCliquesAlertas = createServerFn({ method: "GET" })
           entry.razaoSocial = info.razaoSocial;
           entry.clienteId = info.clienteId;
           entry.cnpj = info.cnpj;
+          entry.phone = info.phone;
         }
       }
     }
