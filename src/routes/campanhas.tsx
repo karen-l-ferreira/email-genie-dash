@@ -461,7 +461,7 @@ function CobrancaTab() {
   const todasVencimento = useMemo(() => {
     const all = campaignsQ.data?.campaigns ?? [];
     return all
-      .filter((c) => c.name.toLowerCase().includes("[cobrança") && c.send_amt > 0)
+      .filter((c) => { const n = c.name.toLowerCase(); return (n.includes("vencimento") || n.includes("vencido")) && c.send_amt > 0; })
       .sort((a, b) => (b.sdate ?? "").localeCompare(a.sdate ?? ""));
   }, [campaignsQ.data]);
 
