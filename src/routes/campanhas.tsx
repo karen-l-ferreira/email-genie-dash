@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { listCampaigns, listAutomations, type Campaign, type Automation } from "@/lib/ac.functions";
+import { listCampaigns, listCobrancaHoje, listAutomations, type Campaign, type Automation } from "@/lib/ac.functions";
 import { getSettings } from "@/lib/settings.functions";
 import { AuthGate } from "@/components/app/AuthGate";
 import { AppHeader } from "@/components/app/Header";
@@ -445,37 +445,36 @@ function RateCell({ value, bench }: { value: number; bench: number }) {
   );
 }
 
+function isCobranca(name: string): boolean {
+  const n = name.toLowerCase();
+  return n.includes("vencimento") || n.includes("vencido") || /^d[+-]\d+$/i.test(name.trim());
+}
+
+function parseDValue(name: string): number {
+  const n = name.toLowerCase();
+  if (n.includes("hoje") || n.includes("today")) return 0;
+  const m = name.match(/d([+-]\d+)/i);
+  if (m) return parseInt(m[1]);
+  if (n.includes("aman")) return -1;
+  if (n.includes("ontem") || n.includes("yesterday")) return 1;
+  return 999;
+}
+
 function CobrancaTab() {
   const fetchSettings  = useServerFn(getSettings);
-  const fetchCampaigns = useServerFn(listCampaigns);
+  const fetchCobranca  = useServerFn(listCobrancaHoje);
   const settingsQ      = useQuery({ queryKey: ["settings"], queryFn: () => fetchSettings() });
   const campaignsQ     = useQuery({
-    queryKey: ["campaigns", 0],
-    queryFn: () => fetchCampaigns({ data: { offset: 0 } }),
+    queryKey: ["cobranca-hoje"],
+    queryFn: () => fetchCobranca(),
     enabled: !!settingsQ.data?.hasApiKey,
     retry: false,
   });
 
-  const today = format(new Date(), "yyyy-MM-dd");
-
-  const todasVencimento = useMemo(() => {
-    const all = campaignsQ.data?.campaigns ?? [];
-    return all
-      .filter((c) => { const n = c.name.toLowerCase(); return (n.includes("vencimento") || n.includes("vencido")) && c.send_amt > 0; })
-      .sort((a, b) => (b.sdate ?? "").localeCompare(a.sdate ?? ""));
+  const hoje = useMemo(() => {
+    return (campaignsQ.data?.campaigns ?? []).filter((c) => isCobranca(c.name));
   }, [campaignsQ.data]);
 
-  function parseDValue(name: string): number {
-    const n = name.toLowerCase();
-    if (n.includes("hoje") || n.includes("today")) return 0;
-    const m = name.match(/d([+-]\d+)/i);
-    if (m) return parseInt(m[1]);
-    if (n.includes("ontem") || n.includes("yesterday")) return 1;
-    if (n.includes("aman")) return -1;
-    return 999;
-  }
-
-  const hoje = todasVencimento.filter((c) => (c.sdate ?? "").startsWith(today));
   const cedente = hoje
     .filter((c) => { const n = c.name.toLowerCase(); return !n.includes("sacado") && !n.includes("vencido"); })
     .sort((a, b) => parseDValue(a.name) - parseDValue(b.name));
@@ -485,7 +484,7 @@ function CobrancaTab() {
 
   const totalContatos = hoje.reduce((s, c) => s + c.send_amt, 0);
 
-  if (campaignsQ.isLoading) {
+  if (settingsQ.isLoading || campaignsQ.isLoading) {
     return (
       <div className="space-y-3">
         <div className="h-24 animate-pulse rounded-lg bg-muted" />

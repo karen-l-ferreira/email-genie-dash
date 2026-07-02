@@ -166,6 +166,35 @@ export const listCampaigns = createServerFn({ method: "GET" })
     return { campaigns, total: Number(json.meta?.total ?? campaigns.length) };
   });
 
+export const listCobrancaHoje = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const creds = await getCreds(context.supabase, context.userId);
+    const today = new Date().toISOString().slice(0, 10); // "2026-07-02"
+    const allCampaigns: Campaign[] = [];
+
+    // Busca até 5 páginas (500 campanhas) até achar todas de hoje
+    for (let page = 0; page < 5; page++) {
+      const json = await acFetch(creds, "campaigns", {
+        limit: "100",
+        offset: String(page * 100),
+        orders: "sdate",
+        "orders[sdate]": "DESC",
+      });
+      const batch: Campaign[] = (json.campaigns ?? []).map(mapCampaign);
+      if (batch.length === 0) break;
+
+      const deHoje = batch.filter((c) => (c.sdate ?? "").startsWith(today));
+      allCampaigns.push(...deHoje);
+
+      // Se a última da página é anterior a hoje, parar
+      const last = batch[batch.length - 1];
+      if (last && !(last.sdate ?? "").startsWith(today) && (last.sdate ?? "") < today) break;
+    }
+
+    return { campaigns: allCampaigns };
+  });
+
 export const getCampaign = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ id: z.string().min(1).max(64) }).parse(d))
