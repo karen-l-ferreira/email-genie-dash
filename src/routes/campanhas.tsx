@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { listCampaigns, listAutomations, listCobrancaCampaigns, type Campaign, type Automation } from "@/lib/ac.functions";
+import { listCampaigns, listAutomations, type Campaign, type Automation } from "@/lib/ac.functions";
 import { getSettings } from "@/lib/settings.functions";
 import { AuthGate } from "@/components/app/AuthGate";
 import { AppHeader } from "@/components/app/Header";
@@ -447,11 +447,11 @@ function RateCell({ value, bench }: { value: number; bench: number }) {
 
 function CobrancaTab() {
   const fetchSettings  = useServerFn(getSettings);
-  const fetchCobranca  = useServerFn(listCobrancaCampaigns);
+  const fetchCampaigns = useServerFn(listCampaigns);
   const settingsQ      = useQuery({ queryKey: ["settings"], queryFn: () => fetchSettings() });
   const campaignsQ     = useQuery({
-    queryKey: ["cobranca-campanhas"],
-    queryFn: () => fetchCobranca(),
+    queryKey: ["campaigns", 0],
+    queryFn: () => fetchCampaigns({ data: { offset: 0 } }),
     enabled: !!settingsQ.data?.hasApiKey,
     retry: false,
   });
@@ -461,7 +461,7 @@ function CobrancaTab() {
   const todasVencimento = useMemo(() => {
     const all = campaignsQ.data?.campaigns ?? [];
     return all
-      .filter((c) => c.send_amt > 0)
+      .filter((c) => c.name.toLowerCase().includes("vencimento") && c.send_amt > 0)
       .sort((a, b) => (b.sdate ?? "").localeCompare(a.sdate ?? ""));
   }, [campaignsQ.data]);
 
@@ -512,7 +512,7 @@ function CobrancaTab() {
               >
                 <div className="flex items-center justify-between gap-2">
                   <p className="truncate text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-                    {c.name}
+                    {c.name.replace(/^\[.*?\]\s*/, "")}
                   </p>
                   {isHoje && (
                     <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold bg-primary/10 text-primary">
