@@ -168,13 +168,25 @@ export const listCampaigns = createServerFn({ method: "GET" })
     return { campaigns, total: Number(json.meta?.total ?? campaigns.length) };
   });
 
+async function acLegacyFetch(creds: Settings, params: Record<string, string>) {
+  const baseParsed = assertAllowedAcUrl(creds.ac_base_url);
+  const url = new URL("/admin/api.php", baseParsed.origin);
+  if (url.protocol !== "https:" || url.hostname !== baseParsed.hostname) throw new Error("INVALID_AC_BASE_URL");
+  url.searchParams.set("api_key", creds.ac_api_key);
+  url.searchParams.set("api_output", "json");
+  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+  const res = await fetch(url.toString(), { redirect: "manual" });
+  if (!res.ok) throw new Error(`AC legacy ${res.status}`);
+  return res.json();
+}
+
 export const listCobrancaHoje = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const creds = await getCreds(context.supabase, context.userId);
     const today = new Date().toISOString().slice(0, 10);
 
-    // Busca campanhas com ldate = hoje (campanhas de cobrança disparam às 9h e atualizam ldate)
+    // 1. Acha campanhas de cobrança (ldate = hoje = rodaram hoje às 9h)
     const allCampaigns: Campaign[] = [];
     for (let page = 0; page < 5; page++) {
       const json = await acFetch(creds, "campaigns", {
@@ -187,11 +199,41 @@ export const listCobrancaHoje = createServerFn({ method: "GET" })
       if (batch.length === 0) break;
       const deHoje = batch.filter((c) => (c.ldate ?? "").startsWith(today));
       allCampaigns.push(...deHoje);
-      const last = batch[batch.length - 1];
-      if ((last?.ldate ?? "").slice(0, 10) < today) break;
+      if ((batch[batch.length - 1]?.ldate ?? "").slice(0, 10) < today) break;
     }
 
-    return { campaigns: allCampaigns, today };
+    const billing = allCampaigns.filter((c) => {
+      const n = c.name.toLowerCase();
+      return n.includes("vencimento") || n.includes("vencido") || /^d[+-]\d+$/i.test(c.name.trim());
+    });
+
+    // 2. Para cada campanha de cobrança, conta aberturas do dia via legacy API
+    //    campaign_report_open_list retorna {subscriberid, email, tstamp} por abertura
+    const campaigns: Campaign[] = await Promise.all(
+      billing.map(async (c) => {
+        try {
+          const json = await acLegacyFetch(creds, {
+            api_action: "campaign_report_open_list",
+            campaignid: c.id,
+          });
+          // Conta subscribeids únicos com tstamp de hoje
+          const seen = new Set<string>();
+          for (const key of Object.keys(json)) {
+            if (!/^\d+$/.test(key)) continue;
+            const row = json[key];
+            const tstamp: string = String(row?.tstamp ?? "");
+            if (tstamp.startsWith(today) && row?.subscriberid) {
+              seen.add(String(row.subscriberid));
+            }
+          }
+          return { ...c, send_amt: seen.size };
+        } catch {
+          return c; // fallback: mantém send_amt acumulado
+        }
+      }),
+    );
+
+    return { campaigns, today };
   });
 
 export const getCampaign = createServerFn({ method: "GET" })
