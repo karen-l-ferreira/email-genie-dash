@@ -495,30 +495,20 @@ function CobrancaTab() {
         </p>
       </div>
 
-      {/* Lista de campanhas do dia */}
+      {/* Cards por campanha */}
       {cobrancaHoje.length > 0 && (
-        <div className="overflow-hidden rounded-lg border border-border bg-card">
-          <div className="border-b border-border bg-muted/30 px-5 py-3">
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Campanhas de hoje</p>
-          </div>
-          <table className="w-full text-sm">
-            <thead className="border-b border-border text-[11px] uppercase tracking-wider text-muted-foreground">
-              <tr>
-                <th className="px-5 py-2.5 text-left font-medium">Campanha</th>
-                <th className="px-5 py-2.5 text-right font-medium">Contatos</th>
-              </tr>
-            </thead>
-            <tbody>
-              {cobrancaHoje.map((c, i) => (
-                <tr key={c.id} className={cn("transition-colors hover:bg-muted/20", i !== 0 && "border-t border-border")}>
-                  <td className="px-5 py-3 font-medium">{c.name}</td>
-                  <td className="px-5 py-3 text-right font-mono font-semibold tabular-nums">
-                    {c.send_amt.toLocaleString("pt-BR")}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {cobrancaHoje.map((c) => (
+            <div key={c.id} className="rounded-lg border border-border bg-card border-l-[3px] border-l-primary px-5 py-4">
+              <p className="truncate text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                {c.name}
+              </p>
+              <p className="mt-2 text-3xl font-bold tabular-nums">
+                {c.send_amt.toLocaleString("pt-BR")}
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">contatos atingidos</p>
+            </div>
+          ))}
         </div>
       )}
     </div>
