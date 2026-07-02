@@ -172,37 +172,34 @@ export const listCobrancaHoje = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const creds = await getCreds(context.supabase, context.userId);
-    const today = new Date().toISOString().slice(0, 10); // "2026-07-02"
-    const allCampaigns: Campaign[] = [];
+    const today = new Date().toISOString().slice(0, 10);
 
-    // Campanhas de automação têm sdate="0000-00-00", só ldate reflete o envio real.
-    // Busca até 5 páginas ordenadas por ldate DESC para achar as de hoje.
-    for (let page = 0; page < 5; page++) {
-      const json = await acFetch(creds, "campaigns", {
-        limit: "100",
-        offset: String(page * 100),
-        orders: "ldate",
-        "orders[ldate]": "DESC",
-      });
-      const batch: Campaign[] = (json.campaigns ?? []).map(mapCampaign);
-      if (batch.length === 0) break;
+    // Busca primeira página ordenada por ldate DESC
+    const json = await acFetch(creds, "campaigns", {
+      limit: "100",
+      offset: "0",
+      orders: "ldate",
+      "orders[ldate]": "DESC",
+    });
+    const batch: Campaign[] = (json.campaigns ?? []).map(mapCampaign);
 
-      // Filtra apenas campanhas CRIADAS hoje (cdate) ou agendadas hoje (sdate)
-      // ldate não pode ser usado pois atualiza ao abrir emails antigos
-      const deHoje = batch.filter(
-        (c) =>
-          (c.cdate ?? "").startsWith(today) ||
-          (c.sdate ?? "").startsWith(today),
-      );
-      allCampaigns.push(...deHoje);
+    // Retorna amostra de debug: primeiros 5 com todos os campos de data
+    const debugSample = batch.slice(0, 5).map((c) => ({
+      name: c.name,
+      cdate: c.cdate,
+      sdate: c.sdate,
+      ldate: c.ldate,
+      send_amt: c.send_amt,
+    }));
 
-      // Para quando a última campanha da página for claramente anterior a hoje
-      const last = batch[batch.length - 1];
-      const lastDate = last?.cdate ?? last?.ldate ?? last?.sdate ?? "";
-      if (lastDate && lastDate < today) break;
-    }
+    const allCampaigns = batch.filter(
+      (c) =>
+        (c.cdate ?? "").startsWith(today) ||
+        (c.sdate ?? "").startsWith(today) ||
+        (c.ldate ?? "").startsWith(today),
+    );
 
-    return { campaigns: allCampaigns };
+    return { campaigns: allCampaigns, today, debugSample };
   });
 
 export const getCampaign = createServerFn({ method: "GET" })

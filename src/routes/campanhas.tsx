@@ -494,8 +494,21 @@ function CobrancaTab() {
     );
   }
 
+  const debug = (campaignsQ.data as any)?.debugSample;
+
   return (
     <div className="space-y-5">
+      {/* Debug temporário */}
+      {debug && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/20 px-4 py-3 text-xs font-mono space-y-1">
+          <p className="font-bold text-amber-700 dark:text-amber-400">DEBUG — primeiras 5 campanhas da API (hoje={campaignsQ.data?.today})</p>
+          {debug.map((d: any, i: number) => (
+            <p key={i} className="text-amber-900 dark:text-amber-300 truncate">
+              [{i+1}] {d.name} | cdate={d.cdate} | sdate={d.sdate} | ldate={d.ldate} | send={d.send_amt}
+            </p>
+          ))}
+        </div>
+      )}
       {/* Total do dia */}
       <div className="rounded-lg border border-border bg-card border-l-[3px] border-l-primary px-6 py-5">
         <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
