@@ -172,31 +172,25 @@ export const listCobrancaHoje = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const creds = await getCreds(context.supabase, context.userId);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10); // "2026-07-02"
+    const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
 
-    // Busca primeira página ordenada por ldate DESC
+    // Filtra na API da AC diretamente por sdate de hoje
     const json = await acFetch(creds, "campaigns", {
       limit: "100",
       offset: "0",
-      orders: "ldate",
-      "orders[ldate]": "DESC",
+      "filters[sdate][after]":  `${today} 00:00:00`,
+      "filters[sdate][before]": `${tomorrow} 00:00:00`,
     });
-    const batch: Campaign[] = (json.campaigns ?? []).map(mapCampaign);
+    const campaigns: Campaign[] = (json.campaigns ?? []).map(mapCampaign);
+    const total: number = Number(json.meta?.total ?? campaigns.length);
 
-    // Debug: mostra campanhas de cobrança independente de data
-    const debugSample = batch
-      .filter((c) => { const n = c.name.toLowerCase(); return n.includes("vencimento") || n.includes("vencido"); })
-      .slice(0, 8)
-      .map((c) => ({ name: c.name, cdate: c.cdate, sdate: c.sdate, ldate: c.ldate, send_amt: c.send_amt }));
+    // Debug: mostra o que a API retornou com filtro de sdate
+    const debugSample = campaigns.slice(0, 8).map((c) => ({
+      name: c.name, cdate: c.cdate, sdate: c.sdate, ldate: c.ldate, send_amt: c.send_amt,
+    }));
 
-    const allCampaigns = batch.filter(
-      (c) =>
-        (c.cdate ?? "").startsWith(today) ||
-        (c.sdate ?? "").startsWith(today) ||
-        (c.ldate ?? "").startsWith(today),
-    );
-
-    return { campaigns: allCampaigns, today, debugSample };
+    return { campaigns, total, today, debugSample };
   });
 
 export const getCampaign = createServerFn({ method: "GET" })
