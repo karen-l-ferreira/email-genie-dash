@@ -458,16 +458,14 @@ function CobrancaTab() {
 
   const today = format(new Date(), "yyyy-MM-dd");
 
-  const cobrancaHoje = useMemo(() => {
+  const todasVencimento = useMemo(() => {
     const all = campaignsQ.data?.campaigns ?? [];
-    return all.filter((c) => {
-      const nomeOk = c.name.toLowerCase().includes("vencimento");
-      const dataStr = c.sdate ?? c.ldate ?? "";
-      const dataOk  = dataStr.startsWith(today);
-      return nomeOk && dataOk;
-    });
-  }, [campaignsQ.data, today]);
+    return all
+      .filter((c) => c.name.toLowerCase().includes("vencimento") && c.send_amt > 0)
+      .sort((a, b) => (b.sdate ?? "").localeCompare(a.sdate ?? ""));
+  }, [campaignsQ.data]);
 
+  const cobrancaHoje = todasVencimento.filter((c) => (c.sdate ?? "").startsWith(today));
   const totalContatos = cobrancaHoje.reduce((s, c) => s + c.send_amt, 0);
 
   if (campaignsQ.isLoading) {
@@ -496,19 +494,41 @@ function CobrancaTab() {
       </div>
 
       {/* Cards por campanha */}
-      {cobrancaHoje.length > 0 && (
+      {todasVencimento.length === 0 ? (
+        <div className="rounded-lg border border-border bg-card px-6 py-10 text-center text-sm text-muted-foreground">
+          Nenhuma campanha com "vencimento" encontrada.
+        </div>
+      ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {cobrancaHoje.map((c) => (
-            <div key={c.id} className="rounded-lg border border-border bg-card border-l-[3px] border-l-primary px-5 py-4">
-              <p className="truncate text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-                {c.name}
-              </p>
-              <p className="mt-2 text-3xl font-bold tabular-nums">
-                {c.send_amt.toLocaleString("pt-BR")}
-              </p>
-              <p className="mt-0.5 text-xs text-muted-foreground">contatos atingidos</p>
-            </div>
-          ))}
+          {todasVencimento.map((c) => {
+            const isHoje = (c.sdate ?? "").startsWith(today);
+            return (
+              <div
+                key={c.id}
+                className={cn(
+                  "rounded-lg border border-border bg-card border-l-[3px] px-5 py-4",
+                  isHoje ? "border-l-primary" : "border-l-border",
+                )}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <p className="truncate text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                    {c.name}
+                  </p>
+                  {isHoje && (
+                    <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold bg-primary/10 text-primary">
+                      Hoje
+                    </span>
+                  )}
+                </div>
+                <p className="mt-2 text-3xl font-bold tabular-nums">
+                  {c.send_amt.toLocaleString("pt-BR")}
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {c.sdate ? format(new Date(c.sdate.replace(" ", "T")), "dd/MM/yyyy", { locale: ptBR }) : "—"}
+                </p>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
