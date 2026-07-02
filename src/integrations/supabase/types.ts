@@ -19,7 +19,7 @@ export type Database = {
           contact_id: string
           contatado: boolean
           contatado_em: string
-          contatado_por: string | null
+          contatado_por: string
           created_at: string
           id: string
         }
@@ -27,7 +27,7 @@ export type Database = {
           contact_id: string
           contatado?: boolean
           contatado_em?: string
-          contatado_por?: string | null
+          contatado_por: string
           created_at?: string
           id?: string
         }
@@ -35,7 +35,7 @@ export type Database = {
           contact_id?: string
           contatado?: boolean
           contatado_em?: string
-          contatado_por?: string | null
+          contatado_por?: string
           created_at?: string
           id?: string
         }
