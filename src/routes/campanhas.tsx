@@ -504,9 +504,9 @@ function CobrancaTab() {
         </p>
         <p className="mt-2 text-4xl font-bold tabular-nums">{totalContatos.toLocaleString("pt-BR")}</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          {cobrancaHoje.length === 0
-            ? "Nenhuma comunicação de vencimento enviada hoje"
-            : `${cobrancaHoje.length} campanha${cobrancaHoje.length > 1 ? "s" : ""} de vencimento em ${format(new Date(), "dd/MM/yyyy")}`}
+          {hoje.length === 0
+            ? "Nenhuma comunicação enviada hoje"
+            : `${hoje.length} campanha${hoje.length > 1 ? "s" : ""} em ${format(new Date(), "dd/MM/yyyy")}`}
         </p>
       </div>
 
