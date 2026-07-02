@@ -58,8 +58,15 @@ export const Route = createFileRoute("/campanhas")({
   ),
 });
 
+const TABS = [
+  { key: "campanhas",  label: "Campanhas" },
+  { key: "cobranca",   label: "Cobrança" },
+  { key: "automacoes", label: "Automações" },
+] as const;
+type FluxoTab = typeof TABS[number]["key"];
+
 function FluxosPage() {
-  const [tab, setTab] = useState<"campanhas" | "automacoes">("campanhas");
+  const [tab, setTab] = useState<FluxoTab>("campanhas");
   return (
     <div className="min-h-screen bg-background">
       <AppHeader />
@@ -70,24 +77,26 @@ function FluxosPage() {
         </div>
         <div className="mb-6 border-b border-border">
           <nav className="-mb-px flex">
-            {(["campanhas", "automacoes"] as const).map((t) => (
+            {TABS.map((t) => (
               <button
-                key={t}
+                key={t.key}
                 type="button"
-                onClick={() => setTab(t)}
+                onClick={() => setTab(t.key)}
                 className={[
                   "shrink-0 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm transition-colors",
-                  tab === t
+                  tab === t.key
                     ? "border-foreground font-medium text-foreground"
                     : "border-transparent text-muted-foreground hover:text-foreground",
                 ].join(" ")}
               >
-                {t === "campanhas" ? "Campanhas" : "Automações"}
+                {t.label}
               </button>
             ))}
           </nav>
         </div>
-        {tab === "campanhas" ? <CampaignListPage /> : <AutomacoesInline />}
+        {tab === "campanhas"  && <CampaignListPage />}
+        {tab === "cobranca"   && <CobrancaTab />}
+        {tab === "automacoes" && <AutomacoesInline />}
       </div>
     </div>
   );
@@ -433,6 +442,86 @@ function RateCell({ value, bench }: { value: number; bench: number }) {
     <span className={cn("font-mono tabular-nums", above ? "text-success" : "text-destructive")}>
       {value.toFixed(1)}%
     </span>
+  );
+}
+
+function CobrancaTab() {
+  const fetchSettings  = useServerFn(getSettings);
+  const fetchCampaigns = useServerFn(listCampaigns);
+  const settingsQ      = useQuery({ queryKey: ["settings"], queryFn: () => fetchSettings() });
+  const campaignsQ     = useQuery({
+    queryKey: ["campaigns", 0],
+    queryFn: () => fetchCampaigns({ data: { offset: 0 } }),
+    enabled: !!settingsQ.data?.hasApiKey,
+    retry: false,
+  });
+
+  const today = format(new Date(), "yyyy-MM-dd");
+
+  const cobrancaHoje = useMemo(() => {
+    const all = campaignsQ.data?.campaigns ?? [];
+    return all.filter((c) => {
+      const nomeOk = c.name.toLowerCase().includes("vencimento");
+      const dataStr = c.sdate ?? c.ldate ?? "";
+      const dataOk  = dataStr.startsWith(today);
+      return nomeOk && dataOk;
+    });
+  }, [campaignsQ.data, today]);
+
+  const totalContatos = cobrancaHoje.reduce((s, c) => s + c.send_amt, 0);
+
+  if (campaignsQ.isLoading) {
+    return (
+      <div className="space-y-3">
+        <div className="h-24 animate-pulse rounded-lg bg-muted" />
+        <div className="h-16 animate-pulse rounded-lg bg-muted" />
+        <div className="h-16 animate-pulse rounded-lg bg-muted" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Total do dia */}
+      <div className="rounded-lg border border-border bg-card border-l-[3px] border-l-primary px-6 py-5">
+        <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+          Contatos atingidos hoje
+        </p>
+        <p className="mt-2 text-4xl font-bold tabular-nums">{totalContatos.toLocaleString("pt-BR")}</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {cobrancaHoje.length === 0
+            ? "Nenhuma comunicação de vencimento enviada hoje"
+            : `${cobrancaHoje.length} campanha${cobrancaHoje.length > 1 ? "s" : ""} de vencimento em ${format(new Date(), "dd/MM/yyyy")}`}
+        </p>
+      </div>
+
+      {/* Lista de campanhas do dia */}
+      {cobrancaHoje.length > 0 && (
+        <div className="overflow-hidden rounded-lg border border-border bg-card">
+          <div className="border-b border-border bg-muted/30 px-5 py-3">
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Campanhas de hoje</p>
+          </div>
+          <table className="w-full text-sm">
+            <thead className="border-b border-border text-[11px] uppercase tracking-wider text-muted-foreground">
+              <tr>
+                <th className="px-5 py-2.5 text-left font-medium">Campanha</th>
+                <th className="px-5 py-2.5 text-right font-medium">Contatos</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cobrancaHoje.map((c, i) => (
+                <tr key={c.id} className={cn("transition-colors hover:bg-muted/20", i !== 0 && "border-t border-border")}>
+                  <td className="px-5 py-3 font-medium">{c.name}</td>
+                  <td className="px-5 py-3 text-right font-mono font-semibold tabular-nums">
+                    {c.send_amt.toLocaleString("pt-BR")}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }
 
