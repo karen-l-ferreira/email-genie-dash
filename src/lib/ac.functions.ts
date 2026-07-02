@@ -249,7 +249,7 @@ function mapAutomation(a: any): Automation {
   return {
     id: String(a.id),
     name: a.name ?? "(untitled)",
-    status: a.status ?? "draft",
+    status: (a.status === 1 || a.status === "1") ? "active" : "inactive",
     entered,
     exited,
     active: Math.max(0, entered - exited),
