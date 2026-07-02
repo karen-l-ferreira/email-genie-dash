@@ -187,12 +187,12 @@ export const listCobrancaHoje = createServerFn({ method: "GET" })
       const batch: Campaign[] = (json.campaigns ?? []).map(mapCampaign);
       if (batch.length === 0) break;
 
-      // Aceita se cdate OU sdate OU ldate for hoje
+      // Filtra apenas campanhas CRIADAS hoje (cdate) ou agendadas hoje (sdate)
+      // ldate não pode ser usado pois atualiza ao abrir emails antigos
       const deHoje = batch.filter(
         (c) =>
           (c.cdate ?? "").startsWith(today) ||
-          (c.sdate ?? "").startsWith(today) ||
-          (c.ldate ?? "").startsWith(today),
+          (c.sdate ?? "").startsWith(today),
       );
       allCampaigns.push(...deHoje);
 
