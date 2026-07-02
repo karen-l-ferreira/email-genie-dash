@@ -174,51 +174,24 @@ export const listCobrancaHoje = createServerFn({ method: "GET" })
     const creds = await getCreds(context.supabase, context.userId);
     const today = new Date().toISOString().slice(0, 10);
 
-    // Busca automações de cobrança (tag "Régua de Cobrança" ou nome com vencimento/cobrança)
-    const autosJson = await acFetch(creds, "automations", { limit: "100" });
-    const allAutos: any[] = autosJson.automations ?? [];
-
-    const billingAutos = allAutos.filter((a: any) => {
-      const name = (a.name ?? "").toLowerCase();
-      const tags: string[] = (a.tags ?? []).map((t: any) =>
-        (typeof t === "string" ? t : t.tag ?? t.name ?? "").toLowerCase(),
-      );
-      return (
-        name.includes("vencimento") ||
-        name.includes("vencido") ||
-        name.includes("cobrança") ||
-        name.includes("régua") ||
-        tags.some((t) => t.includes("cobrança") || t.includes("régua"))
-      );
-    });
-
-    // Para cada automação, conta contatos processados HOJE
-    const campaigns: Campaign[] = [];
-    for (const auto of billingAutos) {
-      const caJson = await acFetch(creds, "contactAutomations", {
-        limit: "1",
-        "filters[automation]": String(auto.id),
-        "filters[lastdate][after]": `${today} 00:00:00`,
+    // Busca campanhas com ldate = hoje (campanhas de cobrança disparam às 9h e atualizam ldate)
+    const allCampaigns: Campaign[] = [];
+    for (let page = 0; page < 5; page++) {
+      const json = await acFetch(creds, "campaigns", {
+        limit: "100",
+        offset: String(page * 100),
+        orders: "ldate",
+        "orders[ldate]": "DESC",
       });
-      const sendHoje = Number(caJson.meta?.total ?? 0);
-
-      campaigns.push({
-        id: String(auto.id),
-        name: auto.name ?? "",
-        status: "1",
-        type: "automated",
-        cdate: null,
-        sdate: today,
-        ldate: today,
-        send_amt: sendHoje,
-        total_amt: sendHoje,
-        opens: 0, uniqueopens: 0, linkclicks: 0, uniquelinkclicks: 0,
-        hardbounces: 0, softbounces: 0, unsubscribes: 0,
-        message_ids: [], open_rate: 0, ctr: 0, score: 0, listId: null,
-      });
+      const batch: Campaign[] = (json.campaigns ?? []).map(mapCampaign);
+      if (batch.length === 0) break;
+      const deHoje = batch.filter((c) => (c.ldate ?? "").startsWith(today));
+      allCampaigns.push(...deHoje);
+      const last = batch[batch.length - 1];
+      if ((last?.ldate ?? "").slice(0, 10) < today) break;
     }
 
-    return { campaigns, today };
+    return { campaigns: allCampaigns, today };
   });
 
 export const getCampaign = createServerFn({ method: "GET" })

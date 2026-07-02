@@ -460,6 +460,9 @@ function parseDValue(name: string): number {
   return 999;
 }
 
+const SNAP_KEY = "cobranca_snap";
+type Snap = { date: string; amounts: Record<string, number> };
+
 function CobrancaTab() {
   const fetchSettings  = useServerFn(getSettings);
   const fetchCobranca  = useServerFn(listCobrancaHoje);
@@ -471,9 +474,33 @@ function CobrancaTab() {
     retry: false,
   });
 
+  const [prevSnap, setPrevSnap] = useState<Snap | null>(null);
+  useEffect(() => {
+    try { const r = localStorage.getItem(SNAP_KEY); if (r) setPrevSnap(JSON.parse(r)); } catch {}
+  }, []);
+
   const hoje = useMemo(() => {
     return (campaignsQ.data?.campaigns ?? []).filter((c) => isCobranca(c.name));
   }, [campaignsQ.data]);
+
+  // Salva snapshot do dia atual para usar amanhã como baseline
+  useEffect(() => {
+    if (hoje.length === 0) return;
+    const today = campaignsQ.data?.today ?? new Date().toISOString().slice(0, 10);
+    const amounts: Record<string, number> = {};
+    hoje.forEach((c) => { amounts[c.id] = c.send_amt; });
+    try { localStorage.setItem(SNAP_KEY, JSON.stringify({ date: today, amounts })); } catch {}
+  }, [hoje, campaignsQ.data?.today]);
+
+  function sendsHoje(c: Campaign): number {
+    const today = campaignsQ.data?.today ?? new Date().toISOString().slice(0, 10);
+    // Se temos snapshot de ontem, mostra o delta (envios do dia)
+    if (prevSnap && prevSnap.date < today) {
+      return Math.max(0, c.send_amt - (prevSnap.amounts[c.id] ?? 0));
+    }
+    // Sem baseline anterior: mostra total acumulado (melhora amanhã)
+    return c.send_amt;
+  }
 
   const cedente = hoje
     .filter((c) => { const n = c.name.toLowerCase(); return !n.includes("sacado") && !n.includes("vencido"); })
@@ -482,7 +509,8 @@ function CobrancaTab() {
     .filter((c) => { const n = c.name.toLowerCase(); return n.includes("sacado") || n.includes("vencido"); })
     .sort((a, b) => parseDValue(a.name) - parseDValue(b.name));
 
-  const totalContatos = hoje.reduce((s, c) => s + c.send_amt, 0);
+  const hasYesterdayBaseline = prevSnap && prevSnap.date < (campaignsQ.data?.today ?? new Date().toISOString().slice(0, 10));
+  const totalContatos = hoje.reduce((s, c) => s + sendsHoje(c), 0);
 
   if (settingsQ.isLoading || campaignsQ.isLoading) {
     return (
@@ -505,7 +533,9 @@ function CobrancaTab() {
         <p className="mt-1 text-xs text-muted-foreground">
           {hoje.length === 0
             ? "Nenhuma comunicação enviada hoje"
-            : `${hoje.length} campanha${hoje.length > 1 ? "s" : ""} em ${format(new Date(), "dd/MM/yyyy")}`}
+            : hasYesterdayBaseline
+              ? `${hoje.length} réguas em ${format(new Date(), "dd/MM/yyyy")}`
+              : `Acumulado total — delta disponível amanhã`}
         </p>
       </div>
 
@@ -532,9 +562,11 @@ function CobrancaTab() {
                         {c.name.replace(/^\[.*?\]\s*/, "")}
                       </p>
                       <p className="mt-2 text-3xl font-bold tabular-nums">
-                        {c.send_amt.toLocaleString("pt-BR")}
+                        {sendsHoje(c).toLocaleString("pt-BR")}
                       </p>
-                      <p className="mt-0.5 text-xs text-muted-foreground">envios hoje</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {hasYesterdayBaseline ? "envios hoje" : "total acumulado"}
+                      </p>
                     </div>
                   ))}
                 </div>
