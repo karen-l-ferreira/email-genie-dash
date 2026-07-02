@@ -465,6 +465,9 @@ function CobrancaTab() {
       .sort((a, b) => (b.sdate ?? "").localeCompare(a.sdate ?? ""));
   }, [campaignsQ.data]);
 
+  const cedente = todasVencimento.filter((c) => { const n = c.name.toLowerCase(); return !n.includes("sacado") && !n.includes("vencido"); });
+  const sacado  = todasVencimento.filter((c) => { const n = c.name.toLowerCase(); return n.includes("sacado") || n.includes("vencido"); });
+
   const cobrancaHoje = todasVencimento.filter((c) => (c.sdate ?? "").startsWith(today));
   const totalContatos = cobrancaHoje.reduce((s, c) => s + c.send_amt, 0);
 
@@ -493,42 +496,56 @@ function CobrancaTab() {
         </p>
       </div>
 
-      {/* Cards por campanha */}
+      {/* Cards separados por grupo */}
       {todasVencimento.length === 0 ? (
         <div className="rounded-lg border border-border bg-card px-6 py-10 text-center text-sm text-muted-foreground">
-          Nenhuma campanha com "vencimento" encontrada.
+          Nenhuma campanha de cobrança encontrada.
         </div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {todasVencimento.map((c) => {
-            const isHoje = (c.sdate ?? "").startsWith(today);
-            return (
-              <div
-                key={c.id}
-                className={cn(
-                  "rounded-lg border border-border bg-card border-l-[3px] px-5 py-4",
-                  isHoje ? "border-l-primary" : "border-l-border",
-                )}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <p className="truncate text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-                    {c.name.replace(/^\[.*?\]\s*/, "")}
-                  </p>
-                  {isHoje && (
-                    <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold bg-primary/10 text-primary">
-                      Hoje
-                    </span>
-                  )}
+        <div className="space-y-6">
+          {[
+            { label: "Cedente", items: cedente, accent: "border-l-primary" },
+            { label: "Sacado",  items: sacado,  accent: "border-l-amber-500" },
+          ].map(({ label, items, accent }) =>
+            items.length === 0 ? null : (
+              <div key={label}>
+                <p className="mb-3 text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
+                  {label}
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {items.map((c) => {
+                    const isHoje = (c.sdate ?? "").startsWith(today);
+                    return (
+                      <div
+                        key={c.id}
+                        className={cn(
+                          "rounded-lg border border-border bg-card border-l-[3px] px-5 py-4",
+                          isHoje ? accent : "border-l-border",
+                        )}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="truncate text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                            {c.name.replace(/^\[.*?\]\s*/, "")}
+                          </p>
+                          {isHoje && (
+                            <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold bg-primary/10 text-primary">
+                              Hoje
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-2 text-3xl font-bold tabular-nums">
+                          {c.send_amt.toLocaleString("pt-BR")}
+                        </p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {c.sdate ? format(new Date(c.sdate.replace(" ", "T")), "dd/MM/yyyy", { locale: ptBR }) : "—"}
+                        </p>
+                      </div>
+                    );
+                  })}
                 </div>
-                <p className="mt-2 text-3xl font-bold tabular-nums">
-                  {c.send_amt.toLocaleString("pt-BR")}
-                </p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  {c.sdate ? format(new Date(c.sdate.replace(" ", "T")), "dd/MM/yyyy", { locale: ptBR }) : "—"}
-                </p>
               </div>
-            );
-          })}
+            )
+          )}
         </div>
       )}
     </div>
