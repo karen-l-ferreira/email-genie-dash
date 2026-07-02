@@ -152,10 +152,10 @@ function DashboardPage() {
       <main className="mx-auto max-w-[1400px] px-6 py-8">
 
         {/* Page header */}
-        <div className="mb-8 flex flex-wrap items-end justify-between gap-4 border-b border-border pb-6">
+        <div className="mb-8 flex flex-wrap items-end justify-between gap-4 border-b border-border pb-5">
           <div>
-            <p className="mb-1 text-xs font-medium uppercase tracking-widest text-muted-foreground">Visão geral</p>
-            <h1 className="text-xl font-semibold">Dashboard</h1>
+            <p className="mb-1 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Visão geral</p>
+            <h1 className="text-lg font-bold">Dashboard</h1>
           </div>
           <div className="flex items-center gap-2">
             <div className="flex items-center rounded-lg border border-border bg-card p-0.5">
@@ -371,14 +371,19 @@ function KpiCard({ icon, label, value, sub, good }: {
   good?: boolean;
 }) {
   return (
-    <div className="rounded-lg border border-border bg-card px-5 py-4">
-      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+    <div className={cn(
+      "rounded-lg border border-border bg-card px-5 py-4 border-l-[3px]",
+      good === true  ? "border-l-success"
+      : good === false ? "border-l-destructive"
+      : "border-l-primary",
+    )}>
+      <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">
         {icon}
         {label}
       </div>
       <div className={cn(
-        "mt-2 text-2xl font-semibold tabular-nums",
-        good === true ? "text-emerald-600 dark:text-emerald-400"
+        "mt-2.5 text-2xl font-bold tabular-nums",
+        good === true ? "text-success"
         : good === false ? "text-destructive"
         : "text-foreground",
       )}>

@@ -65,8 +65,8 @@ function FluxosPage() {
       <AppHeader />
       <div className="mx-auto max-w-[1400px] px-6 py-8">
         <div className="mb-7 border-b border-border pb-5">
-          <h1 className="text-lg font-semibold">Fluxos</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">Campanhas de e-mail e automações do ActiveCampaign.</p>
+          <p className="mb-1 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">ActiveCampaign</p>
+          <h1 className="text-lg font-bold">Fluxos</h1>
         </div>
         <div className="mb-6 border-b border-border">
           <nav className="-mb-px flex">
