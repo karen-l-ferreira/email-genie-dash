@@ -520,7 +520,7 @@ function CobrancaTab() {
           {([
             { label: "Cedente", items: cedente, accent: "border-l-primary" },
             { label: "Sacado",  items: sacado,  accent: "border-l-amber-500" },
-          ] as const).map(({ label, items, accent }) =>
+          ]).map(({ label, items, accent }) =>
             items.length === 0 ? null : (
               <div key={label}>
                 <p className="mb-3 text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
