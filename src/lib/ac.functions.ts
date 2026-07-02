@@ -166,29 +166,6 @@ export const listCampaigns = createServerFn({ method: "GET" })
     return { campaigns, total: Number(json.meta?.total ?? campaigns.length) };
   });
 
-export const listCobrancaCampaigns = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const creds = await getCreds(context.supabase, context.userId);
-
-    // 1. Achar o ID da tag "Régua de Cobrança"
-    const tagsJson = await acFetch(creds, "tags", { limit: "100", search: "Régua de Cobrança" });
-    const tag = (tagsJson.tags ?? []).find(
-      (t: any) => t.tag?.toLowerCase() === "régua de cobrança",
-    );
-    if (!tag) return { campaigns: [] as Campaign[] };
-
-    // 2. Buscar campanhas com essa tag
-    const json = await acFetch(creds, "campaigns", {
-      limit: "100",
-      "filters[tags]": String(tag.id),
-      orders: "sdate",
-      "orders[sdate]": "DESC",
-    });
-    const campaigns: Campaign[] = (json.campaigns ?? []).map(mapCampaign);
-    return { campaigns };
-  });
-
 export const getCampaign = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ id: z.string().min(1).max(64) }).parse(d))
