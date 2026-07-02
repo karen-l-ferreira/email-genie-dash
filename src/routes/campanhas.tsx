@@ -465,11 +465,25 @@ function CobrancaTab() {
       .sort((a, b) => (b.sdate ?? "").localeCompare(a.sdate ?? ""));
   }, [campaignsQ.data]);
 
-  const cedente = todasVencimento.filter((c) => { const n = c.name.toLowerCase(); return !n.includes("sacado") && !n.includes("vencido"); });
-  const sacado  = todasVencimento.filter((c) => { const n = c.name.toLowerCase(); return n.includes("sacado") || n.includes("vencido"); });
+  function parseDValue(name: string): number {
+    const n = name.toLowerCase();
+    if (n.includes("hoje") || n.includes("today")) return 0;
+    const m = name.match(/d([+-]\d+)/i);
+    if (m) return parseInt(m[1]);
+    if (n.includes("ontem") || n.includes("yesterday")) return 1;
+    if (n.includes("aman")) return -1;
+    return 999;
+  }
 
-  const cobrancaHoje = todasVencimento.filter((c) => (c.sdate ?? "").startsWith(today));
-  const totalContatos = cobrancaHoje.reduce((s, c) => s + c.send_amt, 0);
+  const hoje = todasVencimento.filter((c) => (c.sdate ?? "").startsWith(today));
+  const cedente = hoje
+    .filter((c) => { const n = c.name.toLowerCase(); return !n.includes("sacado") && !n.includes("vencido"); })
+    .sort((a, b) => parseDValue(a.name) - parseDValue(b.name));
+  const sacado = hoje
+    .filter((c) => { const n = c.name.toLowerCase(); return n.includes("sacado") || n.includes("vencido"); })
+    .sort((a, b) => parseDValue(a.name) - parseDValue(b.name));
+
+  const totalContatos = hoje.reduce((s, c) => s + c.send_amt, 0);
 
   if (campaignsQ.isLoading) {
     return (
@@ -497,51 +511,33 @@ function CobrancaTab() {
       </div>
 
       {/* Cards separados por grupo */}
-      {todasVencimento.length === 0 ? (
+      {hoje.length === 0 ? (
         <div className="rounded-lg border border-border bg-card px-6 py-10 text-center text-sm text-muted-foreground">
-          Nenhuma campanha de cobrança encontrada.
+          Nenhum envio de cobrança registrado hoje ({format(new Date(), "dd/MM/yyyy")}).
         </div>
       ) : (
         <div className="space-y-6">
-          {[
+          {([
             { label: "Cedente", items: cedente, accent: "border-l-primary" },
             { label: "Sacado",  items: sacado,  accent: "border-l-amber-500" },
-          ].map(({ label, items, accent }) =>
+          ] as const).map(({ label, items, accent }) =>
             items.length === 0 ? null : (
               <div key={label}>
                 <p className="mb-3 text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
                   {label}
                 </p>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {items.map((c) => {
-                    const isHoje = (c.sdate ?? "").startsWith(today);
-                    return (
-                      <div
-                        key={c.id}
-                        className={cn(
-                          "rounded-lg border border-border bg-card border-l-[3px] px-5 py-4",
-                          isHoje ? accent : "border-l-border",
-                        )}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="truncate text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-                            {c.name.replace(/^\[.*?\]\s*/, "")}
-                          </p>
-                          {isHoje && (
-                            <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold bg-primary/10 text-primary">
-                              Hoje
-                            </span>
-                          )}
-                        </div>
-                        <p className="mt-2 text-3xl font-bold tabular-nums">
-                          {c.send_amt.toLocaleString("pt-BR")}
-                        </p>
-                        <p className="mt-0.5 text-xs text-muted-foreground">
-                          {c.sdate ? format(new Date(c.sdate.replace(" ", "T")), "dd/MM/yyyy", { locale: ptBR }) : "—"}
-                        </p>
-                      </div>
-                    );
-                  })}
+                  {items.map((c) => (
+                    <div key={c.id} className={cn("rounded-lg border border-border bg-card border-l-[3px] px-5 py-4", accent)}>
+                      <p className="truncate text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                        {c.name.replace(/^\[.*?\]\s*/, "")}
+                      </p>
+                      <p className="mt-2 text-3xl font-bold tabular-nums">
+                        {c.send_amt.toLocaleString("pt-BR")}
+                      </p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">envios hoje</p>
+                    </div>
+                  ))}
                 </div>
               </div>
             )
