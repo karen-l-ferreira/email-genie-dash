@@ -79,6 +79,7 @@ export type Campaign = {
   name: string;
   status: string;
   type: string;
+  cdate: string | null;
   sdate: string | null;
   ldate: string | null;
   send_amt: number;
@@ -132,6 +133,7 @@ function mapCampaign(c: any): Campaign {
     name: c.name ?? "(untitled)",
     status: String(c.status ?? "0"),
     type: c.type ?? "single",
+    cdate: parseAcDate(c.cdate),
     sdate,
     ldate: parseAcDate(c.ldate),
     send_amt: send,
@@ -185,15 +187,18 @@ export const listCobrancaHoje = createServerFn({ method: "GET" })
       const batch: Campaign[] = (json.campaigns ?? []).map(mapCampaign);
       if (batch.length === 0) break;
 
-      // Aceita se sdate OU ldate for hoje
+      // Aceita se cdate OU sdate OU ldate for hoje
       const deHoje = batch.filter(
-        (c) => (c.sdate ?? "").startsWith(today) || (c.ldate ?? "").startsWith(today),
+        (c) =>
+          (c.cdate ?? "").startsWith(today) ||
+          (c.sdate ?? "").startsWith(today) ||
+          (c.ldate ?? "").startsWith(today),
       );
       allCampaigns.push(...deHoje);
 
-      // Se a última da página já passou de hoje em ambos os campos, podemos parar
+      // Para quando a última campanha da página for claramente anterior a hoje
       const last = batch[batch.length - 1];
-      const lastDate = last?.ldate ?? last?.sdate ?? "";
+      const lastDate = last?.cdate ?? last?.ldate ?? last?.sdate ?? "";
       if (lastDate && lastDate < today) break;
     }
 
