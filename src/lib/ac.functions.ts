@@ -183,14 +183,11 @@ export const listCobrancaHoje = createServerFn({ method: "GET" })
     });
     const batch: Campaign[] = (json.campaigns ?? []).map(mapCampaign);
 
-    // Retorna amostra de debug: primeiros 5 com todos os campos de data
-    const debugSample = batch.slice(0, 5).map((c) => ({
-      name: c.name,
-      cdate: c.cdate,
-      sdate: c.sdate,
-      ldate: c.ldate,
-      send_amt: c.send_amt,
-    }));
+    // Debug: mostra campanhas de cobrança independente de data
+    const debugSample = batch
+      .filter((c) => { const n = c.name.toLowerCase(); return n.includes("vencimento") || n.includes("vencido"); })
+      .slice(0, 8)
+      .map((c) => ({ name: c.name, cdate: c.cdate, sdate: c.sdate, ldate: c.ldate, send_amt: c.send_amt }));
 
     const allCampaigns = batch.filter(
       (c) =>
