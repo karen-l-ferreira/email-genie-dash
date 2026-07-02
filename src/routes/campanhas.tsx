@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { listCampaigns, listAutomations, type Campaign, type Automation } from "@/lib/ac.functions";
+import { listCampaigns, listAutomations, listCobrancaCampaigns, type Campaign, type Automation } from "@/lib/ac.functions";
 import { getSettings } from "@/lib/settings.functions";
 import { AuthGate } from "@/components/app/AuthGate";
 import { AppHeader } from "@/components/app/Header";
@@ -447,11 +447,11 @@ function RateCell({ value, bench }: { value: number; bench: number }) {
 
 function CobrancaTab() {
   const fetchSettings  = useServerFn(getSettings);
-  const fetchCampaigns = useServerFn(listCampaigns);
+  const fetchCobranca  = useServerFn(listCobrancaCampaigns);
   const settingsQ      = useQuery({ queryKey: ["settings"], queryFn: () => fetchSettings() });
   const campaignsQ     = useQuery({
-    queryKey: ["campaigns", 0],
-    queryFn: () => fetchCampaigns({ data: { offset: 0 } }),
+    queryKey: ["cobranca-campanhas"],
+    queryFn: () => fetchCobranca(),
     enabled: !!settingsQ.data?.hasApiKey,
     retry: false,
   });
@@ -461,7 +461,7 @@ function CobrancaTab() {
   const todasVencimento = useMemo(() => {
     const all = campaignsQ.data?.campaigns ?? [];
     return all
-      .filter((c) => c.name.toLowerCase().includes("vencimento") && c.send_amt > 0)
+      .filter((c) => c.send_amt > 0)
       .sort((a, b) => (b.sdate ?? "").localeCompare(a.sdate ?? ""));
   }, [campaignsQ.data]);
 
