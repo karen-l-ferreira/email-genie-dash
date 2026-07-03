@@ -207,26 +207,15 @@ export const listCobrancaHoje = createServerFn({ method: "GET" })
       return n.includes("vencimento") || n.includes("vencido") || /^d[+-]\d+$/i.test(c.name.trim());
     });
 
-    // 2. Investiga o que a legacy API retorna para UMA campanha de cobrança
+    // 2. Testa campaignreports v3 (auth diferente da legacy)
     let debugRaw: any = null;
     if (billing.length > 0) {
       const sample = billing[0];
       try {
-        const subList = await acLegacyFetch(creds, {
-          api_action: "campaign_report_subscriber_list",
-          campaignid: sample.id,
-        });
-        debugRaw = { action: "campaign_report_subscriber_list", name: sample.name, keys: Object.keys(subList).slice(0, 5), sample: Object.values(subList).slice(0, 2) };
+        const report = await acFetch(creds, `campaignreports/${sample.id}`);
+        debugRaw = { endpoint: `campaignreports/${sample.id}`, name: sample.name, keys: Object.keys(report).slice(0, 20), data: report };
       } catch (e) {
-        try {
-          const summ = await acLegacyFetch(creds, {
-            api_action: "campaign_getsummary_a",
-            campaignid: sample.id,
-          });
-          debugRaw = { action: "campaign_getsummary_a", name: sample.name, data: summ };
-        } catch (e2) {
-          debugRaw = { error: String(e), error2: String(e2) };
-        }
+        debugRaw = { error: String(e) };
       }
     }
 
