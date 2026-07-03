@@ -667,24 +667,14 @@ export const getCobrancaComparison = createServerFn({ method: "GET" })
     await Promise.all(REGUA_DEFS.map(async (def) => {
       try {
         const j = await acFetch(creds, "campaigns", {
-          "filters[automation]": def.id,
+          "filters[seriesid]": def.id,
           limit: "100",
         });
         const camps: any[] = j.campaigns ?? [];
-        const deHoje = camps.filter((c: any) => (c.sdate ?? "").startsWith(today));
-        const targets = deHoje.length > 0 ? deHoje : camps;
-
-        let total = 0;
-        await Promise.all(targets.map(async (c: any) => {
-          try {
-            const mj = await acFetch(creds, `campaigns/${c.id}/messages`);
-            for (const m of (mj.messages ?? []) as any[]) {
-              total += Number(m.send ?? 0);
-            }
-          } catch { /* ignora */ }
-        }));
-
-        sendsMap[def.id] = total;
+        const enviados = camps
+          .filter((c: any) => (c.ldate ?? "").startsWith(today))
+          .reduce((sum: number, c: any) => sum + parseInt(c.send_amt ?? "0", 10), 0);
+        sendsMap[def.id] = enviados;
       } catch { sendsMap[def.id] = 0; }
     }));
 
