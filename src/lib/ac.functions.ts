@@ -602,29 +602,16 @@ export const listAccountsForAnalysis = createServerFn({ method: "GET" })
 
 // Exact automation names from ActiveCampaign + which account field day they correspond to
 // fieldDay: the number parsed from the account field label (D-7→-7, D0→0, D1→1, D7→7…)
-const REGUA_DEFS: { name: string; type: "cedente" | "sacado"; label: string; fieldDay: number }[] = [
-  // Cedente
-  { name: "[Cobrança - Cedente] 7 Dias Vencimento",        type: "cedente", label: "D-7",  fieldDay: -7 },
-  { name: "[Cobrança - Cedente] Padrão Amanhã Vencimento", type: "cedente", label: "D-1",  fieldDay: -1 },
-  { name: "[Cobrança - Cedente] Padrão Hoje Vencimento",   type: "cedente", label: "D0",   fieldDay:  0 },
-  { name: "[Cobrança - Cedente] Ontem Vencimento",         type: "cedente", label: "D+1",  fieldDay:  1 },
-  { name: "[Cobrança - Cedente] D+3 Vencimento",           type: "cedente", label: "D+3",  fieldDay:  3 },
-  { name: "[Cobrança - Cedente] D+5 Vencimento",           type: "cedente", label: "D+5",  fieldDay:  5 },
-  { name: "[Cobrança - Cedente] D+9 Vencimento",           type: "cedente", label: "D+9",  fieldDay:  9 },
-  { name: "[Cobrança - Cedente] D+10 Vencimento",          type: "cedente", label: "D+10", fieldDay: 10 },
-  { name: "[Cobrança - Cedente] D+12 Vencimento",          type: "cedente", label: "D+12", fieldDay: 12 },
-  { name: "[Cobrança - Cedente] D+15 Vencimento",          type: "cedente", label: "D+15", fieldDay: 15 },
-  { name: "[Cobrança - Cedente] D+31",                     type: "cedente", label: "D+31", fieldDay: 31 },
-  // Sacado
-  { name: "[Cobrança - Sacado] Padrão Amanhã Vencimento",  type: "sacado",  label: "D-1",  fieldDay: -1 },
-  { name: "[Cobrança - Sacado] Padrão Hoje Vencimento",    type: "sacado",  label: "D0",   fieldDay:  0 },
-  { name: "[Cobrança - Sacado] Ontem Vencimento",          type: "sacado",  label: "D+1",  fieldDay:  1 },
-  { name: "[Cobrança - Sacado] D+3 Vencimento",            type: "sacado",  label: "D+3",  fieldDay:  3 },
-  { name: "[Cobrança - Sacado] D+4 Vencimento",            type: "sacado",  label: "D+4",  fieldDay:  4 },
-  { name: "[Cobrança - Sacado] D+5 Vencimento",            type: "sacado",  label: "D+5",  fieldDay:  5 },
-  { name: "[Cobrança - Sacado] D+9 Vencimento",            type: "sacado",  label: "D+9",  fieldDay:  9 },
-  { name: "[Cobrança - Sacado] D+12 Vencimento",           type: "sacado",  label: "D+12", fieldDay: 12 },
-  { name: "[Cobrança - Sacado] D+15 Vencimento",           type: "sacado",  label: "D+15", fieldDay: 15 },
+// IDs diretos do AC — evita lookup por nome que pode falhar por diferença de caracteres
+const REGUA_DEFS: { id: string; name: string; type: "cedente" | "sacado"; label: string; fieldDay: number; fieldTag: string }[] = [
+  { id: "220", name: "D-7 Cedente",  type: "cedente", label: "D-7", fieldDay: -7, fieldTag: "ACCT_COBRANA_CEDENTE_D7_QTD"  },
+  { id: "224", name: "D-1 Cedente",  type: "cedente", label: "D-1", fieldDay: -1, fieldTag: "ACCT_COBRANA_CEDENTE_D1_QTD"  },
+  { id: "217", name: "D0 Cedente",   type: "cedente", label: "D0",  fieldDay:  0, fieldTag: "ACCT_COBRANA_CEDENTE_D0_QTD"  },
+  { id: "223", name: "D+1 Cedente",  type: "cedente", label: "D+1", fieldDay:  1, fieldTag: "ACCT_COBRANA_CEDENTE_D1_QTD_POS" },
+  { id: "219", name: "D+2 Cedente",  type: "cedente", label: "D+2", fieldDay:  2, fieldTag: "ACCT_COBRANA_CEDENTE_D2_QTD"  },
+  { id: "218", name: "D+3 Cedente",  type: "cedente", label: "D+3", fieldDay:  3, fieldTag: "ACCT_COBRANA_CEDENTE_D3_QTD"  },
+  { id: "221", name: "D+4 Cedente",  type: "cedente", label: "D+4", fieldDay:  4, fieldTag: "ACCT_COBRANA_CEDENTE_D4_QTD"  },
+  { id: "222", name: "D+5 Cedente",  type: "cedente", label: "D+5", fieldDay:  5, fieldTag: "ACCT_COBRANA_CEDENTE_D5_QTD"  },
 ];
 
 export type CobrancaRow = {
@@ -674,63 +661,67 @@ export const getCobrancaComparison = createServerFn({ method: "GET" })
     const creds = await getCreds(context.supabase, context.userId);
     const today = new Date().toISOString().slice(0, 10);
 
-    // ── 1. Find automations by name ──────────────────────────────────────────
-    let allAutos: any[] = [];
-    for (let page = 0; page < 5; page++) {
-      const j = await acFetch(creds, "automations", { limit: "100", offset: String(page * 100) });
-      const batch = j.automations ?? [];
-      allAutos = allAutos.concat(batch);
-      if (batch.length < 100) break;
-    }
+    // ── 1. Busca envios de hoje por automação (ID hardcoded) ─────────────────
+    const sendsMap: Record<string, number> = {};
 
-    // Build lookup: normalised name → automation id
-    const autoByName: Record<string, string> = {};
-    for (const a of allAutos) {
-      autoByName[String(a.name ?? "").trim()] = String(a.id);
-    }
-
-    // ── 2. For each régua, get today's sends from automation campaigns ───────
-    const sendsMap: Record<string, number> = {}; // automationId → sends today
-
-    const uniqueIds = [...new Set(
-      REGUA_DEFS.map((r) => autoByName[r.name]).filter(Boolean)
-    )];
-
-    await Promise.all(uniqueIds.map(async (autoId) => {
+    await Promise.all(REGUA_DEFS.map(async (def) => {
       try {
         const j = await acFetch(creds, "campaigns", {
-          "filters[automation]": autoId,
+          "filters[automation]": def.id,
           limit: "100",
-          orders: "sdate",
-          "orders[sdate]": "DESC",
         });
         const camps: any[] = j.campaigns ?? [];
-        // Try sdate first (daily batch date), fallback to ldate (last activity)
-        const todaySends = camps
-          .filter((c: any) => (c.sdate ?? c.ldate ?? "").startsWith(today))
-          .reduce((s: number, c: any) => s + Number(c.send_amt ?? 0), 0);
-        // If nothing matched today, return total so at least we see something
-        sendsMap[autoId] = todaySends > 0 ? todaySends : camps.reduce((s: number, c: any) => s + Number(c.send_amt ?? 0), 0);
-      } catch { sendsMap[autoId] = 0; }
+        const deHoje = camps.filter((c: any) => (c.sdate ?? "").startsWith(today));
+        const targets = deHoje.length > 0 ? deHoje : camps;
+
+        let total = 0;
+        await Promise.all(targets.map(async (c: any) => {
+          try {
+            const mj = await acFetch(creds, `campaigns/${c.id}/messages`);
+            for (const m of (mj.messages ?? []) as any[]) {
+              total += Number(m.send ?? 0);
+            }
+          } catch { /* ignora */ }
+        }));
+
+        sendsMap[def.id] = total;
+      } catch { sendsMap[def.id] = 0; }
     }));
 
-    // ── 3. Read account custom fields → eligible per type+day ───────────────
+    // ── 2. Busca campos de conta e mapeia perstag → fieldId ─────────────────
     const fieldsJson = await acFetch(creds, "accountCustomFieldMeta", { limit: "200" });
-    type FieldInfo = { type: "sacado" | "cedente"; day: number; metric: "qtd" | "valor" };
-    const fieldMap: Record<string, FieldInfo> = {};
+    // Monta lookup: perstag (ex: "ACCT_COBRANA_CEDENTE_D7_QTD") → customFieldId
+    const tagToFieldId: Record<string, string> = {};
     for (const f of (fieldsJson.accountCustomFieldMeta ?? []) as any[]) {
-      const lbl: string = f.fieldLabel ?? "";
-      const m = lbl.match(/Cobran[çc]a\s+(Sacado|Cedente)\s+D([+-]?\d+)\s*[-–]\s*(Valor|Qtd)/i);
-      if (!m) continue;
-      fieldMap[String(f.id)] = {
-        type: m[1].toLowerCase() as "sacado" | "cedente",
-        day: parseInt(m[2]),
-        metric: m[3].toLowerCase() as "qtd" | "valor",
-      };
+      if (f.fieldType !== undefined && f.perstag) {
+        tagToFieldId[String(f.perstag)] = String(f.id);
+      }
+      // Alguns campos expõem o perstag no próprio objeto, outros no fieldLabel
+      if (f.fieldLabel) {
+        // Fallback: tenta pelo label também via regex
+        const lbl: string = f.fieldLabel ?? "";
+        const m = lbl.match(/Cobran[çc]a\s+(Sacado|Cedente)\s+D([+-]?\d+)\s*[-–]\s*Qtd/i);
+        if (m) {
+          const tipo = m[1].toLowerCase();
+          const dia = parseInt(m[2]);
+          // Marca no mapa por tipo+dia
+          const key = `${tipo}_${dia}`;
+          tagToFieldId[`__label__${key}`] = String(f.id);
+        }
+      }
     }
 
-    // eligible[type][day] = count of accounts with qtd > 0
-    const eligible: Record<string, Record<number, number>> = { sacado: {}, cedente: {} };
+    // Resolve fieldId para cada régua (perstag direto ou fallback por label)
+    function resolveFieldId(def: typeof REGUA_DEFS[0]): string | null {
+      // Tenta perstag direto
+      if (tagToFieldId[def.fieldTag]) return tagToFieldId[def.fieldTag];
+      // Fallback por label
+      const key = `${def.type}_${def.fieldDay}`;
+      return tagToFieldId[`__label__${key}`] ?? null;
+    }
+
+    // ── 3. Pagina todas as contas e conta elegíveis ──────────────────────────
+    const eligible: Record<string, number> = {}; // defId → count
 
     let offset = 0;
     let totalAccounts = Infinity;
@@ -744,11 +735,12 @@ export const getCobrancaComparison = createServerFn({ method: "GET" })
       const accounts: any[] = json.accounts ?? [];
       if (accounts.length === 0) break;
 
+      // Monta fvMap: accountId → { fieldId → value }
       const fvMap: Record<string, Record<string, number>> = {};
       for (const fv of (json.accountCustomFieldData ?? []) as any[]) {
         if (!fv.accountId || !fv.customFieldId || !fv.fieldValue) continue;
         const val = parseFloat(fv.fieldValue);
-        if (!val) continue;
+        if (!val || val <= 0) continue;
         const aid = String(fv.accountId);
         if (!fvMap[aid]) fvMap[aid] = {};
         fvMap[aid][String(fv.customFieldId)] = val;
@@ -756,12 +748,12 @@ export const getCobrancaComparison = createServerFn({ method: "GET" })
 
       for (const acct of accounts) {
         const fvs = fvMap[String(acct.id)] ?? {};
-        for (const [fieldId, info] of Object.entries(fieldMap)) {
-          if (info.metric !== "qtd") continue;
-          const val = fvs[fieldId];
-          if (!val || val === 0) continue;
-          if (!eligible[info.type][info.day]) eligible[info.type][info.day] = 0;
-          eligible[info.type][info.day] += 1;
+        for (const def of REGUA_DEFS) {
+          const fieldId = resolveFieldId(def);
+          if (!fieldId) continue;
+          if ((fvs[fieldId] ?? 0) > 0) {
+            eligible[def.id] = (eligible[def.id] ?? 0) + 1;
+          }
         }
       }
 
@@ -769,24 +761,16 @@ export const getCobrancaComparison = createServerFn({ method: "GET" })
       if (offset >= totalAccounts) break;
     }
 
-    // ── 4. Build rows ────────────────────────────────────────────────────────
-    const rows: CobrancaRow[] = [];
-
-    for (const def of REGUA_DEFS) {
-      const autoId = autoByName[def.name] ?? null;
-      const enviados = autoId ? (sendsMap[autoId] ?? 0) : 0;
-      const elegiveis = eligible[def.type][def.fieldDay] ?? 0;
-
-      rows.push({
-        label: def.label,
-        fieldDay: def.fieldDay,
-        type: def.type,
-        automation_name: def.name,
-        automation_id: autoId,
-        enviados,
-        elegiveis,
-      });
-    }
+    // ── 4. Monta rows ────────────────────────────────────────────────────────
+    const rows: CobrancaRow[] = REGUA_DEFS.map((def) => ({
+      label: def.label,
+      fieldDay: def.fieldDay,
+      type: def.type,
+      automation_name: def.name,
+      automation_id: def.id,
+      enviados: sendsMap[def.id] ?? 0,
+      elegiveis: eligible[def.id] ?? 0,
+    }));
 
     return { rows, today, fetchedAt: new Date().toISOString() };
   });
