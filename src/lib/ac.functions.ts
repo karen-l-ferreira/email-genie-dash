@@ -597,3 +597,103 @@ export const listAccountsForAnalysis = createServerFn({ method: "GET" })
 
     return { accounts, total: Number(json.meta?.total ?? accounts.length) };
   });
+
+// ─── Cobrança snapshot ────────────────────────────────────────────────────────
+
+export const COBRANCA_DAYS = [-7, -1, 0, 1, 2, 3, 4, 5, 7, 9, 10, 12, 15, 31] as const;
+export type CobrancaDay = (typeof COBRANCA_DAYS)[number];
+
+export type CobrancaRegua = {
+  day: CobrancaDay;
+  label: string;
+  sacado_clientes: number;
+  sacado_qtd: number;
+  sacado_valor: number;
+  cedente_clientes: number;
+  cedente_qtd: number;
+  cedente_valor: number;
+};
+
+function dayLabel(d: number) {
+  if (d < 0) return `D${d}`;
+  if (d === 0) return "D0";
+  return `D+${d}`;
+}
+
+export const getCobrancaSnapshot = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const creds = await getCreds(context.supabase, context.userId);
+
+    // 1. Fetch account custom field definitions
+    const fieldsJson = await acFetch(creds, "accountCustomFieldMeta", { limit: "200" });
+    type FieldInfo = { type: "sacado" | "cedente"; day: number; metric: "qtd" | "valor" };
+    const fieldMap: Record<string, FieldInfo> = {};
+    for (const f of (fieldsJson.accountCustomFieldMeta ?? []) as any[]) {
+      const label: string = f.fieldLabel ?? "";
+      const m = label.match(/Cobran[çc]a\s+(Sacado|Cedente)\s+D([+-]?\d+)\s*[-–]\s*(Valor|Qtd)/i);
+      if (!m) continue;
+      fieldMap[String(f.id)] = {
+        type: m[1].toLowerCase() as "sacado" | "cedente",
+        day: parseInt(m[2]),
+        metric: m[3].toLowerCase() as "qtd" | "valor",
+      };
+    }
+
+    // 2. Aggregate across all accounts (paginate)
+    type Acc = { sacado_qtd: number; sacado_valor: number; sacado_clientes: number; cedente_qtd: number; cedente_valor: number; cedente_clientes: number };
+    const accum: Record<number, Acc> = {};
+    for (const d of COBRANCA_DAYS) accum[d] = { sacado_qtd: 0, sacado_valor: 0, sacado_clientes: 0, cedente_qtd: 0, cedente_valor: 0, cedente_clientes: 0 };
+
+    let offset = 0;
+    let total = Infinity;
+    while (offset < total) {
+      const json = await acFetch(creds, "accounts", {
+        limit: "100",
+        offset: String(offset),
+        include: "accountCustomFieldData",
+      });
+      total = Number(json.meta?.total ?? 0);
+      const accounts: any[] = json.accounts ?? [];
+      if (accounts.length === 0) break;
+
+      // build fieldValue map: accountId → { fieldId → numericValue }
+      const fvMap: Record<string, Record<string, number>> = {};
+      for (const fv of (json.accountCustomFieldData ?? []) as any[]) {
+        if (!fv.accountId || !fv.customFieldId || !fv.fieldValue) continue;
+        const val = parseFloat(fv.fieldValue);
+        if (!val || val === 0) continue;
+        const aid = String(fv.accountId);
+        if (!fvMap[aid]) fvMap[aid] = {};
+        fvMap[aid][String(fv.customFieldId)] = val;
+      }
+
+      for (const acct of accounts) {
+        const fvs = fvMap[String(acct.id)] ?? {};
+        for (const [fieldId, info] of Object.entries(fieldMap)) {
+          const val = fvs[fieldId];
+          if (!val || val === 0) continue;
+          const a = accum[info.day];
+          if (!a) continue;
+          if (info.type === "sacado") {
+            if (info.metric === "qtd") { a.sacado_qtd += val; a.sacado_clientes += 1; }
+            else a.sacado_valor += val;
+          } else {
+            if (info.metric === "qtd") { a.cedente_qtd += val; a.cedente_clientes += 1; }
+            else a.cedente_valor += val;
+          }
+        }
+      }
+
+      offset += accounts.length;
+      if (offset >= total) break;
+    }
+
+    const reguas: CobrancaRegua[] = COBRANCA_DAYS.map((d) => ({
+      day: d,
+      label: dayLabel(d),
+      ...accum[d],
+    }));
+
+    return { reguas, fetchedAt: new Date().toISOString(), totalAccounts: total };
+  });

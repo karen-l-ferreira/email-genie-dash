@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { listCampaigns, listCobrancaHoje, listAutomations, type Campaign, type Automation } from "@/lib/ac.functions";
+import { listCampaigns, listAutomations, getCobrancaSnapshot, saveSnapshot, listSnapshots, type Campaign, type Automation, type CobrancaRegua, type MetricSnapshot } from "@/lib/ac.functions";
 import { getSettings } from "@/lib/settings.functions";
 import { AuthGate } from "@/components/app/AuthGate";
 import { AppHeader } from "@/components/app/Header";
@@ -18,10 +18,12 @@ import {
   Clock,
   Download,
   RefreshCw,
+  Save,
   Search,
   Settings as SettingsIcon,
   Trash2,
 } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { format, formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -445,120 +447,259 @@ function RateCell({ value, bench }: { value: number; bench: number }) {
   );
 }
 
-function isCobranca(name: string): boolean {
-  const n = name.toLowerCase();
-  return n.includes("vencimento") || n.includes("vencido") || /^d[+-]\d+$/i.test(name.trim());
+function fmtBRL(v: number) {
+  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 }
-
-function parseDValue(name: string): number {
-  const n = name.toLowerCase();
-  if (n.includes("hoje") || n.includes("today")) return 0;
-  const m = name.match(/d([+-]\d+)/i);
-  if (m) return parseInt(m[1]);
-  if (n.includes("aman")) return -1;
-  if (n.includes("ontem") || n.includes("yesterday")) return 1;
-  return 999;
-}
-
-const SNAP_KEY = "cobranca_snap";
-type Snap = { date: string; amounts: Record<string, number> };
 
 function CobrancaTab() {
   const fetchSettings  = useServerFn(getSettings);
-  const fetchCobranca  = useServerFn(listCobrancaHoje);
-  const settingsQ      = useQuery({ queryKey: ["settings"], queryFn: () => fetchSettings() });
-  const campaignsQ     = useQuery({
-    queryKey: ["cobranca-hoje"],
-    queryFn: () => fetchCobranca(),
+  const fetchSnapshot  = useServerFn(getCobrancaSnapshot);
+  const fetchSave      = useServerFn(saveSnapshot);
+  const fetchSnaps     = useServerFn(listSnapshots);
+
+  const settingsQ = useQuery({ queryKey: ["settings"], queryFn: () => fetchSettings() });
+  const snapQ     = useQuery({
+    queryKey: ["cobranca-snapshot"],
+    queryFn: () => fetchSnapshot(),
     enabled: !!settingsQ.data?.hasApiKey,
     retry: false,
+    staleTime: 5 * 60 * 1000,
+  });
+  const histQ = useQuery({
+    queryKey: ["cobranca-history"],
+    queryFn: () => fetchSnaps({ data: { entity_id: "cobranca" } }),
+    enabled: !!settingsQ.data?.hasApiKey,
   });
 
-  const [prevSnap, setPrevSnap] = useState<Snap | null>(null);
-  useEffect(() => {
-    try { const r = localStorage.getItem(SNAP_KEY); if (r) setPrevSnap(JSON.parse(r)); } catch {}
-  }, []);
+  const [saving, setSaving] = useState(false);
+  const [view, setView] = useState<"atual" | "historico">("atual");
 
-  const hoje = useMemo(() => {
-    return (campaignsQ.data?.campaigns ?? []).filter((c) => isCobranca(c.name));
-  }, [campaignsQ.data]);
-
-  const cedente = hoje
-    .filter((c) => { const n = c.name.toLowerCase(); return !n.includes("sacado") && !n.includes("vencido"); })
-    .sort((a, b) => parseDValue(a.name) - parseDValue(b.name));
-  const sacado = hoje
-    .filter((c) => { const n = c.name.toLowerCase(); return n.includes("sacado") || n.includes("vencido"); })
-    .sort((a, b) => parseDValue(a.name) - parseDValue(b.name));
-
-  const totalContatos = hoje.reduce((s, c) => s + c.send_amt, 0);
-
-  if (settingsQ.isLoading || campaignsQ.isLoading) {
-    return (
-      <div className="space-y-3">
-        <div className="h-24 animate-pulse rounded-lg bg-muted" />
-        <div className="h-16 animate-pulse rounded-lg bg-muted" />
-        <div className="h-16 animate-pulse rounded-lg bg-muted" />
-      </div>
-    );
+  async function handleSave() {
+    if (!snapQ.data) return;
+    setSaving(true);
+    try {
+      const metrics: Record<string, number> = {};
+      for (const r of snapQ.data.reguas) {
+        metrics[`s_${r.day}_clientes`] = r.sacado_clientes;
+        metrics[`s_${r.day}_qtd`]      = r.sacado_qtd;
+        metrics[`s_${r.day}_valor`]    = r.sacado_valor;
+        metrics[`c_${r.day}_clientes`] = r.cedente_clientes;
+        metrics[`c_${r.day}_qtd`]      = r.cedente_qtd;
+        metrics[`c_${r.day}_valor`]    = r.cedente_valor;
+      }
+      await fetchSave({ data: {
+        label: format(new Date(), "dd/MM/yyyy HH:mm"),
+        entity_type: "campaign",
+        entity_id: "cobranca",
+        entity_name: "Cobrança",
+        metrics,
+      }});
+      await histQ.refetch();
+      toast.success("Snapshot salvo!");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Erro ao salvar");
+    } finally {
+      setSaving(false);
+    }
   }
 
-  const debugRaw = (campaignsQ.data as any)?.debugRaw;
+  const isLoading = settingsQ.isLoading || snapQ.isLoading;
+  const reguas: CobrancaRegua[] = snapQ.data?.reguas ?? [];
+  const history: MetricSnapshot[] = histQ.data?.snapshots ?? [];
+
+  const DAYS_ORDER = [-7, -1, 0, 1, 2, 3, 4, 5, 7, 9, 10, 12, 15, 31] as const;
 
   return (
     <div className="space-y-5">
-      {debugRaw && (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/20 px-4 py-3 text-xs font-mono break-all">
-          <p className="font-bold text-amber-700 mb-1">DEBUG API</p>
-          <pre className="whitespace-pre-wrap text-amber-900 dark:text-amber-300">{JSON.stringify(debugRaw, null, 2).slice(0, 1500)}</pre>
+      {/* Cabeçalho + ações */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex gap-1 rounded-lg border border-border bg-surface p-0.5">
+          {(["atual", "historico"] as const).map((v) => (
+            <button
+              key={v}
+              onClick={() => setView(v)}
+              className={cn(
+                "rounded-md px-4 py-1.5 text-xs font-medium transition-colors",
+                view === v ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {v === "atual" ? "Snapshot atual" : `Histórico (${history.length})`}
+            </button>
+          ))}
         </div>
-      )}
-      {/* Total do dia */}
-      <div className="rounded-lg border border-border bg-card border-l-[3px] border-l-primary px-6 py-5">
-        <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-          Contatos atingidos hoje
-        </p>
-        <p className="mt-2 text-4xl font-bold tabular-nums">{totalContatos.toLocaleString("pt-BR")}</p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          {hoje.length === 0
-            ? "Nenhuma comunicação enviada hoje"
-            : `${hoje.length} réguas em ${format(new Date(), "dd/MM/yyyy")}`}
-        </p>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => snapQ.refetch()} disabled={snapQ.isFetching}>
+            <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", snapQ.isFetching && "animate-spin")} />
+            Atualizar
+          </Button>
+          <Button size="sm" onClick={handleSave} disabled={saving || !snapQ.data || snapQ.isFetching}>
+            <Save className="mr-1.5 h-3.5 w-3.5" />
+            {saving ? "Salvando…" : "Salvar snapshot"}
+          </Button>
+        </div>
       </div>
 
-      {/* Cards separados por grupo */}
-      {hoje.length === 0 ? (
-        <div className="rounded-lg border border-border bg-card px-6 py-10 text-center text-sm text-muted-foreground">
-          Nenhum envio de cobrança registrado hoje ({format(new Date(), "dd/MM/yyyy")}).
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {([
-            { label: "Cedente", items: cedente, accent: "border-l-primary" },
-            { label: "Sacado",  items: sacado,  accent: "border-l-amber-500" },
-          ]).map(({ label, items, accent }) =>
-            items.length === 0 ? null : (
-              <div key={label}>
-                <p className="mb-3 text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
-                  {label}
-                </p>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {items.map((c) => (
-                    <div key={c.id} className={cn("rounded-lg border border-border bg-card border-l-[3px] px-5 py-4", accent)}>
-                      <p className="truncate text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-                        {c.name.replace(/^\[.*?\]\s*/, "")}
-                      </p>
-                      <p className="mt-2 text-3xl font-bold tabular-nums">
-                        {c.send_amt.toLocaleString("pt-BR")}
-                      </p>
-                      <p className="mt-0.5 text-xs text-muted-foreground">aberturas hoje</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )
-          )}
+      {snapQ.isError && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          {(snapQ.error as Error).message}
         </div>
       )}
+
+      {/* ── Vista atual ── */}
+      {view === "atual" && (
+        <>
+          {isLoading ? (
+            <div className="space-y-2">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="h-10 animate-pulse rounded-lg bg-muted" />
+              ))}
+            </div>
+          ) : reguas.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-border px-6 py-12 text-center text-sm text-muted-foreground">
+              Nenhum dado de cobrança encontrado. Verifique se os campos de conta estão configurados no ActiveCampaign.
+            </div>
+          ) : (
+            <>
+              {snapQ.data?.fetchedAt && (
+                <p className="text-[11px] text-muted-foreground">
+                  Snapshot às {format(new Date(snapQ.data.fetchedAt), "HH:mm 'de' dd/MM/yyyy")}
+                  {snapQ.data.totalAccounts ? ` · ${snapQ.data.totalAccounts.toLocaleString("pt-BR")} contas` : ""}
+                </p>
+              )}
+
+              {/* Tabela Sacado */}
+              <CobrancaTable title="Sacado" accent="border-l-amber-500" rows={reguas.map((r) => ({
+                label: r.label,
+                clientes: r.sacado_clientes,
+                qtd: r.sacado_qtd,
+                valor: r.sacado_valor,
+              }))} />
+
+              {/* Tabela Cedente */}
+              <CobrancaTable title="Cedente" accent="border-l-primary" rows={reguas.map((r) => ({
+                label: r.label,
+                clientes: r.cedente_clientes,
+                qtd: r.cedente_qtd,
+                valor: r.cedente_valor,
+              }))} />
+            </>
+          )}
+        </>
+      )}
+
+      {/* ── Histórico ── */}
+      {view === "historico" && (
+        <>
+          {history.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-border px-6 py-12 text-center text-sm text-muted-foreground">
+              Nenhum snapshot salvo ainda. Clique em "Salvar snapshot" para registrar o estado atual.
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-border bg-card">
+              <table className="w-full text-sm">
+                <thead className="bg-surface text-[11px] uppercase tracking-wider text-muted-foreground">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">Data</th>
+                    {DAYS_ORDER.map((d) => {
+                      const lbl = d < 0 ? `D${d}` : d === 0 ? "D0" : `D+${d}`;
+                      return (
+                        <th key={d} className="px-3 py-3 text-right font-medium whitespace-nowrap" colSpan={2}>
+                          {lbl}
+                        </th>
+                      );
+                    })}
+                  </tr>
+                  <tr className="border-t border-border">
+                    <th className="px-4 py-1.5 text-left text-[10px] text-muted-foreground/60">—</th>
+                    {DAYS_ORDER.map((d) => (
+                      <>
+                        <th key={`${d}-s`} className="px-2 py-1.5 text-right text-[10px] text-amber-500/80">Sacado</th>
+                        <th key={`${d}-c`} className="px-2 py-1.5 text-right text-[10px] text-primary/80">Cedente</th>
+                      </>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.map((snap) => (
+                    <tr key={snap.id} className="border-t border-border hover:bg-surface-2">
+                      <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">{snap.label}</td>
+                      {DAYS_ORDER.map((d) => {
+                        const sc = Number(snap.metrics[`s_${d}_clientes`] ?? 0);
+                        const cc = Number(snap.metrics[`c_${d}_clientes`] ?? 0);
+                        return (
+                          <>
+                            <td key={`${d}-s`} className="px-2 py-3 text-right font-mono tabular-nums text-xs">
+                              {sc > 0 ? <span className="text-amber-500">{sc}</span> : <span className="text-muted-foreground/40">—</span>}
+                            </td>
+                            <td key={`${d}-c`} className="px-2 py-3 text-right font-mono tabular-nums text-xs">
+                              {cc > 0 ? <span className="text-primary">{cc}</span> : <span className="text-muted-foreground/40">—</span>}
+                            </td>
+                          </>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function CobrancaTable({
+  title,
+  accent,
+  rows,
+}: {
+  title: string;
+  accent: string;
+  rows: { label: string; clientes: number; qtd: number; valor: number }[];
+}) {
+  const hasData = rows.some((r) => r.clientes > 0 || r.qtd > 0);
+  return (
+    <div>
+      <p className={cn("mb-2 text-[11px] font-bold uppercase tracking-widest", title === "Sacado" ? "text-amber-500" : "text-primary")}>
+        {title}
+      </p>
+      <div className="overflow-hidden rounded-xl border border-border bg-card">
+        <table className="w-full text-sm">
+          <thead className="bg-surface text-[11px] uppercase tracking-wider text-muted-foreground">
+            <tr>
+              <th className="px-4 py-2.5 text-left font-medium">Régua</th>
+              <th className="px-4 py-2.5 text-right font-medium">Clientes elegíveis</th>
+              <th className="px-4 py-2.5 text-right font-medium">Qtd títulos</th>
+              <th className="px-4 py-2.5 text-right font-medium">Valor total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {!hasData ? (
+              <tr>
+                <td colSpan={4} className="px-4 py-8 text-center text-xs text-muted-foreground">
+                  Sem dados para {title.toLowerCase()}
+                </td>
+              </tr>
+            ) : (
+              rows.map((r) => (
+                <tr key={r.label} className={cn("border-t border-border", (r.clientes > 0 || r.qtd > 0) ? "" : "opacity-30")}>
+                  <td className={cn("border-l-[3px] px-4 py-3 font-mono font-semibold", accent)}>{r.label}</td>
+                  <td className="px-4 py-3 text-right font-mono tabular-nums">
+                    {r.clientes > 0 ? r.clientes.toLocaleString("pt-BR") : <span className="text-muted-foreground/40">—</span>}
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono tabular-nums">
+                    {r.qtd > 0 ? r.qtd.toLocaleString("pt-BR") : <span className="text-muted-foreground/40">—</span>}
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono tabular-nums">
+                    {r.valor > 0 ? fmtBRL(r.valor) : <span className="text-muted-foreground/40">—</span>}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
