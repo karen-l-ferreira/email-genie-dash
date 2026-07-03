@@ -598,20 +598,44 @@ export const listAccountsForAnalysis = createServerFn({ method: "GET" })
     return { accounts, total: Number(json.meta?.total ?? accounts.length) };
   });
 
-// ─── Cobrança snapshot ────────────────────────────────────────────────────────
+// ─── Cobrança comparison ──────────────────────────────────────────────────────
 
-export const COBRANCA_DAYS = [-7, -1, 0, 1, 2, 3, 4, 5, 7, 9, 10, 12, 15, 31] as const;
-export type CobrancaDay = (typeof COBRANCA_DAYS)[number];
+// Map of automation name → { type, day, label }
+// Names must match exactly what's configured in ActiveCampaign
+const REGUA_DEFS: { name: string; type: "cedente" | "sacado"; day: number; label: string }[] = [
+  // Cedente
+  { name: "D-7 Vencimento",         type: "cedente", day: -7,  label: "D-7"  },
+  { name: "D-1 Vencimento",         type: "cedente", day: -1,  label: "D-1"  },
+  { name: "Vencimento HOJE",        type: "cedente", day:  0,  label: "D0"   },
+  { name: "D+1 Vencimento",         type: "cedente", day:  1,  label: "D+1"  },
+  { name: "D+3 Vencimento",         type: "cedente", day:  3,  label: "D+3"  },
+  { name: "D+9 Vencimento",         type: "cedente", day:  9,  label: "D+9"  },
+  { name: "D+10 Vencimento",        type: "cedente", day: 10,  label: "D+10" },
+  { name: "D+12 Vencimento",        type: "cedente", day: 12,  label: "D+12" },
+  { name: "D+15 Vencimento",        type: "cedente", day: 15,  label: "D+15" },
+  { name: "D+31",                   type: "cedente", day: 31,  label: "D+31" },
+  // Sacado
+  { name: "Vencimento amanhã",            type: "sacado", day: -1, label: "D-1"  },
+  { name: "Vencimento HOJE - Sacado",     type: "sacado", day:  0, label: "D0"   },
+  { name: "D+1 Vencimento",              type: "sacado", day:  1, label: "D+1"  },
+  { name: "D+3 Vencimento",              type: "sacado", day:  3, label: "D+3"  },
+  { name: "D+4 Vencimento Sacado",       type: "sacado", day:  4, label: "D+4"  },
+  { name: "D+5 Vencido - Sacado",        type: "sacado", day:  5, label: "D+5"  },
+  { name: "D+9 Vencimento",              type: "sacado", day:  9, label: "D+9"  },
+  { name: "D+12 Vencimento",             type: "sacado", day: 12, label: "D+12" },
+  { name: "D+15 Vencimento",             type: "sacado", day: 15, label: "D+15" },
+];
 
-export type CobrancaRegua = {
-  day: CobrancaDay;
+export type CobrancaRow = {
   label: string;
-  sacado_clientes: number;
-  sacado_qtd: number;
-  sacado_valor: number;
-  cedente_clientes: number;
-  cedente_qtd: number;
-  cedente_valor: number;
+  day: number;
+  type: "cedente" | "sacado";
+  automation_name: string;
+  automation_id: string | null;
+  // from AC automation campaigns (today's sends)
+  enviados: number;
+  // from AC account custom fields (eligible clients)
+  elegiveis: number;
 };
 
 function dayLabel(d: number) {
@@ -620,18 +644,56 @@ function dayLabel(d: number) {
   return `D+${d}`;
 }
 
-export const getCobrancaSnapshot = createServerFn({ method: "GET" })
+export const getCobrancaComparison = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const creds = await getCreds(context.supabase, context.userId);
+    const today = new Date().toISOString().slice(0, 10);
 
-    // 1. Fetch account custom field definitions
+    // ── 1. Find automations by name ──────────────────────────────────────────
+    let allAutos: any[] = [];
+    for (let page = 0; page < 5; page++) {
+      const j = await acFetch(creds, "automations", { limit: "100", offset: String(page * 100) });
+      const batch = j.automations ?? [];
+      allAutos = allAutos.concat(batch);
+      if (batch.length < 100) break;
+    }
+
+    // Build lookup: normalised name → automation id
+    const autoByName: Record<string, string> = {};
+    for (const a of allAutos) {
+      autoByName[String(a.name ?? "").trim()] = String(a.id);
+    }
+
+    // ── 2. For each régua, get today's sends from automation campaigns ───────
+    const sendsMap: Record<string, number> = {}; // automationId → sends today
+
+    const uniqueIds = [...new Set(
+      REGUA_DEFS.map((r) => autoByName[r.name]).filter(Boolean)
+    )];
+
+    await Promise.all(uniqueIds.map(async (autoId) => {
+      try {
+        const j = await acFetch(creds, "campaigns", {
+          "filters[automation]": autoId,
+          limit: "50",
+        });
+        const camps: any[] = j.campaigns ?? [];
+        // Sum send_amt for campaigns whose last activity is today
+        const todaySends = camps
+          .filter((c) => (c.ldate ?? c.sdate ?? "").startsWith(today))
+          .reduce((s: number, c: any) => s + Number(c.send_amt ?? c.total_amt ?? 0), 0);
+        sendsMap[autoId] = todaySends;
+      } catch { sendsMap[autoId] = 0; }
+    }));
+
+    // ── 3. Read account custom fields → eligible per type+day ───────────────
     const fieldsJson = await acFetch(creds, "accountCustomFieldMeta", { limit: "200" });
     type FieldInfo = { type: "sacado" | "cedente"; day: number; metric: "qtd" | "valor" };
     const fieldMap: Record<string, FieldInfo> = {};
     for (const f of (fieldsJson.accountCustomFieldMeta ?? []) as any[]) {
-      const label: string = f.fieldLabel ?? "";
-      const m = label.match(/Cobran[çc]a\s+(Sacado|Cedente)\s+D([+-]?\d+)\s*[-–]\s*(Valor|Qtd)/i);
+      const lbl: string = f.fieldLabel ?? "";
+      const m = lbl.match(/Cobran[çc]a\s+(Sacado|Cedente)\s+D([+-]?\d+)\s*[-–]\s*(Valor|Qtd)/i);
       if (!m) continue;
       fieldMap[String(f.id)] = {
         type: m[1].toLowerCase() as "sacado" | "cedente",
@@ -640,29 +702,26 @@ export const getCobrancaSnapshot = createServerFn({ method: "GET" })
       };
     }
 
-    // 2. Aggregate across all accounts (paginate)
-    type Acc = { sacado_qtd: number; sacado_valor: number; sacado_clientes: number; cedente_qtd: number; cedente_valor: number; cedente_clientes: number };
-    const accum: Record<number, Acc> = {};
-    for (const d of COBRANCA_DAYS) accum[d] = { sacado_qtd: 0, sacado_valor: 0, sacado_clientes: 0, cedente_qtd: 0, cedente_valor: 0, cedente_clientes: 0 };
+    // eligible[type][day] = count of accounts with qtd > 0
+    const eligible: Record<string, Record<number, number>> = { sacado: {}, cedente: {} };
 
     let offset = 0;
-    let total = Infinity;
-    while (offset < total) {
+    let totalAccounts = Infinity;
+    while (offset < totalAccounts) {
       const json = await acFetch(creds, "accounts", {
         limit: "100",
         offset: String(offset),
         include: "accountCustomFieldData",
       });
-      total = Number(json.meta?.total ?? 0);
+      totalAccounts = Number(json.meta?.total ?? 0);
       const accounts: any[] = json.accounts ?? [];
       if (accounts.length === 0) break;
 
-      // build fieldValue map: accountId → { fieldId → numericValue }
       const fvMap: Record<string, Record<string, number>> = {};
       for (const fv of (json.accountCustomFieldData ?? []) as any[]) {
         if (!fv.accountId || !fv.customFieldId || !fv.fieldValue) continue;
         const val = parseFloat(fv.fieldValue);
-        if (!val || val === 0) continue;
+        if (!val) continue;
         const aid = String(fv.accountId);
         if (!fvMap[aid]) fvMap[aid] = {};
         fvMap[aid][String(fv.customFieldId)] = val;
@@ -671,29 +730,44 @@ export const getCobrancaSnapshot = createServerFn({ method: "GET" })
       for (const acct of accounts) {
         const fvs = fvMap[String(acct.id)] ?? {};
         for (const [fieldId, info] of Object.entries(fieldMap)) {
+          if (info.metric !== "qtd") continue;
           const val = fvs[fieldId];
           if (!val || val === 0) continue;
-          const a = accum[info.day];
-          if (!a) continue;
-          if (info.type === "sacado") {
-            if (info.metric === "qtd") { a.sacado_qtd += val; a.sacado_clientes += 1; }
-            else a.sacado_valor += val;
-          } else {
-            if (info.metric === "qtd") { a.cedente_qtd += val; a.cedente_clientes += 1; }
-            else a.cedente_valor += val;
-          }
+          if (!eligible[info.type][info.day]) eligible[info.type][info.day] = 0;
+          eligible[info.type][info.day] += 1;
         }
       }
 
       offset += accounts.length;
-      if (offset >= total) break;
+      if (offset >= totalAccounts) break;
     }
 
-    const reguas: CobrancaRegua[] = COBRANCA_DAYS.map((d) => ({
-      day: d,
-      label: dayLabel(d),
-      ...accum[d],
-    }));
+    // ── 4. Build rows ────────────────────────────────────────────────────────
+    // For Cedente and Sacado, we need to handle same-name automations separately
+    // Track which names have already been used per type to avoid double-counting
+    const usedKeys = new Set<string>();
+    const rows: CobrancaRow[] = [];
 
-    return { reguas, fetchedAt: new Date().toISOString(), totalAccounts: total };
+    for (const def of REGUA_DEFS) {
+      const key = `${def.type}:${def.name}`;
+      if (usedKeys.has(key)) continue;
+      usedKeys.add(key);
+
+      const autoId = autoByName[def.name] ?? null;
+      // For shared names (D+1, D+3 etc.), cedente gets first match, sacado gets same
+      const enviados = autoId ? (sendsMap[autoId] ?? 0) : 0;
+      const elegiveis = eligible[def.type][def.day] ?? 0;
+
+      rows.push({
+        label: def.label,
+        day: def.day,
+        type: def.type,
+        automation_name: def.name,
+        automation_id: autoId,
+        enviados,
+        elegiveis,
+      });
+    }
+
+    return { rows, today, fetchedAt: new Date().toISOString() };
   });

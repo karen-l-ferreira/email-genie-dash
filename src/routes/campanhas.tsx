@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { listCampaigns, listAutomations, getCobrancaSnapshot, saveSnapshot, listSnapshots, type Campaign, type Automation, type CobrancaRegua, type MetricSnapshot } from "@/lib/ac.functions";
+import { listCampaigns, listAutomations, getCobrancaComparison, saveSnapshot, listSnapshots, type Campaign, type Automation, type CobrancaRow, type MetricSnapshot } from "@/lib/ac.functions";
 import { getSettings } from "@/lib/settings.functions";
 import { AuthGate } from "@/components/app/AuthGate";
 import { AppHeader } from "@/components/app/Header";
@@ -447,20 +447,16 @@ function RateCell({ value, bench }: { value: number; bench: number }) {
   );
 }
 
-function fmtBRL(v: number) {
-  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
-}
-
 function CobrancaTab() {
-  const fetchSettings  = useServerFn(getSettings);
-  const fetchSnapshot  = useServerFn(getCobrancaSnapshot);
-  const fetchSave      = useServerFn(saveSnapshot);
-  const fetchSnaps     = useServerFn(listSnapshots);
+  const fetchSettings = useServerFn(getSettings);
+  const fetchCompare  = useServerFn(getCobrancaComparison);
+  const fetchSave     = useServerFn(saveSnapshot);
+  const fetchSnaps    = useServerFn(listSnapshots);
 
   const settingsQ = useQuery({ queryKey: ["settings"], queryFn: () => fetchSettings() });
-  const snapQ     = useQuery({
-    queryKey: ["cobranca-snapshot"],
-    queryFn: () => fetchSnapshot(),
+  const cmpQ = useQuery({
+    queryKey: ["cobranca-comparison"],
+    queryFn: () => fetchCompare(),
     enabled: !!settingsQ.data?.hasApiKey,
     retry: false,
     staleTime: 5 * 60 * 1000,
@@ -475,17 +471,14 @@ function CobrancaTab() {
   const [view, setView] = useState<"atual" | "historico">("atual");
 
   async function handleSave() {
-    if (!snapQ.data) return;
+    if (!cmpQ.data) return;
     setSaving(true);
     try {
       const metrics: Record<string, number> = {};
-      for (const r of snapQ.data.reguas) {
-        metrics[`s_${r.day}_clientes`] = r.sacado_clientes;
-        metrics[`s_${r.day}_qtd`]      = r.sacado_qtd;
-        metrics[`s_${r.day}_valor`]    = r.sacado_valor;
-        metrics[`c_${r.day}_clientes`] = r.cedente_clientes;
-        metrics[`c_${r.day}_qtd`]      = r.cedente_qtd;
-        metrics[`c_${r.day}_valor`]    = r.cedente_valor;
+      for (const r of cmpQ.data.rows) {
+        const key = `${r.type[0]}_${r.day}`;
+        metrics[`${key}_elegiveis`] = r.elegiveis;
+        metrics[`${key}_enviados`]  = r.enviados;
       }
       await fetchSave({ data: {
         label: format(new Date(), "dd/MM/yyyy HH:mm"),
@@ -503,11 +496,11 @@ function CobrancaTab() {
     }
   }
 
-  const isLoading = settingsQ.isLoading || snapQ.isLoading;
-  const reguas: CobrancaRegua[] = snapQ.data?.reguas ?? [];
+  const isLoading = settingsQ.isLoading || cmpQ.isLoading;
+  const rows: CobrancaRow[] = cmpQ.data?.rows ?? [];
+  const cedente = rows.filter((r) => r.type === "cedente");
+  const sacado  = rows.filter((r) => r.type === "sacado");
   const history: MetricSnapshot[] = histQ.data?.snapshots ?? [];
-
-  const DAYS_ORDER = [-7, -1, 0, 1, 2, 3, 4, 5, 7, 9, 10, 12, 15, 31] as const;
 
   return (
     <div className="space-y-5">
@@ -523,25 +516,25 @@ function CobrancaTab() {
                 view === v ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
               )}
             >
-              {v === "atual" ? "Snapshot atual" : `Histórico (${history.length})`}
+              {v === "atual" ? "Hoje" : `Histórico (${history.length})`}
             </button>
           ))}
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => snapQ.refetch()} disabled={snapQ.isFetching}>
-            <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", snapQ.isFetching && "animate-spin")} />
+          <Button variant="outline" size="sm" onClick={() => cmpQ.refetch()} disabled={cmpQ.isFetching}>
+            <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", cmpQ.isFetching && "animate-spin")} />
             Atualizar
           </Button>
-          <Button size="sm" onClick={handleSave} disabled={saving || !snapQ.data || snapQ.isFetching}>
+          <Button size="sm" onClick={handleSave} disabled={saving || !cmpQ.data || cmpQ.isFetching}>
             <Save className="mr-1.5 h-3.5 w-3.5" />
-            {saving ? "Salvando…" : "Salvar snapshot"}
+            {saving ? "Salvando…" : "Salvar"}
           </Button>
         </div>
       </div>
 
-      {snapQ.isError && (
+      {cmpQ.isError && (
         <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-          {(snapQ.error as Error).message}
+          {(cmpQ.error as Error).message}
         </div>
       )}
 
@@ -550,38 +543,23 @@ function CobrancaTab() {
         <>
           {isLoading ? (
             <div className="space-y-2">
-              {Array.from({ length: 6 }).map((_, i) => (
+              {Array.from({ length: 8 }).map((_, i) => (
                 <div key={i} className="h-10 animate-pulse rounded-lg bg-muted" />
               ))}
             </div>
-          ) : reguas.length === 0 ? (
+          ) : rows.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border px-6 py-12 text-center text-sm text-muted-foreground">
-              Nenhum dado de cobrança encontrado. Verifique se os campos de conta estão configurados no ActiveCampaign.
+              Nenhum dado encontrado. Verifique se as automações e campos de conta estão configurados.
             </div>
           ) : (
             <>
-              {snapQ.data?.fetchedAt && (
+              {cmpQ.data?.fetchedAt && (
                 <p className="text-[11px] text-muted-foreground">
-                  Snapshot às {format(new Date(snapQ.data.fetchedAt), "HH:mm 'de' dd/MM/yyyy")}
-                  {snapQ.data.totalAccounts ? ` · ${snapQ.data.totalAccounts.toLocaleString("pt-BR")} contas` : ""}
+                  Atualizado às {format(new Date(cmpQ.data.fetchedAt), "HH:mm 'de' dd/MM/yyyy")}
                 </p>
               )}
-
-              {/* Tabela Sacado */}
-              <CobrancaTable title="Sacado" accent="border-l-amber-500" rows={reguas.map((r) => ({
-                label: r.label,
-                clientes: r.sacado_clientes,
-                qtd: r.sacado_qtd,
-                valor: r.sacado_valor,
-              }))} />
-
-              {/* Tabela Cedente */}
-              <CobrancaTable title="Cedente" accent="border-l-primary" rows={reguas.map((r) => ({
-                label: r.label,
-                clientes: r.cedente_clientes,
-                qtd: r.cedente_qtd,
-                valor: r.cedente_valor,
-              }))} />
+              <CobrancaCompareTable title="Cedente" accent="border-l-primary" rows={cedente} />
+              <CobrancaCompareTable title="Sacado"  accent="border-l-amber-500" rows={sacado} />
             </>
           )}
         </>
@@ -592,55 +570,67 @@ function CobrancaTab() {
         <>
           {history.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border px-6 py-12 text-center text-sm text-muted-foreground">
-              Nenhum snapshot salvo ainda. Clique em "Salvar snapshot" para registrar o estado atual.
+              Nenhum registro salvo ainda. Clique em "Salvar" para registrar o estado de hoje.
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-border bg-card">
-              <table className="w-full text-sm">
-                <thead className="bg-surface text-[11px] uppercase tracking-wider text-muted-foreground">
-                  <tr>
-                    <th className="px-4 py-3 text-left font-medium whitespace-nowrap">Data</th>
-                    {DAYS_ORDER.map((d) => {
-                      const lbl = d < 0 ? `D${d}` : d === 0 ? "D0" : `D+${d}`;
-                      return (
-                        <th key={d} className="px-3 py-3 text-right font-medium whitespace-nowrap" colSpan={2}>
-                          {lbl}
-                        </th>
-                      );
-                    })}
-                  </tr>
-                  <tr className="border-t border-border">
-                    <th className="px-4 py-1.5 text-left text-[10px] text-muted-foreground/60">—</th>
-                    {DAYS_ORDER.map((d) => (
-                      <>
-                        <th key={`${d}-s`} className="px-2 py-1.5 text-right text-[10px] text-amber-500/80">Sacado</th>
-                        <th key={`${d}-c`} className="px-2 py-1.5 text-right text-[10px] text-primary/80">Cedente</th>
-                      </>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {history.map((snap) => (
-                    <tr key={snap.id} className="border-t border-border hover:bg-surface-2">
-                      <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">{snap.label}</td>
-                      {DAYS_ORDER.map((d) => {
-                        const sc = Number(snap.metrics[`s_${d}_clientes`] ?? 0);
-                        const cc = Number(snap.metrics[`c_${d}_clientes`] ?? 0);
-                        return (
-                          <>
-                            <td key={`${d}-s`} className="px-2 py-3 text-right font-mono tabular-nums text-xs">
-                              {sc > 0 ? <span className="text-amber-500">{sc}</span> : <span className="text-muted-foreground/40">—</span>}
-                            </td>
-                            <td key={`${d}-c`} className="px-2 py-3 text-right font-mono tabular-nums text-xs">
-                              {cc > 0 ? <span className="text-primary">{cc}</span> : <span className="text-muted-foreground/40">—</span>}
-                            </td>
-                          </>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="space-y-6">
+              {(["cedente", "sacado"] as const).map((tipo) => {
+                const tipoRows = rows.filter((r) => r.type === tipo);
+                if (tipoRows.length === 0) return null;
+                return (
+                  <div key={tipo}>
+                    <p className={cn("mb-2 text-[11px] font-bold uppercase tracking-widest", tipo === "sacado" ? "text-amber-500" : "text-primary")}>
+                      {tipo === "cedente" ? "Cedente" : "Sacado"}
+                    </p>
+                    <div className="overflow-x-auto rounded-xl border border-border bg-card">
+                      <table className="w-full text-sm">
+                        <thead className="bg-surface text-[11px] uppercase tracking-wider text-muted-foreground">
+                          <tr>
+                            <th className="px-4 py-2.5 text-left font-medium whitespace-nowrap">Data</th>
+                            {tipoRows.map((r) => (
+                              <th key={`${r.type}-${r.day}`} className="px-3 py-2.5 text-center font-medium whitespace-nowrap" colSpan={2}>
+                                {r.label}
+                              </th>
+                            ))}
+                          </tr>
+                          <tr className="border-t border-border">
+                            <th className="px-4 py-1 text-[10px] text-muted-foreground/50">—</th>
+                            {tipoRows.map((r) => (
+                              <>
+                                <th key={`${r.type}-${r.day}-el`} className="px-2 py-1 text-center text-[10px] text-muted-foreground">Elegíveis</th>
+                                <th key={`${r.type}-${r.day}-en`} className="px-2 py-1 text-center text-[10px] text-primary">Enviados</th>
+                              </>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {history.map((snap) => (
+                            <tr key={snap.id} className="border-t border-border hover:bg-surface-2">
+                              <td className="px-4 py-2.5 font-mono text-xs whitespace-nowrap">{snap.label}</td>
+                              {tipoRows.map((r) => {
+                                const key = `${r.type[0]}_${r.day}`;
+                                const el = Number(snap.metrics[`${key}_elegiveis`] ?? 0);
+                                const en = Number(snap.metrics[`${key}_enviados`]  ?? 0);
+                                const diff = en - el;
+                                return (
+                                  <>
+                                    <td key={`${key}-el`} className="px-2 py-2.5 text-center font-mono tabular-nums text-xs">
+                                      {el > 0 ? el.toLocaleString("pt-BR") : <span className="text-muted-foreground/30">—</span>}
+                                    </td>
+                                    <td key={`${key}-en`} className={cn("px-2 py-2.5 text-center font-mono tabular-nums text-xs font-medium", diff < 0 ? "text-destructive" : diff === 0 && en > 0 ? "text-success" : "")}>
+                                      {en > 0 ? en.toLocaleString("pt-BR") : <span className="text-muted-foreground/30">—</span>}
+                                    </td>
+                                  </>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </>
@@ -649,16 +639,7 @@ function CobrancaTab() {
   );
 }
 
-function CobrancaTable({
-  title,
-  accent,
-  rows,
-}: {
-  title: string;
-  accent: string;
-  rows: { label: string; clientes: number; qtd: number; valor: number }[];
-}) {
-  const hasData = rows.some((r) => r.clientes > 0 || r.qtd > 0);
+function CobrancaCompareTable({ title, accent, rows }: { title: string; accent: string; rows: CobrancaRow[] }) {
   return (
     <div>
       <p className={cn("mb-2 text-[11px] font-bold uppercase tracking-widest", title === "Sacado" ? "text-amber-500" : "text-primary")}>
@@ -669,34 +650,39 @@ function CobrancaTable({
           <thead className="bg-surface text-[11px] uppercase tracking-wider text-muted-foreground">
             <tr>
               <th className="px-4 py-2.5 text-left font-medium">Régua</th>
-              <th className="px-4 py-2.5 text-right font-medium">Clientes elegíveis</th>
-              <th className="px-4 py-2.5 text-right font-medium">Qtd títulos</th>
-              <th className="px-4 py-2.5 text-right font-medium">Valor total</th>
+              <th className="px-4 py-2.5 text-left font-medium">Automação</th>
+              <th className="px-4 py-2.5 text-right font-medium">Elegíveis</th>
+              <th className="px-4 py-2.5 text-right font-medium">Enviados AC</th>
+              <th className="px-4 py-2.5 text-right font-medium">Diff</th>
             </tr>
           </thead>
           <tbody>
-            {!hasData ? (
-              <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-xs text-muted-foreground">
-                  Sem dados para {title.toLowerCase()}
-                </td>
-              </tr>
-            ) : (
-              rows.map((r) => (
-                <tr key={r.label} className={cn("border-t border-border", (r.clientes > 0 || r.qtd > 0) ? "" : "opacity-30")}>
-                  <td className={cn("border-l-[3px] px-4 py-3 font-mono font-semibold", accent)}>{r.label}</td>
-                  <td className="px-4 py-3 text-right font-mono tabular-nums">
-                    {r.clientes > 0 ? r.clientes.toLocaleString("pt-BR") : <span className="text-muted-foreground/40">—</span>}
+            {rows.length === 0 ? (
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-xs text-muted-foreground">Sem dados</td></tr>
+            ) : rows.map((r) => {
+              const diff = r.enviados - r.elegiveis;
+              const hasAny = r.elegiveis > 0 || r.enviados > 0;
+              return (
+                <tr key={`${r.type}-${r.day}`} className={cn("border-t border-border transition-colors hover:bg-surface-2", !hasAny && "opacity-40")}>
+                  <td className={cn("border-l-[3px] px-4 py-3 font-mono font-bold text-xs", accent)}>{r.label}</td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground">
+                    {r.automation_id ? r.automation_name : <span className="text-destructive/70 italic">não encontrada</span>}
                   </td>
                   <td className="px-4 py-3 text-right font-mono tabular-nums">
-                    {r.qtd > 0 ? r.qtd.toLocaleString("pt-BR") : <span className="text-muted-foreground/40">—</span>}
+                    {r.elegiveis > 0 ? r.elegiveis.toLocaleString("pt-BR") : <span className="text-muted-foreground/40">—</span>}
                   </td>
-                  <td className="px-4 py-3 text-right font-mono tabular-nums">
-                    {r.valor > 0 ? fmtBRL(r.valor) : <span className="text-muted-foreground/40">—</span>}
+                  <td className="px-4 py-3 text-right font-mono tabular-nums font-medium">
+                    {r.enviados > 0 ? r.enviados.toLocaleString("pt-BR") : <span className="text-muted-foreground/40">—</span>}
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono tabular-nums text-xs">
+                    {!hasAny ? <span className="text-muted-foreground/40">—</span>
+                      : diff === 0 ? <span className="text-success">✓</span>
+                      : diff < 0 ? <span className="text-destructive">{diff.toLocaleString("pt-BR")}</span>
+                      : <span className="text-warning">+{diff.toLocaleString("pt-BR")}</span>}
                   </td>
                 </tr>
-              ))
-            )}
+              );
+            })}
           </tbody>
         </table>
       </div>
