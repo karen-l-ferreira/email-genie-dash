@@ -700,12 +700,16 @@ export const getCobrancaComparison = createServerFn({ method: "GET" })
       try {
         const j = await acFetch(creds, "campaigns", {
           "filters[automation]": autoId,
-          limit: "50",
+          limit: "100",
+          orders: "sdate",
+          "orders[sdate]": "DESC",
         });
         const camps: any[] = j.campaigns ?? [];
-        // Sum send_amt across all campaigns of this automation (cumulative total)
-        const total = camps.reduce((s: number, c: any) => s + Number(c.send_amt ?? c.total_amt ?? 0), 0);
-        sendsMap[autoId] = total;
+        // Each campaign = one daily send batch; sdate = the date it ran
+        const todaySends = camps
+          .filter((c: any) => (c.sdate ?? "").startsWith(today))
+          .reduce((s: number, c: any) => s + Number(c.send_amt ?? 0), 0);
+        sendsMap[autoId] = todaySends;
       } catch { sendsMap[autoId] = 0; }
     }));
 

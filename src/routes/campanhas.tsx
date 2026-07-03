@@ -508,9 +508,11 @@ function CobrancaTab() {
 
   const isLoading = settingsQ.isLoading || cmpQ.isLoading;
   const rows: CobrancaRow[] = cmpQ.data?.rows ?? [];
+  const history: MetricSnapshot[] = histQ.data?.snapshots ?? [];
   const cedente = rows.filter((r) => r.type === "cedente");
   const sacado  = rows.filter((r) => r.type === "sacado");
-  const history: MetricSnapshot[] = histQ.data?.snapshots ?? [];
+
+  const [drillRow, setDrillRow] = useState<CobrancaRow | null>(null);
 
   return (
     <div className="space-y-5">
