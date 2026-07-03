@@ -703,11 +703,9 @@ export const getCobrancaComparison = createServerFn({ method: "GET" })
           limit: "50",
         });
         const camps: any[] = j.campaigns ?? [];
-        // Sum send_amt for campaigns whose last activity is today
-        const todaySends = camps
-          .filter((c) => (c.ldate ?? c.sdate ?? "").startsWith(today))
-          .reduce((s: number, c: any) => s + Number(c.send_amt ?? c.total_amt ?? 0), 0);
-        sendsMap[autoId] = todaySends;
+        // Sum send_amt across all campaigns of this automation (cumulative total)
+        const total = camps.reduce((s: number, c: any) => s + Number(c.send_amt ?? c.total_amt ?? 0), 0);
+        sendsMap[autoId] = total;
       } catch { sendsMap[autoId] = 0; }
     }));
 
