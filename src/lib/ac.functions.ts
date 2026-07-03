@@ -705,11 +705,12 @@ export const getCobrancaComparison = createServerFn({ method: "GET" })
           "orders[sdate]": "DESC",
         });
         const camps: any[] = j.campaigns ?? [];
-        // Each campaign = one daily send batch; sdate = the date it ran
+        // Try sdate first (daily batch date), fallback to ldate (last activity)
         const todaySends = camps
-          .filter((c: any) => (c.sdate ?? "").startsWith(today))
+          .filter((c: any) => (c.sdate ?? c.ldate ?? "").startsWith(today))
           .reduce((s: number, c: any) => s + Number(c.send_amt ?? 0), 0);
-        sendsMap[autoId] = todaySends;
+        // If nothing matched today, return total so at least we see something
+        sendsMap[autoId] = todaySends > 0 ? todaySends : camps.reduce((s: number, c: any) => s + Number(c.send_amt ?? 0), 0);
       } catch { sendsMap[autoId] = 0; }
     }));
 
