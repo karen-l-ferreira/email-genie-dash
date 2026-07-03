@@ -604,14 +604,28 @@ export const listAccountsForAnalysis = createServerFn({ method: "GET" })
 // fieldDay: the number parsed from the account field label (D-7→-7, D0→0, D1→1, D7→7…)
 // IDs diretos do AC — evita lookup por nome que pode falhar por diferença de caracteres
 const REGUA_DEFS: { id: string; name: string; type: "cedente" | "sacado"; label: string; fieldDay: number; fieldTag: string }[] = [
-  { id: "220", name: "D-7 Cedente",  type: "cedente", label: "D-7", fieldDay: -7, fieldTag: "ACCT_COBRANA_CEDENTE_D7_QTD"  },
-  { id: "224", name: "D-1 Cedente",  type: "cedente", label: "D-1", fieldDay: -1, fieldTag: "ACCT_COBRANA_CEDENTE_D1_QTD"  },
-  { id: "217", name: "D0 Cedente",   type: "cedente", label: "D0",  fieldDay:  0, fieldTag: "ACCT_COBRANA_CEDENTE_D0_QTD"  },
-  { id: "223", name: "D+1 Cedente",  type: "cedente", label: "D+1", fieldDay:  1, fieldTag: "ACCT_COBRANA_CEDENTE_D1_QTD_POS" },
-  { id: "219", name: "D+2 Cedente",  type: "cedente", label: "D+2", fieldDay:  2, fieldTag: "ACCT_COBRANA_CEDENTE_D2_QTD"  },
-  { id: "218", name: "D+3 Cedente",  type: "cedente", label: "D+3", fieldDay:  3, fieldTag: "ACCT_COBRANA_CEDENTE_D3_QTD"  },
-  { id: "221", name: "D+4 Cedente",  type: "cedente", label: "D+4", fieldDay:  4, fieldTag: "ACCT_COBRANA_CEDENTE_D4_QTD"  },
-  { id: "222", name: "D+5 Cedente",  type: "cedente", label: "D+5", fieldDay:  5, fieldTag: "ACCT_COBRANA_CEDENTE_D5_QTD"  },
+  // Cedente
+  { id: "41",  name: "[Cobrança - Cedente] 7 Dias Vencimento",        type: "cedente", label: "D-7",  fieldDay: -7, fieldTag: "ACCT_COBRANA_CEDENTE_D7_QTD"  },
+  { id: "49",  name: "[Cobrança - Cedente] Padrão Amanhã Vencimento", type: "cedente", label: "D-1",  fieldDay: -1, fieldTag: "ACCT_COBRANA_CEDENTE_D1_QTD"  },
+  { id: "50",  name: "[Cobrança - Cedente] Padrão Hoje Vencimento",   type: "cedente", label: "D0",   fieldDay:  0, fieldTag: "ACCT_COBRANA_CEDENTE_D0_QTD"  },
+  { id: "19",  name: "[Cobrança - Cedente] Ontem Vencimento",         type: "cedente", label: "D+1",  fieldDay:  1, fieldTag: "ACCT_COBRANA_CEDENTE_D1P_QTD" },
+  { id: "44",  name: "[Cobrança - Cedente] D+3 Vencimento",           type: "cedente", label: "D+3",  fieldDay:  3, fieldTag: "ACCT_COBRANA_CEDENTE_D3_QTD"  },
+  { id: "140", name: "[Cobrança - Cedente] D+5 Vencimento",           type: "cedente", label: "D+5",  fieldDay:  5, fieldTag: "ACCT_COBRANA_CEDENTE_D5_QTD"  },
+  { id: "141", name: "[Cobrança - Cedente] D+9 Vencimento",           type: "cedente", label: "D+9",  fieldDay:  9, fieldTag: "ACCT_COBRANA_CEDENTE_D9_QTD"  },
+  { id: "142", name: "[Cobrança - Cedente] D+10 Vencimento",          type: "cedente", label: "D+10", fieldDay: 10, fieldTag: "ACCT_COBRANA_CEDENTE_D10_QTD" },
+  { id: "143", name: "[Cobrança - Cedente] D+12 Vencimento",          type: "cedente", label: "D+12", fieldDay: 12, fieldTag: "ACCT_COBRANA_CEDENTE_D12_QTD" },
+  { id: "144", name: "[Cobrança - Cedente] D+15 Vencimento",          type: "cedente", label: "D+15", fieldDay: 15, fieldTag: "ACCT_COBRANA_CEDENTE_D15_QTD" },
+  { id: "145", name: "[Cobrança - Cedente] D+31",                     type: "cedente", label: "D+31", fieldDay: 31, fieldTag: "ACCT_COBRANA_CEDENTE_D31_QTD" },
+  // Sacado
+  { id: "67",  name: "[Cobrança - Sacado] Padrão Amanhã Vencimento",  type: "sacado",  label: "D-1",  fieldDay: -1, fieldTag: "ACCT_COBRANA_SACADO_D1_QTD"  },
+  { id: "70",  name: "[Cobrança - Sacado] Padrão Hoje Vencimento",    type: "sacado",  label: "D0",   fieldDay:  0, fieldTag: "ACCT_COBRANA_SACADO_D0_QTD"  },
+  { id: "155", name: "[Cobrança - Sacado] Ontem Vencimento",          type: "sacado",  label: "D+1",  fieldDay:  1, fieldTag: "ACCT_COBRANA_SACADO_D1P_QTD" },
+  { id: "154", name: "[Cobrança - Sacado] D+3 Vencimento",            type: "sacado",  label: "D+3",  fieldDay:  3, fieldTag: "ACCT_COBRANA_SACADO_D3_QTD"  },
+  { id: "156", name: "[Cobrança - Sacado] D+4 Vencimento",            type: "sacado",  label: "D+4",  fieldDay:  4, fieldTag: "ACCT_COBRANA_SACADO_D4_QTD"  },
+  { id: "157", name: "[Cobrança - Sacado] D+5 Vencimento",            type: "sacado",  label: "D+5",  fieldDay:  5, fieldTag: "ACCT_COBRANA_SACADO_D5_QTD"  },
+  { id: "158", name: "[Cobrança - Sacado] D+9 Vencimento",            type: "sacado",  label: "D+9",  fieldDay:  9, fieldTag: "ACCT_COBRANA_SACADO_D9_QTD"  },
+  { id: "159", name: "[Cobrança - Sacado] D+12 Vencimento",           type: "sacado",  label: "D+12", fieldDay: 12, fieldTag: "ACCT_COBRANA_SACADO_D12_QTD" },
+  { id: "160", name: "[Cobrança - Sacado] D+15 Vencimento",           type: "sacado",  label: "D+15", fieldDay: 15, fieldTag: "ACCT_COBRANA_SACADO_D15_QTD" },
 ];
 
 export type CobrancaRow = {
