@@ -486,7 +486,7 @@ function CobrancaTab() {
     try {
       const metrics: Record<string, number> = {};
       for (const r of cmpQ.data.rows) {
-        const key = `${r.type[0]}_${r.day}`;
+        const key = `${r.type[0]}_${r.fieldDay}`;
         metrics[`${key}_elegiveis`] = r.elegiveis;
         metrics[`${key}_enviados`]  = r.enviados;
       }
@@ -626,7 +626,7 @@ function CobrancaTab() {
                           <tr>
                             <th className="px-4 py-2.5 text-left font-medium whitespace-nowrap">Data</th>
                             {tipoRows.map((r) => (
-                              <th key={`${r.type}-${r.day}`} className="px-3 py-2.5 text-center font-medium whitespace-nowrap" colSpan={2}>
+                              <th key={`${r.type}-${r.fieldDay}`} className="px-3 py-2.5 text-center font-medium whitespace-nowrap" colSpan={2}>
                                 {r.label}
                               </th>
                             ))}
@@ -635,8 +635,8 @@ function CobrancaTab() {
                             <th className="px-4 py-1 text-[10px] text-muted-foreground/50">—</th>
                             {tipoRows.map((r) => (
                               <>
-                                <th key={`${r.type}-${r.day}-el`} className="px-2 py-1 text-center text-[10px] text-muted-foreground">Elegíveis</th>
-                                <th key={`${r.type}-${r.day}-en`} className="px-2 py-1 text-center text-[10px] text-primary">Enviados</th>
+                                <th key={`${r.type}-${r.fieldDay}-el`} className="px-2 py-1 text-center text-[10px] text-muted-foreground">Elegíveis</th>
+                                <th key={`${r.type}-${r.fieldDay}-en`} className="px-2 py-1 text-center text-[10px] text-primary">Enviados</th>
                               </>
                             ))}
                           </tr>
@@ -646,7 +646,7 @@ function CobrancaTab() {
                             <tr key={snap.id} className="border-t border-border hover:bg-surface-2">
                               <td className="px-4 py-2.5 font-mono text-xs whitespace-nowrap">{snap.label}</td>
                               {tipoRows.map((r) => {
-                                const key = `${r.type[0]}_${r.day}`;
+                                const key = `${r.type[0]}_${r.fieldDay}`;
                                 const el = Number(snap.metrics[`${key}_elegiveis`] ?? 0);
                                 const en = Number(snap.metrics[`${key}_enviados`]  ?? 0);
                                 const diff = en - el;
@@ -701,7 +701,7 @@ function CobrancaCompareTable({ title, accent, rows }: { title: string; accent: 
               const diff = r.enviados - r.elegiveis;
               const hasAny = r.elegiveis > 0 || r.enviados > 0;
               return (
-                <tr key={`${r.type}-${r.day}`} className={cn("border-t border-border transition-colors hover:bg-surface-2", !hasAny && "opacity-40")}>
+                <tr key={`${r.type}-${r.fieldDay}`} className={cn("border-t border-border transition-colors hover:bg-surface-2", !hasAny && "opacity-40")}>
                   <td className={cn("border-l-[3px] px-4 py-3 font-mono font-bold text-xs", accent)}>{r.label}</td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">
                     {r.automation_id ? r.automation_name : <span className="text-destructive/70 italic">não encontrada</span>}

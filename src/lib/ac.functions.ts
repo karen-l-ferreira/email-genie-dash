@@ -600,41 +600,40 @@ export const listAccountsForAnalysis = createServerFn({ method: "GET" })
 
 // ─── Cobrança comparison ──────────────────────────────────────────────────────
 
-// Map of automation name → { type, day, label }
-// Names must match exactly what's configured in ActiveCampaign
-const REGUA_DEFS: { name: string; type: "cedente" | "sacado"; day: number; label: string }[] = [
+// Exact automation names from ActiveCampaign + which account field day they correspond to
+// fieldDay: the number parsed from the account field label (D-7→-7, D0→0, D1→1, D7→7…)
+const REGUA_DEFS: { name: string; type: "cedente" | "sacado"; label: string; fieldDay: number }[] = [
   // Cedente
-  { name: "D-7 Vencimento",         type: "cedente", day: -7,  label: "D-7"  },
-  { name: "D-1 Vencimento",         type: "cedente", day: -1,  label: "D-1"  },
-  { name: "Vencimento HOJE",        type: "cedente", day:  0,  label: "D0"   },
-  { name: "D+1 Vencimento",         type: "cedente", day:  1,  label: "D+1"  },
-  { name: "D+3 Vencimento",         type: "cedente", day:  3,  label: "D+3"  },
-  { name: "D+9 Vencimento",         type: "cedente", day:  9,  label: "D+9"  },
-  { name: "D+10 Vencimento",        type: "cedente", day: 10,  label: "D+10" },
-  { name: "D+12 Vencimento",        type: "cedente", day: 12,  label: "D+12" },
-  { name: "D+15 Vencimento",        type: "cedente", day: 15,  label: "D+15" },
-  { name: "D+31",                   type: "cedente", day: 31,  label: "D+31" },
+  { name: "[Cobrança - Cedente] 7 Dias Vencimento",        type: "cedente", label: "D-7",  fieldDay: -7 },
+  { name: "[Cobrança - Cedente] Padrão Amanhã Vencimento", type: "cedente", label: "D-1",  fieldDay: -1 },
+  { name: "[Cobrança - Cedente] Padrão Hoje Vencimento",   type: "cedente", label: "D0",   fieldDay:  0 },
+  { name: "[Cobrança - Cedente] Ontem Vencimento",         type: "cedente", label: "D+1",  fieldDay:  1 },
+  { name: "[Cobrança - Cedente] D+3 Vencimento",           type: "cedente", label: "D+3",  fieldDay:  3 },
+  { name: "[Cobrança - Cedente] D+5 Vencimento",           type: "cedente", label: "D+5",  fieldDay:  5 },
+  { name: "[Cobrança - Cedente] D+9 Vencimento",           type: "cedente", label: "D+9",  fieldDay:  9 },
+  { name: "[Cobrança - Cedente] D+10 Vencimento",          type: "cedente", label: "D+10", fieldDay: 10 },
+  { name: "[Cobrança - Cedente] D+12 Vencimento",          type: "cedente", label: "D+12", fieldDay: 12 },
+  { name: "[Cobrança - Cedente] D+15 Vencimento",          type: "cedente", label: "D+15", fieldDay: 15 },
+  { name: "[Cobrança - Cedente] D+31",                     type: "cedente", label: "D+31", fieldDay: 31 },
   // Sacado
-  { name: "Vencimento amanhã",            type: "sacado", day: -1, label: "D-1"  },
-  { name: "Vencimento HOJE - Sacado",     type: "sacado", day:  0, label: "D0"   },
-  { name: "D+1 Vencimento",              type: "sacado", day:  1, label: "D+1"  },
-  { name: "D+3 Vencimento",              type: "sacado", day:  3, label: "D+3"  },
-  { name: "D+4 Vencimento Sacado",       type: "sacado", day:  4, label: "D+4"  },
-  { name: "D+5 Vencido - Sacado",        type: "sacado", day:  5, label: "D+5"  },
-  { name: "D+9 Vencimento",              type: "sacado", day:  9, label: "D+9"  },
-  { name: "D+12 Vencimento",             type: "sacado", day: 12, label: "D+12" },
-  { name: "D+15 Vencimento",             type: "sacado", day: 15, label: "D+15" },
+  { name: "[Cobrança - Sacado] Padrão Amanhã Vencimento",  type: "sacado",  label: "D-1",  fieldDay: -1 },
+  { name: "[Cobrança - Sacado] Padrão Hoje Vencimento",    type: "sacado",  label: "D0",   fieldDay:  0 },
+  { name: "[Cobrança - Sacado] Ontem Vencimento",          type: "sacado",  label: "D+1",  fieldDay:  1 },
+  { name: "[Cobrança - Sacado] D+3 Vencimento",            type: "sacado",  label: "D+3",  fieldDay:  3 },
+  { name: "[Cobrança - Sacado] D+4 Vencimento",            type: "sacado",  label: "D+4",  fieldDay:  4 },
+  { name: "[Cobrança - Sacado] D+5 Vencimento",            type: "sacado",  label: "D+5",  fieldDay:  5 },
+  { name: "[Cobrança - Sacado] D+9 Vencimento",            type: "sacado",  label: "D+9",  fieldDay:  9 },
+  { name: "[Cobrança - Sacado] D+12 Vencimento",           type: "sacado",  label: "D+12", fieldDay: 12 },
+  { name: "[Cobrança - Sacado] D+15 Vencimento",           type: "sacado",  label: "D+15", fieldDay: 15 },
 ];
 
 export type CobrancaRow = {
   label: string;
-  day: number;
+  fieldDay: number;
   type: "cedente" | "sacado";
   automation_name: string;
   automation_id: string | null;
-  // from AC automation campaigns (today's sends)
   enviados: number;
-  // from AC account custom fields (eligible clients)
   elegiveis: number;
 };
 
@@ -768,24 +767,16 @@ export const getCobrancaComparison = createServerFn({ method: "GET" })
     }
 
     // ── 4. Build rows ────────────────────────────────────────────────────────
-    // For Cedente and Sacado, we need to handle same-name automations separately
-    // Track which names have already been used per type to avoid double-counting
-    const usedKeys = new Set<string>();
     const rows: CobrancaRow[] = [];
 
     for (const def of REGUA_DEFS) {
-      const key = `${def.type}:${def.name}`;
-      if (usedKeys.has(key)) continue;
-      usedKeys.add(key);
-
       const autoId = autoByName[def.name] ?? null;
-      // For shared names (D+1, D+3 etc.), cedente gets first match, sacado gets same
       const enviados = autoId ? (sendsMap[autoId] ?? 0) : 0;
-      const elegiveis = eligible[def.type][def.day] ?? 0;
+      const elegiveis = eligible[def.type][def.fieldDay] ?? 0;
 
       rows.push({
         label: def.label,
-        day: def.day,
+        fieldDay: def.fieldDay,
         type: def.type,
         automation_name: def.name,
         automation_id: autoId,
