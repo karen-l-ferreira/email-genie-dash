@@ -644,6 +644,31 @@ function dayLabel(d: number) {
   return `D+${d}`;
 }
 
+export const debugCobrancaNames = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const creds = await getCreds(context.supabase, context.userId);
+
+    // All automation names
+    let allAutos: any[] = [];
+    for (let page = 0; page < 5; page++) {
+      const j = await acFetch(creds, "automations", { limit: "100", offset: String(page * 100) });
+      const batch = j.automations ?? [];
+      allAutos = allAutos.concat(batch);
+      if (batch.length < 100) break;
+    }
+    const autoNames = allAutos.map((a: any) => ({ id: String(a.id), name: String(a.name ?? "") }));
+
+    // All account custom field labels
+    const fieldsJson = await acFetch(creds, "accountCustomFieldMeta", { limit: "200" });
+    const fieldLabels = (fieldsJson.accountCustomFieldMeta ?? []).map((f: any) => ({
+      id: String(f.id),
+      label: String(f.fieldLabel ?? ""),
+    }));
+
+    return { autoNames, fieldLabels };
+  });
+
 export const getCobrancaComparison = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {

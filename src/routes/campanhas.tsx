@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { listCampaigns, listAutomations, getCobrancaComparison, saveSnapshot, listSnapshots, type Campaign, type Automation, type CobrancaRow, type MetricSnapshot } from "@/lib/ac.functions";
+import { listCampaigns, listAutomations, getCobrancaComparison, debugCobrancaNames, saveSnapshot, listSnapshots, type Campaign, type Automation, type CobrancaRow, type MetricSnapshot } from "@/lib/ac.functions";
 import { getSettings } from "@/lib/settings.functions";
 import { AuthGate } from "@/components/app/AuthGate";
 import { AppHeader } from "@/components/app/Header";
@@ -450,6 +450,7 @@ function RateCell({ value, bench }: { value: number; bench: number }) {
 function CobrancaTab() {
   const fetchSettings = useServerFn(getSettings);
   const fetchCompare  = useServerFn(getCobrancaComparison);
+  const fetchDebug    = useServerFn(debugCobrancaNames);
   const fetchSave     = useServerFn(saveSnapshot);
   const fetchSnaps    = useServerFn(listSnapshots);
 
@@ -469,6 +470,15 @@ function CobrancaTab() {
 
   const [saving, setSaving] = useState(false);
   const [view, setView] = useState<"atual" | "historico">("atual");
+  const [showDebug, setShowDebug] = useState(false);
+  const [debugData, setDebugData] = useState<{ autoNames: {id:string;name:string}[]; fieldLabels: {id:string;label:string}[] } | null>(null);
+  const [loadingDebug, setLoadingDebug] = useState(false);
+
+  async function loadDebug() {
+    setLoadingDebug(true);
+    try { setDebugData(await fetchDebug()); } catch {}
+    finally { setLoadingDebug(false); setShowDebug(true); }
+  }
 
   async function handleSave() {
     if (!cmpQ.data) return;
@@ -537,6 +547,34 @@ function CobrancaTab() {
           {(cmpQ.error as Error).message}
         </div>
       )}
+
+      {/* Debug panel */}
+      <div>
+        <button onClick={loadDebug} disabled={loadingDebug} className="text-[11px] text-muted-foreground underline hover:text-foreground">
+          {loadingDebug ? "Carregando nomes reais…" : "Ver nomes reais do AC (debug)"}
+        </button>
+        {showDebug && debugData && (
+          <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/20 p-4 text-xs font-mono space-y-3">
+            <div>
+              <p className="font-bold text-amber-800 dark:text-amber-300 mb-1">Automações no AC ({debugData.autoNames.length}):</p>
+              <ul className="space-y-0.5 max-h-48 overflow-y-auto">
+                {debugData.autoNames.map((a) => (
+                  <li key={a.id} className="text-amber-900 dark:text-amber-200">[{a.id}] {a.name}</li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <p className="font-bold text-amber-800 dark:text-amber-300 mb-1">Campos de conta ({debugData.fieldLabels.length}):</p>
+              <ul className="space-y-0.5 max-h-48 overflow-y-auto">
+                {debugData.fieldLabels.filter((f) => /cobran/i.test(f.label)).map((f) => (
+                  <li key={f.id} className="text-amber-900 dark:text-amber-200">[{f.id}] {f.label}</li>
+                ))}
+              </ul>
+            </div>
+            <button onClick={() => setShowDebug(false)} className="text-amber-700 underline">Fechar</button>
+          </div>
+        )}
+      </div>
 
       {/* ── Vista atual ── */}
       {view === "atual" && (
