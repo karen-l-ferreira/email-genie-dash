@@ -233,14 +233,16 @@ function ClientesTab({
     } : r;
   });
 
-  function checkLevel(r: typeof rows[0]) {
-    if (!r.contatado) return 0;
-    if (!r.followupEm) return 1;
-    if (!r.ultimoFollowupEm) return 2;
-    return 3;
-  }
-
-  const rowsOrdenados = [...rows].sort((a, b) => checkLevel(a) - checkLevel(b));
+  const rowsOrdenados = [...rows].sort((a, b) => {
+    const aChecked = a.contatado ? 1 : 0;
+    const bChecked = b.contatado ? 1 : 0;
+    if (aChecked !== bChecked) return aChecked - bChecked; // não-ticados primeiro
+    if (!a.contatado) return 0; // ambos não-ticados: mantém ordem original
+    // Ambos ticados: quem foi contatado mais recentemente vai pro fim
+    const aTime = a.contatadoEm ?? "";
+    const bTime = b.contatadoEm ?? "";
+    return aTime < bTime ? -1 : aTime > bTime ? 1 : 0;
+  });
 
   return (
     <div>
