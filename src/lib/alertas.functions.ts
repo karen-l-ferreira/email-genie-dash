@@ -423,7 +423,27 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
       );
     }
 
-    const rowsOrdenados = rows;
+    // Busca contatados do Supabase para ordenar: não-ticados sempre primeiro
+    const { data: contatadosDb } = await (context.supabase as any)
+      .from("alertas_contatos")
+      .select("contact_id, contatado, contatado_em");
+    const contatadosMap = new Map<string, { contatado: boolean; em: string | null }>();
+    for (const row of contatadosDb ?? []) {
+      contatadosMap.set(String(row.contact_id), { contatado: row.contatado, em: row.contatado_em });
+    }
+
+    // Aplica status e separa: pendentes primeiro, ticados no fim
+    const pendentes: typeof rows = [];
+    const ticados: typeof rows = [];
+    for (const r of rows) {
+      const ct = contatadosMap.get(r.contactId);
+      if (ct?.contatado) {
+        ticados.push({ ...r, contatado: true, contatadoEm: ct.em });
+      } else {
+        pendentes.push(r);
+      }
+    }
+    const rowsOrdenados = [...pendentes, ...ticados];
 
     const pageSize = 25;
     const total = rowsOrdenados.length;
