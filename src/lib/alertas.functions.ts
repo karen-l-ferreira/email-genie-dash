@@ -313,6 +313,8 @@ export type AlertaClienteRow = {
   limiteDisponivel: number;
   contatado: boolean;
   contatadoEm: string | null;
+  followupEm: string | null;
+  ultimoFollowupEm: string | null;
 };
 
 export type ListAlertasResult = {
@@ -426,24 +428,41 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
     // Busca contatados do Supabase para ordenar: não-ticados sempre primeiro
     const { data: contatadosDb } = await (context.supabase as any)
       .from("alertas_contatos")
-      .select("contact_id, contatado, contatado_em");
-    const contatadosMap = new Map<string, { contatado: boolean; em: string | null }>();
+      .select("contact_id, contatado, contatado_em, followup_em, ultimo_followup_em");
+    type CtRow = { contatado: boolean; em: string | null; followupEm: string | null; ultimoFollowupEm: string | null };
+    const contatadosMap = new Map<string, CtRow>();
     for (const row of contatadosDb ?? []) {
-      contatadosMap.set(String(row.contact_id), { contatado: row.contatado, em: row.contatado_em });
+      contatadosMap.set(String(row.contact_id), {
+        contatado: row.contatado,
+        em: row.contatado_em,
+        followupEm: row.followup_em ?? null,
+        ultimoFollowupEm: row.ultimo_followup_em ?? null,
+      });
     }
 
-    // Aplica status e separa: pendentes primeiro, ticados no fim
-    const pendentes: typeof rows = [];
-    const ticados: typeof rows = [];
-    for (const r of rows) {
-      const ct = contatadosMap.get(r.contactId);
-      if (ct?.contatado) {
-        ticados.push({ ...r, contatado: true, contatadoEm: ct.em });
-      } else {
-        pendentes.push(r);
-      }
+    // checkLevel: 0 = nenhum, 1 = contatado, 2 = followup, 3 = ultimo followup
+    function checkLevel(ct: CtRow | undefined) {
+      if (!ct?.contatado) return 0;
+      if (!ct.followupEm) return 1;
+      if (!ct.ultimoFollowupEm) return 2;
+      return 3;
     }
-    const rowsOrdenados = [...pendentes, ...ticados];
+
+    const withStatus = rows.map((r) => {
+      const ct = contatadosMap.get(r.contactId);
+      return {
+        ...r,
+        contatado: !!ct?.contatado,
+        contatadoEm: ct?.em ?? null,
+        followupEm: ct?.followupEm ?? null,
+        ultimoFollowupEm: ct?.ultimoFollowupEm ?? null,
+        _level: checkLevel(ct),
+      };
+    });
+
+    // Ordena: 0 checks primeiro, 3 checks por último
+    withStatus.sort((a, b) => a._level - b._level);
+    const rowsOrdenados = withStatus.map(({ _level, ...r }) => r);
 
     const pageSize = 500;
     const total = rowsOrdenados.length;
@@ -463,26 +482,46 @@ export const toggleAlertaContatado = createServerFn({ method: "POST" })
   .inputValidator((d) =>
     z.object({
       contactId: z.string().min(1),
-      contatado: z.boolean(),
+      // action: qual check está sendo acionado
+      action: z.enum(["check1", "uncheck1", "check2", "uncheck2", "check3", "uncheck3"]),
     }).parse(d),
   )
   .handler(async ({ data, context }) => {
     const db = context.supabase as any;
-    if (data.contatado) {
-      const { error } = await db
-        .from("alertas_contatos")
-        .upsert(
-          { contatado_por: context.userId, contact_id: data.contactId, contatado: true, contatado_em: new Date().toISOString() },
-          { onConflict: "contact_id" },
-        );
+    const now = new Date().toISOString();
+
+    if (data.action === "check1") {
+      const { error } = await db.from("alertas_contatos").upsert(
+        { contatado_por: context.userId, contact_id: data.contactId, contatado: true, contatado_em: now },
+        { onConflict: "contact_id" },
+      );
       if (error) throw new Error(error.message);
-    } else {
-      const { error } = await db
-        .from("alertas_contatos")
-        .delete()
+    } else if (data.action === "uncheck1") {
+      // Desfaz tudo
+      const { error } = await db.from("alertas_contatos").delete().eq("contact_id", data.contactId);
+      if (error) throw new Error(error.message);
+    } else if (data.action === "check2") {
+      const { error } = await db.from("alertas_contatos")
+        .update({ followup_em: now })
+        .eq("contact_id", data.contactId);
+      if (error) throw new Error(error.message);
+    } else if (data.action === "uncheck2") {
+      const { error } = await db.from("alertas_contatos")
+        .update({ followup_em: null, ultimo_followup_em: null })
+        .eq("contact_id", data.contactId);
+      if (error) throw new Error(error.message);
+    } else if (data.action === "check3") {
+      const { error } = await db.from("alertas_contatos")
+        .update({ ultimo_followup_em: now })
+        .eq("contact_id", data.contactId);
+      if (error) throw new Error(error.message);
+    } else if (data.action === "uncheck3") {
+      const { error } = await db.from("alertas_contatos")
+        .update({ ultimo_followup_em: null })
         .eq("contact_id", data.contactId);
       if (error) throw new Error(error.message);
     }
+
     return { ok: true };
   });
 

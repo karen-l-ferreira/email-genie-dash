@@ -11,16 +11,22 @@ import {
 import { listAlertasClientes, listCliquesAlertas, toggleAlertaContatado } from "@/lib/alertas.functions";
 import { supabase } from "@/integrations/supabase/client";
 
-// Busca contatados direto do Supabase no browser — leve e rápido (5s refresh)
-// Separado do server function que carrega dados do AC (pesado)
+type ContatadoRow = {
+  contact_id: string;
+  contatado: boolean;
+  contatado_em: string | null;
+  followup_em: string | null;
+  ultimo_followup_em: string | null;
+};
+
 function useContatados() {
   return useQuery({
     queryKey: ["contatados"],
     queryFn: async () => {
       const { data } = await (supabase as any)
         .from("alertas_contatos")
-        .select("contact_id, contatado, contatado_em");
-      return (data ?? []) as { contact_id: string; contatado: boolean; contatado_em: string | null }[];
+        .select("contact_id, contatado, contatado_em, followup_em, ultimo_followup_em");
+      return (data ?? []) as ContatadoRow[];
     },
     refetchInterval: 5000,
   });
@@ -187,15 +193,16 @@ function ClientesTab({
 
   // Mapa de contatados do Supabase (atualizado a cada 5s independente do AC)
   const contatadosMap = useMemo(() => {
-    const map = new Map<string, { contatado: boolean; em: string | null }>();
+    const map = new Map<string, ContatadoRow>();
     for (const r of contatadosQ.data ?? []) {
-      map.set(String(r.contact_id), { contatado: r.contatado, em: r.contatado_em });
+      map.set(String(r.contact_id), r);
     }
     return map;
   }, [contatadosQ.data]);
 
   const toggleMutation = useMutation({
-    mutationFn: (vars: { contactId: string; contatado: boolean }) => toggleFn({ data: vars }),
+    mutationFn: (vars: { contactId: string; action: "check1"|"uncheck1"|"check2"|"uncheck2"|"check3"|"uncheck3" }) =>
+      toggleFn({ data: vars }),
     onMutate: async () => {
       await queryClient.cancelQueries({ queryKey: ["contatados"] });
     },
@@ -217,11 +224,23 @@ function ClientesTab({
 
   const rows = (q.data?.rows ?? []).map((r) => {
     const ct = contatadosMap.get(r.contactId);
-    return ct ? { ...r, contatado: ct.contatado, contatadoEm: ct.em } : r;
+    return ct ? {
+      ...r,
+      contatado: ct.contatado,
+      contatadoEm: ct.contatado_em,
+      followupEm: ct.followup_em ?? null,
+      ultimoFollowupEm: ct.ultimo_followup_em ?? null,
+    } : r;
   });
 
-  // Contatados sempre no fim
-  const rowsOrdenados = [...rows.filter((r) => !r.contatado), ...rows.filter((r) => r.contatado)];
+  function checkLevel(r: typeof rows[0]) {
+    if (!r.contatado) return 0;
+    if (!r.followupEm) return 1;
+    if (!r.ultimoFollowupEm) return 2;
+    return 3;
+  }
+
+  const rowsOrdenados = [...rows].sort((a, b) => checkLevel(a) - checkLevel(b));
 
   return (
     <div>
@@ -304,7 +323,7 @@ function ClientesTab({
                 className={[
                   "relative flex flex-col gap-3 rounded-xl border border-border border-l-4 bg-card p-4 transition-shadow hover:shadow-md",
                   accentBorder,
-                  r.contatado ? "opacity-60" : "",
+                  r.ultimoFollowupEm ? "opacity-50" : r.followupEm ? "opacity-70" : r.contatado ? "opacity-85" : "",
                 ].join(" ")}
               >
                 {/* Header */}
@@ -319,28 +338,72 @@ function ClientesTab({
                     </p>
                   </div>
 
-                  {/* Contatado toggle */}
-                  <button
-                    type="button"
-                    title={r.contatado ? "Desmarcar como contatado" : "Marcar como contatado"}
-                    onClick={() => toggleMutation.mutate({ contactId: r.contactId, contatado: !r.contatado })}
-                    className={[
-                      "shrink-0 flex h-6 w-6 items-center justify-center rounded border transition-all",
-                      r.contatado
-                        ? "border-emerald-500 bg-emerald-500 text-white"
-                        : "border-border bg-background text-transparent hover:border-foreground/50",
-                    ].join(" ")}
-                  >
-                    <Check className="h-3.5 w-3.5" />
-                  </button>
+                  {/* 3 checks progressivos */}
+                  <div className="flex items-center gap-1 shrink-0">
+                    {/* Check 1 — primeiro contato */}
+                    <button
+                      type="button"
+                      title={r.contatado ? "Desmarcar primeiro contato" : "Marcar como contatado"}
+                      onClick={() => toggleMutation.mutate({ contactId: r.contactId, action: r.contatado ? "uncheck1" : "check1" })}
+                      className={[
+                        "flex h-6 w-6 items-center justify-center rounded border transition-all",
+                        r.contatado ? "border-emerald-500 bg-emerald-500 text-white" : "border-border bg-background text-transparent hover:border-foreground/50",
+                      ].join(" ")}
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                    </button>
+                    {/* Check 2 — follow-up (só aparece após check 1) */}
+                    {r.contatado && (
+                      <button
+                        type="button"
+                        title={r.followupEm ? "Desmarcar follow-up" : "Marcar follow-up feito"}
+                        onClick={() => toggleMutation.mutate({ contactId: r.contactId, action: r.followupEm ? "uncheck2" : "check2" })}
+                        className={[
+                          "flex h-6 w-6 items-center justify-center rounded border transition-all",
+                          r.followupEm ? "border-blue-500 bg-blue-500 text-white" : "border-border bg-background text-transparent hover:border-foreground/50",
+                        ].join(" ")}
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    {/* Check 3 — último follow-up (só aparece após check 2) */}
+                    {r.followupEm && (
+                      <button
+                        type="button"
+                        title={r.ultimoFollowupEm ? "Desmarcar último follow-up" : "Marcar último follow-up feito"}
+                        onClick={() => toggleMutation.mutate({ contactId: r.contactId, action: r.ultimoFollowupEm ? "uncheck3" : "check3" })}
+                        className={[
+                          "flex h-6 w-6 items-center justify-center rounded border transition-all",
+                          r.ultimoFollowupEm ? "border-amber-500 bg-amber-500 text-white" : "border-border bg-background text-transparent hover:border-foreground/50",
+                        ].join(" ")}
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
-                {r.contatado && (
-                  <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-600">
-                    <Check className="h-3 w-3" />
-                    Contatado{r.contatadoEm ? ` em ${fmtDate(r.contatadoEm)}` : ""}
-                  </div>
-                )}
+                {/* Status de contatos */}
+                <div className="flex flex-col gap-0.5">
+                  {r.contatado && (
+                    <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-600">
+                      <Check className="h-3 w-3" />
+                      Contatado{r.contatadoEm ? ` em ${fmtDate(r.contatadoEm)}` : ""}
+                    </div>
+                  )}
+                  {r.followupEm && (
+                    <div className="flex items-center gap-1.5 text-xs font-medium text-blue-600">
+                      <Check className="h-3 w-3" />
+                      Follow-up em {fmtDate(r.followupEm)}
+                    </div>
+                  )}
+                  {r.ultimoFollowupEm && (
+                    <div className="flex items-center gap-1.5 text-xs font-medium text-amber-600">
+                      <Check className="h-3 w-3" />
+                      Último follow-up em {fmtDate(r.ultimoFollowupEm)}
+                    </div>
+                  )}
+                </div>
 
                 {/* Key metric */}
                 {mode === "inativos" && (
