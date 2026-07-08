@@ -175,6 +175,7 @@ function ClientesTab({
   const [sort, setSort] = useState<"asc" | "desc">("desc");
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
+  const [contatoFiltro, setContatoFiltro] = useState<"todos"|"sem_contato"|"primeiro"|"followup"|"ultimo">("todos");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fetchFn  = useServerFn(listAlertasClientes);
   const toggleFn = useServerFn(toggleAlertaContatado);
@@ -241,15 +242,23 @@ function ClientesTab({
     } : r;
   });
 
-  const rowsOrdenados = [...rows].sort((a, b) => {
+  const rowsSorted = [...rows].sort((a, b) => {
     const aChecked = a.contatado ? 1 : 0;
     const bChecked = b.contatado ? 1 : 0;
-    if (aChecked !== bChecked) return aChecked - bChecked; // não-ticados primeiro
-    if (!a.contatado) return 0; // ambos não-ticados: mantém ordem original
-    // Ambos ticados: quem foi contatado mais recentemente vai pro fim
+    if (aChecked !== bChecked) return aChecked - bChecked;
+    if (!a.contatado) return 0;
     const aTime = a.contatadoEm ?? "";
     const bTime = b.contatadoEm ?? "";
     return aTime < bTime ? -1 : aTime > bTime ? 1 : 0;
+  });
+
+  const rowsOrdenados = rowsSorted.filter((r) => {
+    if (contatoFiltro === "todos") return true;
+    if (contatoFiltro === "sem_contato") return !r.contatado;
+    if (contatoFiltro === "primeiro")   return r.contatado && !r.followupEm;
+    if (contatoFiltro === "followup")   return !!r.followupEm && !r.ultimoFollowupEm;
+    if (contatoFiltro === "ultimo")     return !!r.ultimoFollowupEm;
+    return true;
   });
 
   return (
@@ -275,11 +284,39 @@ function ClientesTab({
         )}
       </div>
 
+      {/* Filtro por estágio de contato — só para valor e limite */}
+      {(mode === "valor" || mode === "limite") && (
+        <div className="mb-3 flex flex-wrap gap-1.5">
+          {([
+            { key: "todos",       label: "Todos" },
+            { key: "sem_contato", label: "Sem contato" },
+            { key: "primeiro",    label: "1º Contato" },
+            { key: "followup",    label: "Follow-up" },
+            { key: "ultimo",      label: "Último follow-up" },
+          ] as const).map((f) => (
+            <button
+              key={f.key}
+              type="button"
+              onClick={() => setContatoFiltro(f.key)}
+              className={[
+                "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                contatoFiltro === f.key
+                  ? "border-foreground bg-foreground text-background"
+                  : "border-border text-muted-foreground hover:text-foreground",
+              ].join(" ")}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Toolbar */}
       <div className="mb-3 flex items-center justify-between">
         <span className="text-xs text-muted-foreground">
-          {q.data?.total ?? 0} {(q.data?.total ?? 0) === 1 ? "empresa" : "empresas"}
+          {rowsOrdenados.length} {rowsOrdenados.length === 1 ? "empresa" : "empresas"}
           {search && <span className="ml-1">· filtrado por "{search}"</span>}
+          {contatoFiltro !== "todos" && <span className="ml-1">· {contatoFiltro === "sem_contato" ? "sem contato" : contatoFiltro === "primeiro" ? "1º contato feito" : contatoFiltro === "followup" ? "follow-up feito" : "último follow-up feito"}</span>}
         </span>
 
         {mode === "inativos" && (
