@@ -378,6 +378,8 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
         limiteDisponivel: extractLimite(c.cf, acf),
         contatado: false,
         contatadoEm: null,
+        followupEm: null,
+        ultimoFollowupEm: null,
       };
     });
 

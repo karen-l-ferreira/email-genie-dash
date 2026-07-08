@@ -118,6 +118,7 @@ export type Database = {
           id: string
           send_amt: number
           stat_date: string
+          user_id: string | null
         }
         Insert: {
           campaign_id: string
@@ -126,6 +127,7 @@ export type Database = {
           id?: string
           send_amt?: number
           stat_date: string
+          user_id?: string | null
         }
         Update: {
           campaign_id?: string
@@ -134,6 +136,7 @@ export type Database = {
           id?: string
           send_amt?: number
           stat_date?: string
+          user_id?: string | null
         }
         Relationships: []
       }
