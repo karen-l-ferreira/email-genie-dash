@@ -207,6 +207,21 @@ function ClientesTab({
       toggleFn({ data: { contactId: vars.contactId, action: vars.action } }),
     onMutate: async (vars) => {
       await queryClient.cancelQueries({ queryKey: ["contatados"] });
+      const prev = queryClient.getQueryData<ContatadoRow[]>(["contatados"]);
+      const now = new Date().toISOString();
+      queryClient.setQueryData<ContatadoRow[]>(["contatados"], (old = []) => {
+        const exists = old.find((r) => r.contact_id === vars.contactId);
+        const updated: ContatadoRow = exists
+          ? { ...exists }
+          : { contact_id: vars.contactId, contatado: false, contatado_em: null, followup_em: null, ultimo_followup_em: null };
+        if (vars.action === "check1")   { updated.contatado = true; updated.contatado_em = now; }
+        if (vars.action === "uncheck1") { return old.filter((r) => r.contact_id !== vars.contactId); }
+        if (vars.action === "check2")   { updated.followup_em = now; }
+        if (vars.action === "uncheck2") { updated.followup_em = null; updated.ultimo_followup_em = null; }
+        if (vars.action === "check3")   { updated.ultimo_followup_em = now; }
+        if (vars.action === "uncheck3") { updated.ultimo_followup_em = null; }
+        return exists ? old.map((r) => r.contact_id === vars.contactId ? updated : r) : [...old, updated];
+      });
       if (vars.action === "check1") {
         toast.success(`${vars.razaoSocial || "Contato"} marcado — movido para o final da fila`);
       } else if (vars.action === "check2") {
@@ -214,8 +229,10 @@ function ClientesTab({
       } else if (vars.action === "check3") {
         toast.success(`Último follow-up registrado para ${vars.razaoSocial || "contato"}`);
       }
+      return { prev };
     },
-    onError: (err) => {
+    onError: (err, _vars, ctx: any) => {
+      if (ctx?.prev) queryClient.setQueryData(["contatados"], ctx.prev);
       alert(`Erro ao marcar contato: ${(err as Error).message}`);
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: ["contatados"] }),

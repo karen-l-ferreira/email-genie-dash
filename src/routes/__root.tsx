@@ -8,6 +8,7 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { GlobalSearch } from "@/components/app/GlobalSearch";
+import { Toaster } from "@/components/ui/sonner";
 
 import appCss from "../styles.css?url";
 
@@ -121,6 +122,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <GlobalSearch />
       <Outlet />
+      <Toaster />
     </QueryClientProvider>
   );
 }
