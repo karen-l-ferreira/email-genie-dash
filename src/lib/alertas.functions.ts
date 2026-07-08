@@ -445,7 +445,7 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
     }
     const rowsOrdenados = [...pendentes, ...ticados];
 
-    const pageSize = 25;
+    const pageSize = 500;
     const total = rowsOrdenados.length;
     const start = (data.page - 1) * pageSize;
     return {
