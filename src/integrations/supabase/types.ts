@@ -19,25 +19,31 @@ export type Database = {
           contact_id: string
           contatado: boolean
           contatado_em: string
-          contatado_por: string
+          contatado_por: string | null
           created_at: string
+          followup_em: string | null
           id: string
+          ultimo_followup_em: string | null
         }
         Insert: {
           contact_id: string
           contatado?: boolean
           contatado_em?: string
-          contatado_por: string
+          contatado_por?: string | null
           created_at?: string
+          followup_em?: string | null
           id?: string
+          ultimo_followup_em?: string | null
         }
         Update: {
           contact_id?: string
           contatado?: boolean
           contatado_em?: string
-          contatado_por?: string
+          contatado_por?: string | null
           created_at?: string
+          followup_em?: string | null
           id?: string
+          ultimo_followup_em?: string | null
         }
         Relationships: []
       }
@@ -101,6 +107,33 @@ export type Database = {
           kind?: string
           payload?: Json
           user_id?: string
+        }
+        Relationships: []
+      }
+      campaign_daily_stats: {
+        Row: {
+          campaign_id: string
+          campaign_name: string
+          created_at: string | null
+          id: string
+          send_amt: number
+          stat_date: string
+        }
+        Insert: {
+          campaign_id: string
+          campaign_name: string
+          created_at?: string | null
+          id?: string
+          send_amt?: number
+          stat_date: string
+        }
+        Update: {
+          campaign_id?: string
+          campaign_name?: string
+          created_at?: string | null
+          id?: string
+          send_amt?: number
+          stat_date?: string
         }
         Relationships: []
       }
