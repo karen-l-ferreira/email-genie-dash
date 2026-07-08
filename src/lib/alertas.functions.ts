@@ -464,7 +464,7 @@ export const listAlertasClientes = createServerFn({ method: "GET" })
     withStatus.sort((a, b) => a._level - b._level);
     const rowsOrdenados = withStatus.map(({ _level, ...r }) => r);
 
-    const pageSize = 500;
+    const pageSize = 25;
     const total = rowsOrdenados.length;
     const start = (data.page - 1) * pageSize;
     return {

@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { listAlertasClientes, listCliquesAlertas, toggleAlertaContatado } from "@/lib/alertas.functions";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 type ContatadoRow = {
   contact_id: string;
@@ -201,10 +202,17 @@ function ClientesTab({
   }, [contatadosQ.data]);
 
   const toggleMutation = useMutation({
-    mutationFn: (vars: { contactId: string; action: "check1"|"uncheck1"|"check2"|"uncheck2"|"check3"|"uncheck3" }) =>
-      toggleFn({ data: vars }),
-    onMutate: async () => {
+    mutationFn: (vars: { contactId: string; action: "check1"|"uncheck1"|"check2"|"uncheck2"|"check3"|"uncheck3"; razaoSocial?: string }) =>
+      toggleFn({ data: { contactId: vars.contactId, action: vars.action } }),
+    onMutate: async (vars) => {
       await queryClient.cancelQueries({ queryKey: ["contatados"] });
+      if (vars.action === "check1") {
+        toast.success(`${vars.razaoSocial || "Contato"} marcado — movido para o final da fila`);
+      } else if (vars.action === "check2") {
+        toast.success(`Follow-up registrado para ${vars.razaoSocial || "contato"}`);
+      } else if (vars.action === "check3") {
+        toast.success(`Último follow-up registrado para ${vars.razaoSocial || "contato"}`);
+      }
     },
     onError: (err) => {
       alert(`Erro ao marcar contato: ${(err as Error).message}`);
@@ -346,7 +354,7 @@ function ClientesTab({
                     <button
                       type="button"
                       title={r.contatado ? "Desmarcar primeiro contato" : "Marcar como contatado"}
-                      onClick={() => toggleMutation.mutate({ contactId: r.contactId, action: r.contatado ? "uncheck1" : "check1" })}
+                      onClick={() => toggleMutation.mutate({ contactId: r.contactId, action: r.contatado ? "uncheck1" : "check1", razaoSocial: r.razaoSocial })}
                       className={[
                         "flex h-6 w-6 items-center justify-center rounded border transition-all",
                         r.contatado ? "border-emerald-500 bg-emerald-500 text-white" : "border-border bg-background text-transparent hover:border-foreground/50",
@@ -359,7 +367,7 @@ function ClientesTab({
                       <button
                         type="button"
                         title={r.followupEm ? "Desmarcar follow-up" : "Marcar follow-up feito"}
-                        onClick={() => toggleMutation.mutate({ contactId: r.contactId, action: r.followupEm ? "uncheck2" : "check2" })}
+                        onClick={() => toggleMutation.mutate({ contactId: r.contactId, action: r.followupEm ? "uncheck2" : "check2", razaoSocial: r.razaoSocial })}
                         className={[
                           "flex h-6 w-6 items-center justify-center rounded border transition-all",
                           r.followupEm ? "border-blue-500 bg-blue-500 text-white" : "border-border bg-background text-transparent hover:border-foreground/50",
@@ -373,7 +381,7 @@ function ClientesTab({
                       <button
                         type="button"
                         title={r.ultimoFollowupEm ? "Desmarcar último follow-up" : "Marcar último follow-up feito"}
-                        onClick={() => toggleMutation.mutate({ contactId: r.contactId, action: r.ultimoFollowupEm ? "uncheck3" : "check3" })}
+                        onClick={() => toggleMutation.mutate({ contactId: r.contactId, action: r.ultimoFollowupEm ? "uncheck3" : "check3", razaoSocial: r.razaoSocial })}
                         className={[
                           "flex h-6 w-6 items-center justify-center rounded border transition-all",
                           r.ultimoFollowupEm ? "border-amber-500 bg-amber-500 text-white" : "border-border bg-background text-transparent hover:border-foreground/50",
