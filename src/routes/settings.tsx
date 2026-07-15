@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { Settings as SettingsIcon2 } from "lucide-react";
 
 export const Route = createFileRoute("/settings")({
   ssr: false,
@@ -61,9 +62,16 @@ function SettingsPage() {
   return (
     <div className="min-h-screen bg-background pl-[220px]">
       <AppHeader />
-      <main className="mx-auto max-w-2xl px-6 py-10">
-        <h1 className="text-2xl font-semibold">Configurações</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Configure seu acesso ao ActiveCampaign e os benchmarks.</p>
+      <main className="mx-auto max-w-2xl px-6 py-8">
+        <div className="mb-8 flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ backgroundColor: "#0660FE20" }}>
+            <SettingsIcon2 className="h-5 w-5" style={{ color: "#0660FE" }} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Configurações</h1>
+            <p className="text-sm text-muted-foreground">Configure seu acesso ao ActiveCampaign e os benchmarks.</p>
+          </div>
+        </div>
         {isLoading ? (
           <div className="mt-8 h-40 animate-pulse rounded-xl bg-surface" />
         ) : (

@@ -14,9 +14,12 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  BarChart3,
   ChevronRight,
   Clock,
   Download,
+  Mail,
+  MousePointerClick,
   RefreshCw,
   Save,
   Search,
@@ -73,9 +76,14 @@ function FluxosPage() {
     <div className="min-h-screen bg-background pl-[220px]">
       <AppHeader />
       <div className="mx-auto max-w-[1400px] px-6 py-8">
-        <div className="mb-7 border-b border-border pb-5">
-          <p className="mb-1 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">ActiveCampaign</p>
-          <h1 className="text-lg font-bold">Fluxos</h1>
+        <div className="mb-8 flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ backgroundColor: "#0660FE20" }}>
+            <BarChart3 className="h-5 w-5" style={{ color: "#0660FE" }} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Fluxos</h1>
+            <p className="text-sm text-muted-foreground">Campanhas, automações e cobrança do ActiveCampaign.</p>
+          </div>
         </div>
         <div className="mb-6 border-b border-border">
           <nav className="-mb-px flex">
@@ -190,6 +198,11 @@ function CampaignListPage() {
   const isLoading = campaignsQ.isLoading;
   const isError = campaignsQ.isError;
 
+  const sent = allCampaigns.filter((c) => c.send_amt > 0);
+  const avgOR  = sent.length ? sent.reduce((s, c) => s + c.open_rate, 0) / sent.length : 0;
+  const avgCTR = sent.length ? sent.reduce((s, c) => s + c.ctr, 0) / sent.length : 0;
+  const topScore = sent.length ? Math.max(...sent.map((c) => c.score)) : 0;
+
   return (
     <div>
       <Tabs
@@ -210,6 +223,38 @@ function CampaignListPage() {
 
           {/* ── Aba Campanhas ── */}
           <TabsContent value="campaigns" className="mt-6">
+
+            {/* KPIs */}
+            {!isLoading && !isError && sent.length > 0 && (
+              <div className="mb-6 grid gap-4 sm:grid-cols-3">
+                <KpiCard
+                  icon={<Mail className="h-4 w-4" />}
+                  label="Campanhas enviadas"
+                  value={sent.length.toLocaleString("pt-BR")}
+                  sub={`de ${allCampaigns.length} no total`}
+                  accent="#0660FE"
+                />
+                <KpiCard
+                  icon={<MousePointerClick className="h-4 w-4" />}
+                  label="Taxa de abertura media"
+                  value={`${avgOR.toFixed(1)}%`}
+                  sub={`benchmark ${benchOR}%`}
+                  good={avgOR >= benchOR}
+                  bar={{ value: avgOR, max: Math.max(avgOR, benchOR) * 1.4, bench: benchOR }}
+                  accent="#0660FE"
+                />
+                <KpiCard
+                  icon={<ArrowUp className="h-4 w-4" />}
+                  label="CTR medio"
+                  value={`${avgCTR.toFixed(2)}%`}
+                  sub={`benchmark ${benchCTR}%`}
+                  good={avgCTR >= benchCTR}
+                  bar={{ value: avgCTR, max: Math.max(avgCTR, benchCTR) * 1.4, bench: benchCTR }}
+                  accent="#0660FE"
+                />
+              </div>
+            )}
+
             <div className="flex flex-wrap items-center gap-3">
               <button
                 onClick={() => setFilter("sent")}
@@ -261,9 +306,10 @@ function CampaignListPage() {
                     <th className="px-5 py-3 text-left font-medium">Campanha</th>
                     <th className="px-3 py-3 text-left font-medium">Data</th>
                     <SortHeader k="send_amt" sort={sort} setSort={setSort}>Envios</SortHeader>
-                    <SortHeader k="open_rate" sort={sort} setSort={setSort}>T. Abertura</SortHeader>
+                    <SortHeader k="open_rate" sort={sort} setSort={setSort}>Abertura</SortHeader>
                     <SortHeader k="ctr" sort={sort} setSort={setSort}>CTR</SortHeader>
-                    <th className="w-12 px-3 py-3" />
+                    <th className="px-3 py-3 text-right font-medium">Score</th>
+                    <th className="w-10 px-3 py-3" />
                   </tr>
                 </thead>
                 <tbody>
@@ -309,6 +355,9 @@ function CampaignListPage() {
                         </td>
                         <td className="px-3 py-4">
                           <RateCell value={c.ctr} bench={benchCTR} />
+                        </td>
+                        <td className="px-3 py-4">
+                          <ScoreBar score={c.score} />
                         </td>
                         <td className="px-3 py-4 text-muted-foreground">
                           <ChevronRight className="h-4 w-4" />
@@ -440,10 +489,54 @@ function SortHeader({
 
 function RateCell({ value, bench }: { value: number; bench: number }) {
   const above = value >= bench;
+  const max = Math.max(value, bench) * 1.3 || 1;
+  const color = above ? "#22c55e" : "#ef4444";
   return (
-    <span className={cn("font-mono tabular-nums", above ? "text-success" : "text-destructive")}>
-      {value.toFixed(1)}%
-    </span>
+    <div className="flex items-center gap-2">
+      <div className="h-1 w-12 overflow-hidden rounded-full bg-border">
+        <div className="h-full rounded-full transition-all" style={{ width: `${Math.min((value / max) * 100, 100)}%`, backgroundColor: color }} />
+      </div>
+      <span className="font-mono text-xs tabular-nums" style={{ color }}>{value.toFixed(1)}%</span>
+    </div>
+  );
+}
+
+function ScoreBar({ score }: { score: number }) {
+  const color = score >= 70 ? "#22c55e" : score >= 40 ? "#f59e0b" : "#ef4444";
+  return (
+    <div className="flex items-center justify-end gap-2">
+      <div className="h-1.5 w-14 overflow-hidden rounded-full bg-border">
+        <div className="h-full rounded-full" style={{ width: `${score}%`, backgroundColor: color }} />
+      </div>
+      <span className="w-6 font-mono text-xs tabular-nums" style={{ color }}>{score}</span>
+    </div>
+  );
+}
+
+function KpiCard({ icon, label, value, sub, good, bar, accent = "#0660FE" }: {
+  icon: React.ReactNode; label: string; value: string; sub: string;
+  good?: boolean; accent?: string;
+  bar?: { value: number; max: number; bench: number };
+}) {
+  const borderColor = good === true ? "#22c55e" : good === false ? "#ef4444" : accent;
+  const valueColor  = good === true ? "text-success" : good === false ? "text-destructive" : "text-foreground";
+  return (
+    <div className="relative overflow-hidden rounded border border-border bg-card px-5 py-4" style={{ borderTopColor: borderColor, borderTopWidth: "3px" }}>
+      <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+        <span style={{ color: borderColor }}>{icon}</span>
+        {label}
+      </div>
+      <div className={cn("mt-3 font-mono text-3xl font-bold tabular-nums leading-none", valueColor)}>{value}</div>
+      <div className="mt-1 text-[11px] text-muted-foreground">{sub}</div>
+      {bar && (
+        <div className="mt-3">
+          <div className="relative h-1.5 overflow-hidden rounded-full bg-border">
+            <div className="absolute inset-y-0 left-0 rounded-full transition-all" style={{ width: `${Math.min((bar.value / bar.max) * 100, 100)}%`, backgroundColor: borderColor }} />
+            <div className="absolute inset-y-0 w-px bg-muted-foreground/40" style={{ left: `${Math.min((bar.bench / bar.max) * 100, 100)}%` }} />
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -217,15 +217,13 @@ function InfluenciaPage() {
     <div className="min-h-screen bg-background pl-[220px]">
       <AppHeader />
       <main className="mx-auto max-w-[1400px] px-6 py-8">
-        <div className="mb-6 flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/15">
-            <Zap className="h-5 w-5 text-primary" />
+        <div className="mb-8 flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ backgroundColor: "#0660FE20" }}>
+            <Zap className="h-5 w-5" style={{ color: "#0660FE" }} />
           </div>
           <div>
-            <h1 className="text-2xl font-semibold">Análise de Influência</h1>
-            <p className="text-sm text-muted-foreground">
-              Quem abriu o e-mail e operou logo em seguida?
-            </p>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Análise de Influência</h1>
+            <p className="text-sm text-muted-foreground">Quem abriu o e-mail e operou logo em seguida?</p>
           </div>
         </div>
 
@@ -422,11 +420,16 @@ function StatusBadge({ status }: { status: InfluenceStatus }) {
 }
 
 function KpiCard({ icon, label, value, sub, good }: { icon: React.ReactNode; label: string; value: string; sub: string; good?: boolean }) {
+  const borderColor = good === true ? "#22c55e" : good === false ? "#ef4444" : "#0660FE";
+  const valueColor  = good === true ? "text-success" : good === false ? "text-destructive" : "text-foreground";
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">{icon}{label}</div>
-      <div className={cn("mt-2 font-mono text-3xl font-semibold", good === true ? "text-success" : good === false ? "text-destructive" : "text-foreground")}>{value}</div>
-      <div className="mt-1 text-xs text-muted-foreground">{sub}</div>
+    <div className="relative overflow-hidden rounded border border-border bg-card px-5 py-4" style={{ borderTopColor: borderColor, borderTopWidth: "3px" }}>
+      <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+        <span style={{ color: borderColor }}>{icon}</span>
+        {label}
+      </div>
+      <div className={cn("mt-3 font-mono text-3xl font-bold tabular-nums leading-none", valueColor)}>{value}</div>
+      <div className="mt-1 text-[11px] text-muted-foreground">{sub}</div>
     </div>
   );
 }

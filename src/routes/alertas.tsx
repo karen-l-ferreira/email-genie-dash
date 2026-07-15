@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/button";
 import {
   Loader2, ChevronLeft, ChevronRight, Mail, Phone, Check,
   ArrowDown, ArrowUp, MessageCircle, ExternalLink, MousePointerClick, Search, X,
+  Bell, Users, AlertTriangle,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { listAlertasClientes, listCliquesAlertas, toggleAlertaContatado } from "@/lib/alertas.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -83,11 +85,42 @@ function AlertasPage() {
       <div className="mx-auto max-w-5xl px-6 py-8">
 
         {/* Page header */}
-        <div className="mb-7 border-b border-border pb-5">
-          <h1 className="text-lg font-semibold text-foreground">Alertas de Clientes</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Monitore clientes inativos, oportunidades e engajamento com e-mails.
-          </p>
+        <div className="mb-6 flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ backgroundColor: "#0660FE20" }}>
+            <Bell className="h-5 w-5" style={{ color: "#0660FE" }} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Alertas de Clientes</h1>
+            <p className="text-sm text-muted-foreground">Monitore inativos, oportunidades e engajamento.</p>
+          </div>
+        </div>
+
+        {/* KPI summary */}
+        <div className="mb-7 grid gap-4 sm:grid-cols-3">
+          <div className="relative overflow-hidden rounded border border-border bg-card px-5 py-4" style={{ borderTopColor: "#f59e0b", borderTopWidth: "3px" }}>
+            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+              <AlertTriangle className="h-3.5 w-3.5" style={{ color: "#f59e0b" }} />
+              15 dias sem operar
+            </div>
+            <div className="mt-3 font-mono text-3xl font-bold tabular-nums leading-none text-foreground">—</div>
+            <div className="mt-1 text-[11px] text-muted-foreground">clientes inativos</div>
+          </div>
+          <div className="relative overflow-hidden rounded border border-border bg-card px-5 py-4" style={{ borderTopColor: "#ef4444", borderTopWidth: "3px" }}>
+            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+              <AlertTriangle className="h-3.5 w-3.5" style={{ color: "#ef4444" }} />
+              30 dias sem operar
+            </div>
+            <div className="mt-3 font-mono text-3xl font-bold tabular-nums leading-none text-foreground">—</div>
+            <div className="mt-1 text-[11px] text-muted-foreground">risco elevado</div>
+          </div>
+          <div className="relative overflow-hidden rounded border border-border bg-card px-5 py-4" style={{ borderTopColor: "#0660FE", borderTopWidth: "3px" }}>
+            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+              <Users className="h-3.5 w-3.5" style={{ color: "#0660FE" }} />
+              Oportunidades
+            </div>
+            <div className="mt-3 font-mono text-3xl font-bold tabular-nums leading-none text-foreground">—</div>
+            <div className="mt-1 text-[11px] text-muted-foreground">valor aprovado + limite</div>
+          </div>
         </div>
 
         {/* Underline tabs */}
@@ -377,9 +410,9 @@ function ClientesTab({
             const days = mode === "inativos" ? daysDiff(r.ultimaOperacao) : null;
             const accentBorder =
               tab === "sem_operar_15"     ? "border-l-amber-400"
-              : tab === "sem_operar_30"   ? "border-l-red-500"
-              : tab === "valor_aprovado"  ? "border-l-emerald-500"
-              : "border-l-blue-500";
+              : tab === "sem_operar_30"   ? "border-l-red-400"
+              : tab === "valor_aprovado"  ? "border-l-[#0660FE]"
+              : "border-l-[#0660FE]";
 
             return (
               <div
@@ -411,7 +444,7 @@ function ClientesTab({
                       onClick={() => toggleMutation.mutate({ contactId: r.contactId, action: r.contatado ? "uncheck1" : "check1", razaoSocial: r.razaoSocial })}
                       className={[
                         "flex h-6 w-6 items-center justify-center rounded border transition-all",
-                        r.contatado ? "border-emerald-500 bg-emerald-500 text-white" : "border-border bg-background text-transparent hover:border-foreground/50",
+                        r.contatado ? "border-success bg-success text-white" : "border-border bg-background text-transparent hover:border-foreground/50",
                       ].join(" ")}
                     >
                       <Check className="h-3.5 w-3.5" />
@@ -424,7 +457,7 @@ function ClientesTab({
                         onClick={() => toggleMutation.mutate({ contactId: r.contactId, action: r.followupEm ? "uncheck2" : "check2", razaoSocial: r.razaoSocial })}
                         className={[
                           "flex h-6 w-6 items-center justify-center rounded border transition-all",
-                          r.followupEm ? "border-blue-500 bg-blue-500 text-white" : "border-border bg-background text-transparent hover:border-foreground/50",
+                          r.followupEm ? "border-primary bg-primary text-white" : "border-border bg-background text-transparent hover:border-foreground/50",
                         ].join(" ")}
                       >
                         <Check className="h-3.5 w-3.5" />
@@ -438,7 +471,7 @@ function ClientesTab({
                         onClick={() => toggleMutation.mutate({ contactId: r.contactId, action: r.ultimoFollowupEm ? "uncheck3" : "check3", razaoSocial: r.razaoSocial })}
                         className={[
                           "flex h-6 w-6 items-center justify-center rounded border transition-all",
-                          r.ultimoFollowupEm ? "border-amber-500 bg-amber-500 text-white" : "border-border bg-background text-transparent hover:border-foreground/50",
+                          r.ultimoFollowupEm ? "border-warning bg-warning text-white" : "border-border bg-background text-transparent hover:border-foreground/50",
                         ].join(" ")}
                       >
                         <Check className="h-3.5 w-3.5" />
@@ -450,19 +483,19 @@ function ClientesTab({
                 {/* Status de contatos */}
                 <div className="flex flex-col gap-0.5">
                   {r.contatado && (
-                    <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-600">
+                    <div className="flex items-center gap-1.5 text-xs font-medium text-success">
                       <Check className="h-3 w-3" />
                       Contatado{r.contatadoEm ? ` em ${fmtDate(r.contatadoEm)}` : ""}
                     </div>
                   )}
                   {r.followupEm && (
-                    <div className="flex items-center gap-1.5 text-xs font-medium text-blue-600">
+                    <div className="flex items-center gap-1.5 text-xs font-medium text-primary">
                       <Check className="h-3 w-3" />
                       Follow-up em {fmtDate(r.followupEm)}
                     </div>
                   )}
                   {r.ultimoFollowupEm && (
-                    <div className="flex items-center gap-1.5 text-xs font-medium text-amber-600">
+                    <div className="flex items-center gap-1.5 text-xs font-medium text-warning">
                       <Check className="h-3 w-3" />
                       Último follow-up em {fmtDate(r.ultimoFollowupEm)}
                     </div>
@@ -486,7 +519,7 @@ function ClientesTab({
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
                       <span className="text-xs text-muted-foreground">Aprovado não operado</span>
-                      <span className="font-semibold text-sm text-emerald-600">{fmtMoney(r.valorAprovadoNaoOperado)}</span>
+                      <span className="font-semibold text-sm text-success">{fmtMoney(r.valorAprovadoNaoOperado)}</span>
                     </div>
                     {r.limiteDisponivel > 0 && (
                       <div className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
@@ -499,7 +532,7 @@ function ClientesTab({
                 {mode === "limite" && (
                   <div className="flex items-end justify-between rounded-lg bg-muted/50 px-3 py-2">
                     <div>
-                      <div className="text-lg font-bold text-blue-600">{fmtMoney(r.limiteDisponivel)}</div>
+                      <div className="text-lg font-bold text-primary">{fmtMoney(r.limiteDisponivel)}</div>
                       <div className="text-[11px] text-muted-foreground">limite disponível</div>
                     </div>
                   </div>
@@ -613,7 +646,7 @@ function CliquesTab() {
                 {/* WhatsApp clicks */}
                 {camp.whatsapp.length > 0 && (
                   <div className="border-b border-border last:border-0">
-                    <div className="flex items-center gap-1.5 border-b border-border/60 px-4 py-2 text-xs font-medium text-emerald-600">
+                    <div className="flex items-center gap-1.5 border-b border-border/60 px-4 py-2 text-xs font-medium text-success">
                       <MessageCircle className="h-3.5 w-3.5" />
                       WhatsApp
                       <span className="ml-1 font-normal text-muted-foreground">
@@ -631,7 +664,7 @@ function CliquesTab() {
                 {/* Portal clicks */}
                 {camp.portal.length > 0 && (
                   <div>
-                    <div className="flex items-center gap-1.5 border-b border-border/60 px-4 py-2 text-xs font-medium text-blue-600">
+                    <div className="flex items-center gap-1.5 border-b border-border/60 px-4 py-2 text-xs font-medium text-primary">
                       <ExternalLink className="h-3.5 w-3.5" />
                       Portal
                       <span className="ml-1 font-normal text-muted-foreground">
