@@ -37,6 +37,18 @@ async function getCreds(supabase: any, userId: string): Promise<Settings> {
   return { ac_api_key: data.ac_api_key, ac_base_url: data.ac_base_url };
 }
 
+async function acLegacyFetch(creds: Settings, params: Record<string, string>) {
+  const baseParsed = assertAllowedAcUrl(creds.ac_base_url);
+  const url = new URL("/admin/api.php", baseParsed.origin);
+  if (url.protocol !== "https:" || url.hostname !== baseParsed.hostname) throw new Error("INVALID_AC_BASE_URL");
+  url.searchParams.set("api_key", creds.ac_api_key);
+  url.searchParams.set("api_output", "json");
+  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+  const res = await fetch(url.toString(), { redirect: "manual" });
+  if (!res.ok) throw new Error(`AC legacy ${res.status}`);
+  return res.json();
+}
+
 async function acFetch(creds: Settings, path: string, params?: Record<string, string>) {
   const baseParsed = assertAllowedAcUrl(creds.ac_base_url);
   const baseStr = baseParsed.toString().endsWith("/") ? baseParsed.toString() : baseParsed.toString() + "/";
@@ -382,12 +394,35 @@ export const getCampaignOpens = createServerFn({ method: "GET" })
   .inputValidator((d) => z.object({ id: z.string().min(1).max(64) }).parse(d))
   .handler(async ({ data, context }) => {
     const creds = await getCreds(context.supabase, context.userId);
+    const openedAt: Record<string, string> = {}; // contactId → earliest open timestamp
+
+    // Primary: legacy API returns the same opens AC shows in its own reports
+    try {
+      const json = await acLegacyFetch(creds, {
+        api_action: "campaign_report_open_list",
+        campaignid: data.id,
+      });
+      if (json?.result_code === 1) {
+        for (const key of Object.keys(json)) {
+          if (!/^\d+$/.test(key)) continue;
+          const entry = json[key];
+          const cid = String(entry?.subscriberid ?? "");
+          const ts = String(entry?.tstamp ?? "");
+          if (!cid || !ts) continue;
+          if (!openedAt[cid] || ts < openedAt[cid]) openedAt[cid] = ts;
+        }
+        return { openedAt };
+      }
+    } catch {
+      // fall through to v3 fallback
+    }
+
+    // Fallback: v3 tracking-pixel link data
     const linksJson = await acFetch(creds, `campaigns/${data.id}/links`);
     const openLinkIds = ((linksJson.links ?? []) as any[])
       .filter((l) => l.link === "open")
       .map((l) => String(l.id));
 
-    const openedAt: Record<string, string> = {}; // contactId → earliest open timestamp
     for (const linkId of openLinkIds) {
       let offset = 0;
       for (;;) {
