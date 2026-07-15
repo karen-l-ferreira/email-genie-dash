@@ -14,7 +14,7 @@ import { AppHeader } from "@/components/app/Header";
 import { Button } from "@/components/ui/button";
 import { Clock, Download, Loader2, TrendingUp, Users, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { format, differenceInCalendarDays, startOfDay } from "date-fns";
+import { format, differenceInMinutes } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 export const Route = createFileRoute("/influencia")({
@@ -28,23 +28,29 @@ export const Route = createFileRoute("/influencia")({
 
 const FIELD_TITLE = "Data da Última Operação";
 
-const WINDOWS_DAYS = [
-  { value: 0, label: "mesmo dia" },
-  { value: 1, label: "1 dia" },
-  { value: 3, label: "3 dias" },
-  { value: 7, label: "7 dias" },
-  { value: 30, label: "30 dias" },
-];
-
 type InfluenceStatus = "influenced" | "not_influenced" | "no_operation";
 
 type AnalysisRow = {
   contact: ContactSummary;
   emailReceivedAt: Date;
   operationDate: Date | null;
-  daysDelta: number | null;
+  deltaMinutes: number | null;
   status: InfluenceStatus;
 };
+
+function fmtDelta(minutes: number | null): string {
+  if (minutes === null) return "—";
+  const neg = minutes < 0;
+  const abs = Math.abs(minutes);
+  const days = Math.floor(abs / 1440);
+  const hours = Math.floor((abs % 1440) / 60);
+  const mins = Math.round(abs % 60);
+  const parts: string[] = [];
+  if (days > 0) parts.push(`${days}d`);
+  if (hours > 0) parts.push(`${hours}h`);
+  if (days === 0 && hours === 0) parts.push(`${mins}min`);
+  return `${neg ? "−" : "+"}${parts.join(" ")}`;
+}
 
 function parseDateSafe(s: string | undefined | null): Date | null {
   if (!s || s.startsWith("0000") || s.trim() === "") return null;
@@ -60,14 +66,14 @@ function fmtDate(d: Date | null, withTime = false): string {
 }
 
 function exportCSV(rows: AnalysisRow[], campaignName: string) {
-  const header = ["Contato", "E-mail", "Recebeu o e-mail", "Data da Última Operação", "Δ dias", "Status"];
+  const header = ["Contato", "E-mail", "Recebeu o e-mail", "Data da Última Operação", "Δ tempo", "Status"];
   const data = rows.map((r) => [
     `"${[r.contact.firstName, r.contact.lastName].filter(Boolean).join(" ").replace(/"/g, '""') || ""}"`,
     r.contact.email,
-    fmtDate(r.emailReceivedAt),
-    fmtDate(r.operationDate),
-    r.daysDelta !== null ? (r.daysDelta === 0 ? "mesmo dia" : `+${r.daysDelta}d`) : "",
-    r.status === "influenced" ? "Influenciado" : r.status === "not_influenced" ? "Fora da janela" : "Sem operação",
+    fmtDate(r.emailReceivedAt, true),
+    fmtDate(r.operationDate, true),
+    fmtDelta(r.deltaMinutes),
+    r.status === "influenced" ? "Influenciado" : r.status === "not_influenced" ? "Não influenciado" : "Sem operação",
   ]);
   const csv = [header, ...data].map((r) => r.join(",")).join("\n");
   const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
@@ -108,7 +114,6 @@ function InfluenciaPage() {
   }, [contactFieldsQ.data]);
 
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>("");
-  const [attrWindowDays, setAttrWindowDays] = useState(0);
   const [contacts, setContacts] = useState<ContactSummary[]>([]);
   const [totalContacts, setTotalContacts] = useState(0);
   const [loadingAll, setLoadingAll] = useState(false);
@@ -143,7 +148,6 @@ function InfluenciaPage() {
     if (!loaded || !selectedCampaign || !operationFieldId) return [];
     const emailReceivedAt = parseDateSafe(selectedCampaign.sdate);
     if (!emailReceivedAt) return [];
-    const emailDay = startOfDay(emailReceivedAt);
 
     return contacts
       .map((contact): AnalysisRow => {
@@ -151,17 +155,16 @@ function InfluenciaPage() {
         const operationDate = parseDateSafe(rawValue);
 
         if (!operationDate) {
-          return { contact, emailReceivedAt, operationDate: null, daysDelta: null, status: "no_operation" };
+          return { contact, emailReceivedAt, operationDate: null, deltaMinutes: null, status: "no_operation" };
         }
 
-        const opDay = startOfDay(operationDate);
-        const daysDelta = differenceInCalendarDays(opDay, emailDay);
+        const deltaMinutes = differenceInMinutes(operationDate, emailReceivedAt);
         return {
           contact,
           emailReceivedAt,
           operationDate,
-          daysDelta,
-          status: daysDelta >= 0 && daysDelta <= attrWindowDays ? "influenced" : "not_influenced",
+          deltaMinutes,
+          status: operationDate.getTime() > emailReceivedAt.getTime() ? "influenced" : "not_influenced",
         };
       })
       .filter((r) => r.operationDate !== null)
@@ -169,16 +172,14 @@ function InfluenciaPage() {
         const order = { influenced: 0, not_influenced: 1, no_operation: 2 };
         return order[a.status] - order[b.status];
       });
-  }, [contacts, selectedCampaign, operationFieldId, attrWindowDays, loaded]);
+  }, [contacts, selectedCampaign, operationFieldId, loaded]);
 
   const influenced = rows.filter((r) => r.status === "influenced");
   const influenceRate = rows.length > 0 ? (influenced.length / rows.length) * 100 : 0;
-  const avgDeltaDays = influenced.length > 0
-    ? influenced.reduce((s, r) => s + (r.daysDelta ?? 0), 0) / influenced.length
+  const avgDeltaMinutes = influenced.length > 0
+    ? influenced.reduce((s, r) => s + (r.deltaMinutes ?? 0), 0) / influenced.length
     : null;
 
-  const currentWindow = attrWindowDays;
-  const windowLabel = WINDOWS_DAYS.find((w) => w.value === currentWindow)?.label ?? String(currentWindow);
   const canRun = !!selectedCampaignId && !!operationFieldId;
 
   const fieldNotFound = contactFieldsQ.isFetched && !operationFieldId;
@@ -208,7 +209,7 @@ function InfluenciaPage() {
         {/* Config */}
         <div className="rounded-xl border border-border bg-card p-6">
           <h2 className="mb-4 text-sm font-semibold">Configuração</h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2">
 
             <div>
               <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Campanha enviada</label>
@@ -226,29 +227,9 @@ function InfluenciaPage() {
               </select>
               {selectedCampaign?.sdate && (
                 <p className="mt-1 text-[11px] text-muted-foreground">
-                  Enviada: <span className="font-mono">{fmtDate(parseDateSafe(selectedCampaign.sdate))}</span>
+                  Enviada: <span className="font-mono">{fmtDate(parseDateSafe(selectedCampaign.sdate), true)}</span>
                 </p>
               )}
-            </div>
-
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Janela após o e-mail</label>
-              <div className="flex flex-wrap gap-1">
-                {WINDOWS_DAYS.map((w) => (
-                  <button
-                    key={w.value}
-                    onClick={() => setAttrWindowDays(w.value)}
-                    className={cn(
-                      "rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
-                      currentWindow === w.value
-                        ? "bg-primary text-primary-foreground"
-                        : "border border-border bg-surface text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    {w.label}
-                  </button>
-                ))}
-              </div>
               <p className="mt-1 text-[11px] text-muted-foreground">
                 Campo fixo: <span className="font-medium text-foreground">{FIELD_TITLE}</span>
                 {operationFieldId && <span className="ml-1 text-success">✓</span>}
@@ -276,12 +257,12 @@ function InfluenciaPage() {
           <>
             <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <KpiCard icon={<Users className="h-4 w-4 text-primary" />} label="Contatos com operação" value={rows.length.toLocaleString("pt-BR")} sub={`de ${totalContacts.toLocaleString("pt-BR")} contatos carregados`} />
-              <KpiCard icon={<Zap className="h-4 w-4 text-primary" />} label={`Operaram em até ${windowLabel}`} value={influenced.length.toLocaleString("pt-BR")} sub="após o e-mail" good={influenced.length > 0} />
+              <KpiCard icon={<Zap className="h-4 w-4 text-primary" />} label="Influenciados" value={influenced.length.toLocaleString("pt-BR")} sub="operaram após o e-mail" good={influenced.length > 0} />
               <KpiCard icon={<TrendingUp className="h-4 w-4 text-primary" />} label="Taxa de influência" value={rows.length > 0 ? `${influenceRate.toFixed(1)}%` : "—"} sub="dos contatos com operação" good={rows.length > 0 ? influenceRate >= 5 : undefined} />
               <KpiCard
                 icon={<Clock className="h-4 w-4 text-primary" />}
                 label="Tempo médio"
-                value={avgDeltaDays !== null ? (avgDeltaDays === 0 ? "mesmo dia" : `${avgDeltaDays.toFixed(1)} dias`) : "—"}
+                value={fmtDelta(avgDeltaMinutes !== null ? Math.round(avgDeltaMinutes) : null)}
                 sub="até operar após o e-mail"
               />
             </div>
@@ -292,7 +273,7 @@ function InfluenciaPage() {
                   <h2 className="text-sm font-semibold">Contatos com operação registrada</h2>
                   <p className="text-[11px] text-muted-foreground mt-0.5">
                     Campanha: <span className="font-medium text-foreground">{selectedCampaign.name}</span>
-                    {" · "}Enviada: <span className="font-mono">{fmtDate(parseDateSafe(selectedCampaign.sdate))}</span>
+                    {" · "}Enviada: <span className="font-mono">{fmtDate(parseDateSafe(selectedCampaign.sdate), true)}</span>
                   </p>
                 </div>
                 {rows.length > 0 && (
@@ -309,7 +290,7 @@ function InfluenciaPage() {
                       <th className="px-5 py-3 text-left font-medium">Contato</th>
                       <th className="px-3 py-3 text-left font-medium text-blue-400">📨 Recebeu o e-mail</th>
                       <th className="px-3 py-3 text-left font-medium text-green-400">💼 Última Operação</th>
-                      <th className="px-3 py-3 text-right font-medium">Δ dias</th>
+                      <th className="px-3 py-3 text-right font-medium">Δ tempo</th>
                       <th className="px-3 py-3 text-center font-medium">Status</th>
                     </tr>
                   </thead>
@@ -347,16 +328,9 @@ function InfluenciaPage() {
 }
 
 function RowItem({ row }: { row: AnalysisRow }) {
-  const { contact, emailReceivedAt, operationDate, daysDelta, status } = row;
+  const { contact, emailReceivedAt, operationDate, deltaMinutes, status } = row;
   const name = [contact.firstName, contact.lastName].filter(Boolean).join(" ") || "—";
-  const isWithinWindow = status === "influenced";
-
-  let deltaStr = "—";
-  let deltaNeg = false;
-  if (daysDelta !== null) {
-    deltaNeg = daysDelta < 0;
-    deltaStr = daysDelta === 0 ? "mesmo dia" : `${daysDelta < 0 ? "−" : "+"}${Math.abs(daysDelta)}d`;
-  }
+  const isInfluenced = status === "influenced";
 
   return (
     <tr className="border-t border-border transition-colors hover:bg-surface-2">
@@ -364,17 +338,17 @@ function RowItem({ row }: { row: AnalysisRow }) {
         <div className="font-medium">{name}</div>
         <div className="text-[11px] text-muted-foreground font-mono">{contact.email}</div>
       </td>
-      <td className="px-3 py-3 font-mono text-xs">{fmtDate(emailReceivedAt)}</td>
+      <td className="px-3 py-3 font-mono text-xs">{fmtDate(emailReceivedAt, true)}</td>
       <td className="px-3 py-3 font-mono text-xs">
         {operationDate ? (
-          <span className={cn(isWithinWindow ? "text-success font-semibold" : "")}>
-            {fmtDate(operationDate)}
+          <span className={cn(isInfluenced ? "text-success font-semibold" : "")}>
+            {fmtDate(operationDate, true)}
           </span>
         ) : <span className="text-muted-foreground">—</span>}
       </td>
       <td className="px-3 py-3 text-right font-mono text-xs">
-        <span className={cn("font-semibold", deltaNeg ? "text-muted-foreground" : isWithinWindow ? "text-success" : "text-muted-foreground")}>
-          {deltaStr}
+        <span className={cn("font-semibold", isInfluenced ? "text-success" : "text-muted-foreground")}>
+          {fmtDelta(deltaMinutes)}
         </span>
       </td>
       <td className="px-3 py-3 text-center"><StatusBadge status={status} /></td>
@@ -386,7 +360,7 @@ function StatusBadge({ status }: { status: InfluenceStatus }) {
   if (status === "influenced")
     return <span className="inline-flex items-center rounded-full bg-success/15 px-2.5 py-0.5 text-[10px] font-semibold text-success">✓ Influenciado</span>;
   if (status === "not_influenced")
-    return <span className="inline-flex items-center rounded-full bg-muted px-2.5 py-0.5 text-[10px] font-medium text-muted-foreground">Fora da janela</span>;
+    return <span className="inline-flex items-center rounded-full bg-muted px-2.5 py-0.5 text-[10px] font-medium text-muted-foreground">Não influenciado</span>;
   return <span className="inline-flex items-center rounded-full bg-surface px-2.5 py-0.5 text-[10px] font-medium text-muted-foreground">Sem operação</span>;
 }
 
