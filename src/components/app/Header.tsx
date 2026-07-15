@@ -25,14 +25,15 @@ export function AppHeader({ campaignCount }: Props) {
     >
       {/* Logo */}
       <Link to="/dashboard" className="flex items-center gap-2.5 px-5 py-5 select-none shrink-0">
-        <div className="flex h-8 w-8 items-center justify-center rounded" style={{ backgroundColor: "#0660FE" }}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M3 8h10M9 4l4 4-4 4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </div>
+        <svg width="28" height="28" viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="3"  y="40" width="10" height="16" rx="5" fill="white" transform="rotate(-10 8 48)"/>
+          <rect x="17" y="28" width="10" height="28" rx="5" fill="white" transform="rotate(-10 22 42)"/>
+          <rect x="31" y="16" width="10" height="40" rx="5" fill="white" transform="rotate(-10 36 36)"/>
+          <rect x="45" y="4"  width="10" height="52" rx="5" fill="white" transform="rotate(-10 50 30)"/>
+        </svg>
         <div className="flex flex-col leading-none">
-          <span className="text-[15px] font-bold tracking-tight text-white">Fluxi</span>
-          <span className="text-[9px] font-medium tracking-[0.15em] uppercase text-white/40">by Adiante</span>
+          <span className="text-[15px] font-bold tracking-[.06em] uppercase text-white">FLUXI</span>
+          <span className="text-[9px] font-medium tracking-[0.18em] uppercase text-white/35">by Adiante</span>
         </div>
       </Link>
 
