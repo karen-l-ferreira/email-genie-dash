@@ -180,18 +180,6 @@ export const listCampaigns = createServerFn({ method: "GET" })
     return { campaigns, total: Number(json.meta?.total ?? campaigns.length) };
   });
 
-async function acLegacyFetch(creds: Settings, params: Record<string, string>) {
-  const baseParsed = assertAllowedAcUrl(creds.ac_base_url);
-  const url = new URL("/admin/api.php", baseParsed.origin);
-  if (url.protocol !== "https:" || url.hostname !== baseParsed.hostname) throw new Error("INVALID_AC_BASE_URL");
-  url.searchParams.set("api_key", creds.ac_api_key);
-  url.searchParams.set("api_output", "json");
-  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-  const res = await fetch(url.toString(), { redirect: "manual" });
-  if (!res.ok) throw new Error(`AC legacy ${res.status}`);
-  return res.json();
-}
-
 export const listCobrancaHoje = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
