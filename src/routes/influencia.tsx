@@ -28,7 +28,7 @@ export const Route = createFileRoute("/influencia")({
 });
 
 const FIELD_TITLE = "Data da Última Operação";
-const INFLUENCE_WINDOW_HOURS = 48;
+const INFLUENCE_WINDOW_HOURS = 24;
 
 type InfluenceStatus = "influenced" | "not_influenced" | "no_operation";
 
