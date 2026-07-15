@@ -242,44 +242,37 @@ function InfluenciaPage() {
         {/* Config */}
         <div className="rounded-xl border border-border bg-card p-6">
           <h2 className="mb-4 text-sm font-semibold">Configuração</h2>
-          <div className="grid gap-4 sm:grid-cols-2">
-
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">E-mail enviado</label>
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">E-mail enviado</label>
+            <div className="flex items-center gap-3">
               <select
                 value={selectedCampaignId}
                 onChange={(e) => { setSelectedCampaignId(e.target.value); setLoaded(false); }}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
               >
                 <option value="">Selecionar e-mail…</option>
                 {sentCampaigns.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.name.slice(0, 48)}{c.sdate ? ` — ${format(new Date(c.sdate.replace(" ", "T")), "dd/MM/yy HH:mm")}` : ""}
+                    {c.name.slice(0, 60)}{c.sdate ? ` — ${format(new Date(c.sdate.replace(" ", "T")), "dd/MM/yy HH:mm")}` : ""}
                   </option>
                 ))}
               </select>
-              {selectedCampaign?.sdate && (
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  Enviada: <span className="font-mono">{fmtDate(parseDateSafe(selectedCampaign.sdate), true)}</span>
-                </p>
-              )}
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                Campo fixo: <span className="font-medium text-foreground">{FIELD_TITLE}</span>
-                {operationFieldId && <span className="ml-1 text-success">✓</span>}
-                {contactFieldsQ.isLoading && <span className="ml-1 animate-pulse">…</span>}
-              </p>
-            </div>
-
-            <div className="flex flex-col justify-end">
-              <Button disabled={!canRun || loadingAll} onClick={loadAll} className="w-full">
+              <Button disabled={!canRun || loadingAll} onClick={loadAll} className="shrink-0">
                 {loadingAll
                   ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />Carregando…</>
                   : <><Zap className="mr-1.5 h-4 w-4" />Rodar análise</>}
               </Button>
+            </div>
+            <div className="mt-2 flex items-center gap-4 text-[11px] text-muted-foreground">
+              <span>Campo fixo: <span className="font-medium text-foreground">{FIELD_TITLE}</span>
+                {operationFieldId && <span className="ml-1 text-success">✓</span>}
+                {contactFieldsQ.isLoading && <span className="ml-1 animate-pulse">…</span>}
+              </span>
+              {selectedCampaign?.sdate && (
+                <span>Enviada: <span className="font-mono">{fmtDate(parseDateSafe(selectedCampaign.sdate), true)}</span></span>
+              )}
               {loaded && (
-                <p className="mt-1.5 text-center text-[11px] text-muted-foreground">
-                  {totalContacts.toLocaleString("pt-BR")} abriram · {influenced.length} operaram em até {INFLUENCE_WINDOW_HOURS}h
-                </p>
+                <span>{totalContacts.toLocaleString("pt-BR")} abriram · {influenced.length} operaram em até {INFLUENCE_WINDOW_HOURS}h</span>
               )}
             </div>
           </div>
