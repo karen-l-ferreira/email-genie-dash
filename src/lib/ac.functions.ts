@@ -371,63 +371,69 @@ export const listContactFields = createServerFn({ method: "GET" })
     return { fields };
   });
 
-export const getCampaignListIds = createServerFn({ method: "GET" })
+// Real per-contact "received" proof: ActiveCampaign's public API has no recipient-list
+// endpoint for a campaign (filters[campaignid] on /contacts is silently ignored, and
+// campaigns/{id}/campaignLists reflects all lists ever linked to the account, not who
+// the send actually went to — confirmed against this account's automation-triggered
+// campaigns). The open-tracking pixel (the link literally named "open") is the only
+// per-contact, per-campaign timestamp the API exposes, so it's used as the "received at".
+export const getCampaignOpens = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ id: z.string().min(1).max(64) }).parse(d))
   .handler(async ({ data, context }) => {
     const creds = await getCreds(context.supabase, context.userId);
-    const json = await acFetch(creds, `campaigns/${data.id}/campaignLists`);
-    const listIds = Array.from(
-      new Set(
-        ((json.campaignLists ?? []) as any[])
-          .map((cl) => String(cl.listid ?? cl.list ?? ""))
-          .filter(Boolean),
-      ),
-    );
-    return { listIds };
-  });
+    const linksJson = await acFetch(creds, `campaigns/${data.id}/links`);
+    const openLinkIds = ((linksJson.links ?? []) as any[])
+      .filter((l) => l.link === "open")
+      .map((l) => String(l.id));
 
-export const listContactsForAnalysis = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ offset: z.number().int().min(0).optional(), listId: z.string().optional() }).parse(d ?? {}))
-  .handler(async ({ data, context }) => {
-    const creds = await getCreds(context.supabase, context.userId);
-    const params: Record<string, string> = {
-      limit: "100",
-      offset: String(data.offset ?? 0),
-      include: "fieldValues,accountContacts",
-      "orders[id]": "DESC",
-    };
-    if (data.listId) params["listid"] = data.listId;
-    const json = await acFetch(creds, "contacts", params);
-
-    // fieldValues: separate top-level array keyed by contact id
-    const fvMap: Record<string, Record<string, string>> = {};
-    for (const fv of (json.fieldValues ?? []) as any[]) {
-      if (!fv.contact || !fv.field || fv.value == null || fv.value === "") continue;
-      const cid = String(fv.contact);
-      if (!fvMap[cid]) fvMap[cid] = {};
-      fvMap[cid][String(fv.field)] = String(fv.value);
-    }
-
-    // accountContacts: array of {contact, account} links
-    const acctMap: Record<string, string> = {}; // contactId → accountId
-    for (const ac of (json.accountContacts ?? []) as any[]) {
-      if (ac.contact && ac.account) {
-        acctMap[String(ac.contact)] = String(ac.account);
+    const openedAt: Record<string, string> = {}; // contactId → earliest open timestamp
+    for (const linkId of openLinkIds) {
+      let offset = 0;
+      for (;;) {
+        const json = await acFetch(creds, `links/${linkId}/linkData`, { limit: "100", offset: String(offset) });
+        const entries: any[] = json.linkData ?? [];
+        for (const e of entries) {
+          if (!e.contact || !e.tstamp) continue;
+          const cid = String(e.contact);
+          if (!openedAt[cid] || e.tstamp < openedAt[cid]) openedAt[cid] = e.tstamp;
+        }
+        if (entries.length < 100) break;
+        offset += 100;
       }
     }
+    return { openedAt };
+  });
 
-    const contacts: ContactSummary[] = (json.contacts ?? []).map((c: any) => ({
-      id: String(c.id),
-      email: c.email ?? "",
-      firstName: c.firstName ?? c.firstname ?? "",
-      lastName: c.lastName ?? c.lastname ?? "",
-      accountId: acctMap[String(c.id)] ?? null,
-      fieldValues: fvMap[String(c.id)] ?? {},
+export const getContactsByIds = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ ids: z.array(z.string().min(1).max(32)).min(1).max(500) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const creds = await getCreds(context.supabase, context.userId);
+    const contacts: ContactSummary[] = [];
+    await Promise.all(data.ids.map(async (id) => {
+      try {
+        const json = await acFetch(creds, `contacts/${id}`, { include: "fieldValues,accountContacts" });
+        const c = json.contact;
+        if (!c) return;
+        const fieldValues: Record<string, string> = {};
+        for (const fv of (json.fieldValues ?? []) as any[]) {
+          if (fv.field && fv.value != null && fv.value !== "") fieldValues[String(fv.field)] = String(fv.value);
+        }
+        const accountId = ((json.accountContacts ?? []) as any[])[0]?.account ?? null;
+        contacts.push({
+          id: String(c.id),
+          email: c.email ?? "",
+          firstName: c.firstName ?? c.firstname ?? "",
+          lastName: c.lastName ?? c.lastname ?? "",
+          accountId: accountId ? String(accountId) : null,
+          fieldValues,
+        });
+      } catch {
+        // skip contacts that fail to load
+      }
     }));
-
-    return { contacts, total: Number(json.meta?.total ?? contacts.length) };
+    return { contacts };
   });
 
 // ─── Account custom fields & data ────────────────────────────────────────────

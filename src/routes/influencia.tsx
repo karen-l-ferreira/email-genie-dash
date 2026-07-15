@@ -4,9 +4,9 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import {
   listContactFields,
-  listContactsForAnalysis,
   listCampaigns,
-  getCampaignListIds,
+  getCampaignOpens,
+  getContactsByIds,
   type ContactSummary,
 } from "@/lib/ac.functions";
 import { getSettings } from "@/lib/settings.functions";
@@ -67,7 +67,7 @@ function fmtDate(d: Date | null, withTime = false): string {
 }
 
 function exportCSV(rows: AnalysisRow[], campaignName: string) {
-  const header = ["Contato", "E-mail", "Recebeu o e-mail", "Data da Última Operação", "Δ tempo", "Status"];
+  const header = ["Contato", "E-mail", "Abriu o e-mail", "Data da Última Operação", "Δ tempo", "Status"];
   const data = rows.map((r) => [
     `"${[r.contact.firstName, r.contact.lastName].filter(Boolean).join(" ").replace(/"/g, '""') || ""}"`,
     r.contact.email,
@@ -89,9 +89,9 @@ function exportCSV(rows: AnalysisRow[], campaignName: string) {
 function InfluenciaPage() {
   const fetchSettings = useServerFn(getSettings);
   const fetchContactFields = useServerFn(listContactFields);
-  const fetchContacts = useServerFn(listContactsForAnalysis);
   const fetchCampaigns = useServerFn(listCampaigns);
-  const fetchCampaignListIds = useServerFn(getCampaignListIds);
+  const fetchCampaignOpens = useServerFn(getCampaignOpens);
+  const fetchContactsByIds = useServerFn(getContactsByIds);
 
   const settingsQ = useQuery({ queryKey: ["settings"], queryFn: () => fetchSettings() });
   const hasKey = !!settingsQ.data?.hasApiKey;
@@ -117,6 +117,7 @@ function InfluenciaPage() {
 
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>("");
   const [contacts, setContacts] = useState<ContactSummary[]>([]);
+  const [openedAtMap, setOpenedAtMap] = useState<Record<string, string>>({});
   const [totalContacts, setTotalContacts] = useState(0);
   const [loadingAll, setLoadingAll] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -127,49 +128,45 @@ function InfluenciaPage() {
   );
   const selectedCampaign = sentCampaigns.find((c) => c.id === selectedCampaignId) ?? null;
 
-  const campaignListsQ = useQuery({
-    queryKey: ["campaign-lists", selectedCampaignId],
-    queryFn: () => fetchCampaignListIds({ data: { id: selectedCampaignId } }),
-    enabled: !!selectedCampaignId,
-  });
-  const campaignListIds = campaignListsQ.data?.listIds ?? [];
-  const noListFound = !!selectedCampaignId && campaignListsQ.isFetched && campaignListIds.length === 0;
-
-  // Fetches every contact of a single AC list (paginated), 100 per page.
-  const fetchAllContactsOfList = useCallback(async (listId: string) => {
-    const first = await fetchContacts({ data: { offset: 0, listId } });
-    const pages = Math.ceil(first.total / 100);
-    const offsets = Array.from({ length: pages - 1 }, (_, i) => (i + 1) * 100);
-    const rest = await Promise.all(offsets.map((o) => fetchContacts({ data: { offset: o, listId } })));
-    return [first.contacts, ...rest.map((r) => r.contacts)].flat();
-  }, [fetchContacts]);
+  const noOpensFound = loaded && contacts.length === 0;
 
   const loadAll = useCallback(async () => {
-    if (!selectedCampaignId || !operationFieldId || campaignListIds.length === 0) return;
+    if (!selectedCampaignId || !operationFieldId) return;
     setLoadingAll(true);
     setContacts([]);
+    setOpenedAtMap({});
     setLoaded(false);
     try {
-      // Only contacts that actually belong to the list(s) this campaign was sent to.
-      const perList = await Promise.all(campaignListIds.map((listId) => fetchAllContactsOfList(listId)));
-      const byId = new Map<string, ContactSummary>();
-      for (const contact of perList.flat()) byId.set(contact.id, contact);
-      const merged = Array.from(byId.values());
-      setTotalContacts(merged.length);
-      setContacts(merged);
+      // ActiveCampaign's public API has no "who received this campaign" endpoint —
+      // the open-tracking pixel is the only real per-contact, per-campaign proof of receipt.
+      const { openedAt } = await fetchCampaignOpens({ data: { id: selectedCampaignId } });
+      const contactIds = Object.keys(openedAt);
+
+      const BATCH = 25;
+      const loadedContacts: ContactSummary[] = [];
+      for (let i = 0; i < contactIds.length; i += BATCH) {
+        const batchIds = contactIds.slice(i, i + BATCH);
+        const { contacts: batch } = await fetchContactsByIds({ data: { ids: batchIds } });
+        loadedContacts.push(...batch);
+      }
+
+      setOpenedAtMap(openedAt);
+      setTotalContacts(loadedContacts.length);
+      setContacts(loadedContacts);
       setLoaded(true);
     } finally {
       setLoadingAll(false);
     }
-  }, [selectedCampaignId, operationFieldId, campaignListIds, fetchAllContactsOfList]);
+  }, [selectedCampaignId, operationFieldId, fetchCampaignOpens, fetchContactsByIds]);
 
   const rows: AnalysisRow[] = useMemo(() => {
-    if (!loaded || !selectedCampaign || !operationFieldId) return [];
-    const emailReceivedAt = parseDateSafe(selectedCampaign.sdate);
-    if (!emailReceivedAt) return [];
+    if (!loaded || !operationFieldId) return [];
 
     return contacts
-      .map((contact): AnalysisRow => {
+      .map((contact): AnalysisRow | null => {
+        const emailReceivedAt = parseDateSafe(openedAtMap[contact.id]);
+        if (!emailReceivedAt) return null;
+
         const rawValue = contact.fieldValues[operationFieldId];
         const operationDate = parseDateSafe(rawValue);
 
@@ -186,12 +183,12 @@ function InfluenciaPage() {
           status: operationDate.getTime() > emailReceivedAt.getTime() ? "influenced" : "not_influenced",
         };
       })
-      .filter((r) => r.operationDate !== null)
+      .filter((r): r is AnalysisRow => r !== null && r.operationDate !== null)
       .sort((a, b) => {
         const order = { influenced: 0, not_influenced: 1, no_operation: 2 };
         return order[a.status] - order[b.status];
       });
-  }, [contacts, selectedCampaign, operationFieldId, loaded]);
+  }, [contacts, openedAtMap, operationFieldId, loaded]);
 
   const influenced = rows.filter((r) => r.status === "influenced");
   const influenceRate = rows.length > 0 ? (influenced.length / rows.length) * 100 : 0;
@@ -199,7 +196,7 @@ function InfluenciaPage() {
     ? influenced.reduce((s, r) => s + (r.deltaMinutes ?? 0), 0) / influenced.length
     : null;
 
-  const canRun = !!selectedCampaignId && !!operationFieldId && campaignListIds.length > 0;
+  const canRun = !!selectedCampaignId && !!operationFieldId;
 
   const fieldNotFound = contactFieldsQ.isFetched && !operationFieldId;
 
@@ -214,7 +211,7 @@ function InfluenciaPage() {
           <div>
             <h1 className="text-2xl font-semibold">Análise de Influência</h1>
             <p className="text-sm text-muted-foreground">
-              Quem recebeu o e-mail e operou logo em seguida?
+              Quem abriu o e-mail e operou logo em seguida?
             </p>
           </div>
         </div>
@@ -225,9 +222,9 @@ function InfluenciaPage() {
           </div>
         )}
 
-        {noListFound && (
+        {noOpensFound && (
           <div className="mb-4 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            Não foi possível identificar a(s) lista(s) para a qual esta campanha foi enviada. Selecione outra campanha.
+            Nenhuma abertura registrada para este e-mail ainda — não há como confirmar quem recebeu.
           </div>
         )}
 
@@ -237,13 +234,13 @@ function InfluenciaPage() {
           <div className="grid gap-4 sm:grid-cols-2">
 
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Campanha enviada</label>
+              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">E-mail enviado</label>
               <select
                 value={selectedCampaignId}
                 onChange={(e) => { setSelectedCampaignId(e.target.value); setLoaded(false); }}
                 className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
               >
-                <option value="">Selecionar campanha…</option>
+                <option value="">Selecionar e-mail…</option>
                 {sentCampaigns.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name.slice(0, 48)}{c.sdate ? ` — ${format(new Date(c.sdate.replace(" ", "T")), "dd/MM/yy HH:mm")}` : ""}
@@ -281,7 +278,7 @@ function InfluenciaPage() {
         {loaded && selectedCampaign && (
           <>
             <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <KpiCard icon={<Users className="h-4 w-4 text-primary" />} label="Contatos com operação" value={rows.length.toLocaleString("pt-BR")} sub={`de ${totalContacts.toLocaleString("pt-BR")} contatos carregados`} />
+              <KpiCard icon={<Users className="h-4 w-4 text-primary" />} label="Contatos com operação" value={rows.length.toLocaleString("pt-BR")} sub={`de ${totalContacts.toLocaleString("pt-BR")} que abriram o e-mail`} />
               <KpiCard icon={<Zap className="h-4 w-4 text-primary" />} label="Influenciados" value={influenced.length.toLocaleString("pt-BR")} sub="operaram após o e-mail" good={influenced.length > 0} />
               <KpiCard icon={<TrendingUp className="h-4 w-4 text-primary" />} label="Taxa de influência" value={rows.length > 0 ? `${influenceRate.toFixed(1)}%` : "—"} sub="dos contatos com operação" good={rows.length > 0 ? influenceRate >= 5 : undefined} />
               <KpiCard
@@ -297,7 +294,7 @@ function InfluenciaPage() {
                 <div>
                   <h2 className="text-sm font-semibold">Contatos com operação registrada</h2>
                   <p className="text-[11px] text-muted-foreground mt-0.5">
-                    Campanha: <span className="font-medium text-foreground">{selectedCampaign.name}</span>
+                    E-mail: <span className="font-medium text-foreground">{selectedCampaign.name}</span>
                     {" · "}Enviada: <span className="font-mono">{fmtDate(parseDateSafe(selectedCampaign.sdate), true)}</span>
                   </p>
                 </div>
@@ -313,7 +310,7 @@ function InfluenciaPage() {
                   <thead className="bg-surface text-[11px] uppercase tracking-wider text-muted-foreground">
                     <tr>
                       <th className="px-5 py-3 text-left font-medium">Contato</th>
-                      <th className="px-3 py-3 text-left font-medium text-blue-400">📨 Recebeu o e-mail</th>
+                      <th className="px-3 py-3 text-left font-medium text-blue-400">📨 Abriu o e-mail</th>
                       <th className="px-3 py-3 text-left font-medium text-green-400">💼 Última Operação</th>
                       <th className="px-3 py-3 text-right font-medium">Δ tempo</th>
                       <th className="px-3 py-3 text-center font-medium">Status</th>
@@ -340,10 +337,10 @@ function InfluenciaPage() {
           <div className="mt-8 rounded-xl border border-dashed border-border p-12 text-center">
             <Zap className="mx-auto mb-3 h-10 w-10 text-muted-foreground/30" />
             <p className="text-sm font-medium text-muted-foreground">
-              {!selectedCampaignId ? "Selecione a campanha enviada." : "Clique em \"Rodar análise\"."}
+              {!selectedCampaignId ? "Selecione o e-mail enviado." : "Clique em \"Rodar análise\"."}
             </p>
             <p className="mt-2 text-xs text-muted-foreground">
-              Cruza o envio com o campo <strong>{FIELD_TITLE}</strong> — apenas contatos da lista da campanha.
+              Cruza quem abriu este e-mail (única prova de recebimento que a API do ActiveCampaign expõe) com o campo <strong>{FIELD_TITLE}</strong>.
             </p>
           </div>
         )}
