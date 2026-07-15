@@ -8,16 +8,8 @@ import { AuthGate } from "@/components/app/AuthGate";
 import { AppHeader } from "@/components/app/Header";
 import { Button } from "@/components/ui/button";
 import {
-  AlertTriangle,
-  BarChart3,
-  ChevronRight,
-  Download,
-  GitBranch,
-  Mail,
-  MousePointerClick,
-  Settings as SettingsIcon,
-  TrendingUp,
-  Zap,
+  AlertTriangle, BarChart3, ChevronRight, Download,
+  Mail, MousePointerClick, Settings as SettingsIcon, TrendingUp, Zap, ArrowUpRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format, subDays, subMonths, subYears } from "date-fns";
@@ -33,7 +25,6 @@ export const Route = createFileRoute("/dashboard")({
 });
 
 type Period = "30d" | "90d" | "6m" | "1y" | "all";
-
 const PERIODS: { key: Period; label: string }[] = [
   { key: "30d", label: "30 dias" },
   { key: "90d", label: "90 dias" },
@@ -56,21 +47,15 @@ function exportCampaignsCSV(campaigns: Campaign[]) {
   const rows = campaigns.map((c) => [
     `"${c.name.replace(/"/g, '""')}"`,
     c.sdate ? format(new Date(c.sdate), "dd/MM/yyyy") : "",
-    c.send_amt,
-    c.open_rate.toFixed(2),
-    c.ctr.toFixed(2),
-    c.score,
-    c.hardbounces + c.softbounces,
-    c.unsubscribes,
+    c.send_amt, c.open_rate.toFixed(2), c.ctr.toFixed(2),
+    c.score, c.hardbounces + c.softbounces, c.unsubscribes,
   ]);
   const csv = [header, ...rows].map((r) => r.join(",")).join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
+  const a = document.createElement("a"); a.href = url;
   a.download = `campanhas_${format(new Date(), "yyyy-MM-dd")}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
+  a.click(); URL.revokeObjectURL(url);
 }
 
 function DashboardPage() {
@@ -84,14 +69,12 @@ function DashboardPage() {
   const campaignsQ = useQuery({
     queryKey: ["campaigns", 0],
     queryFn: () => fetchCampaigns({ data: { offset: 0 } }),
-    enabled: !!settingsQ.data?.hasApiKey,
-    retry: false,
+    enabled: !!settingsQ.data?.hasApiKey, retry: false,
   });
   const automationsQ = useQuery({
     queryKey: ["automations"],
     queryFn: () => fetchAutomations(),
-    enabled: !!settingsQ.data?.hasApiKey,
-    retry: false,
+    enabled: !!settingsQ.data?.hasApiKey, retry: false,
   });
 
   useEffect(() => {
@@ -101,8 +84,7 @@ function DashboardPage() {
   const allCampaigns = campaignsQ.data?.campaigns ?? [];
   const automations = automationsQ.data?.automations ?? [];
   const activeAutos = automations.filter((a) => a.status === "active");
-
-  const benchOR = settingsQ.data?.benchmark_open_rate ?? 22;
+  const benchOR  = settingsQ.data?.benchmark_open_rate ?? 22;
   const benchCTR = settingsQ.data?.benchmark_ctr ?? 2.9;
 
   const filtered = useMemo(() => {
@@ -116,179 +98,172 @@ function DashboardPage() {
     });
   }, [allCampaigns, period]);
 
-  const sent = filtered.filter((c) => c.send_amt > 0);
+  const sent    = filtered.filter((c) => c.send_amt > 0);
   const allSent = allCampaigns.filter((c) => c.send_amt > 0);
 
   const avgOpenRate = sent.length ? sent.reduce((s, c) => s + c.open_rate, 0) / sent.length : 0;
-  const avgCTR = sent.length ? sent.reduce((s, c) => s + c.ctr, 0) / sent.length : 0;
-  const avgScore = sent.length ? sent.reduce((s, c) => s + c.score, 0) / sent.length : 0;
-
-  // Automation KPIs
-  const totalEntered = automations.reduce((s, a) => s + a.entered, 0);
-  const avgCompletion = automations.length
-    ? automations.reduce((s, a) => s + a.completion_rate, 0) / automations.length
-    : 0;
+  const avgCTR      = sent.length ? sent.reduce((s, c) => s + c.ctr, 0) / sent.length : 0;
+  const avgScore    = sent.length ? sent.reduce((s, c) => s + c.score, 0) / sent.length : 0;
 
   const topCampaigns = useMemo(
     () => [...sent].sort((a, b) => b.score - a.score).slice(0, 5),
     [sent],
   );
-
-  // Campaigns significantly below benchmark
   const belowBench = useMemo(
-    () =>
-      allSent
-        .filter((c) => c.open_rate < benchOR * 0.6 || c.ctr < benchCTR * 0.5)
-        .sort((a, b) => a.open_rate - b.open_rate)
-        .slice(0, 5),
+    () => allSent.filter((c) => c.open_rate < benchOR * 0.6 || c.ctr < benchCTR * 0.5)
+      .sort((a, b) => a.open_rate - b.open_rate).slice(0, 5),
     [allSent, benchOR, benchCTR],
   );
 
   const isLoading = settingsQ.isLoading || campaignsQ.isLoading;
+  const today = format(new Date(), "EEEE, d 'de' MMMM", { locale: ptBR });
 
   return (
     <div className="min-h-screen bg-background">
       <AppHeader />
+
       <main className="mx-auto max-w-[1400px] px-6 py-8">
 
-        {/* Page header */}
-        <div className="mb-8 flex flex-wrap items-end justify-between gap-4 border-b border-border pb-5">
+        {/* ── Page header ── */}
+        <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="mb-1 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Visão geral</p>
-            <h1 className="text-lg font-bold">Dashboard</h1>
+            <p className="text-xs font-medium text-muted-foreground capitalize">{today}</p>
+            <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-foreground">Visão geral</h1>
           </div>
           <div className="flex items-center gap-2">
-            <div className="flex items-center rounded-lg border border-border bg-card p-0.5">
+            {/* Period selector */}
+            <div className="flex items-center gap-0.5 rounded border border-border bg-card p-0.5">
               {PERIODS.map((p) => (
                 <button
                   key={p.key}
                   onClick={() => setPeriod(p.key)}
                   className={cn(
-                    "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                    "rounded px-3 py-1.5 text-xs font-medium transition-all",
                     period === p.key
-                      ? "bg-foreground text-background"
+                      ? "bg-primary text-white shadow-sm"
                       : "text-muted-foreground hover:text-foreground",
                   )}
-                >
-                  {p.label}
-                </button>
+                >{p.label}</button>
               ))}
             </div>
             {allSent.length > 0 && (
               <Button variant="outline" size="sm" onClick={() => exportCampaignsCSV(allSent)}>
-                <Download className="mr-1.5 h-3.5 w-3.5" />
-                Exportar
+                <Download className="mr-1.5 h-3.5 w-3.5" />Exportar
               </Button>
             )}
           </div>
         </div>
 
         {campaignsQ.isError ? (
-          <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-6">
+          <div className="rounded border border-destructive/30 bg-destructive/5 p-6">
             <p className="text-sm text-destructive">{(campaignsQ.error as Error).message}</p>
             <Button asChild variant="outline" size="sm" className="mt-3">
-              <Link to="/settings">
-                <SettingsIcon className="mr-1.5 h-4 w-4" />Verificar chave de API
-              </Link>
+              <Link to="/settings"><SettingsIcon className="mr-1.5 h-4 w-4" />Verificar chave de API</Link>
             </Button>
           </div>
         ) : (
           <>
-            {/* KPI row */}
+            {/* ── KPIs ── */}
             {isLoading ? (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                {[0, 1, 2, 3].map((i) => <div key={i} className="h-24 animate-pulse rounded-lg bg-muted" />)}
+                {[0,1,2,3].map((i) => <div key={i} className="h-28 animate-pulse rounded bg-muted" />)}
               </div>
             ) : (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <KpiCard
-                  icon={<Mail className="h-3.5 w-3.5" />}
+                  icon={<Mail className="h-4 w-4" />}
                   label="Campanhas enviadas"
                   value={sent.length.toLocaleString("pt-BR")}
                   sub={period !== "all" ? `de ${allSent.length} no total` : `${allCampaigns.length - allSent.length} rascunhos`}
+                  accent="#0660FE"
                 />
                 <KpiCard
-                  icon={<TrendingUp className="h-3.5 w-3.5" />}
+                  icon={<TrendingUp className="h-4 w-4" />}
                   label="Taxa de abertura"
                   value={`${avgOpenRate.toFixed(1)}%`}
-                  sub={`meta ${benchOR}%`}
+                  sub={`benchmark ${benchOR}%`}
                   good={sent.length > 0 ? avgOpenRate >= benchOR : undefined}
+                  bar={sent.length > 0 ? { value: avgOpenRate, max: Math.max(avgOpenRate, benchOR) * 1.2, bench: benchOR } : undefined}
+                  accent="#0660FE"
                 />
                 <KpiCard
-                  icon={<MousePointerClick className="h-3.5 w-3.5" />}
+                  icon={<MousePointerClick className="h-4 w-4" />}
                   label="CTR médio"
                   value={`${avgCTR.toFixed(2)}%`}
-                  sub={`meta ${benchCTR}%`}
+                  sub={`benchmark ${benchCTR}%`}
                   good={sent.length > 0 ? avgCTR >= benchCTR : undefined}
+                  bar={sent.length > 0 ? { value: avgCTR, max: Math.max(avgCTR, benchCTR) * 1.2, bench: benchCTR } : undefined}
+                  accent="#0660FE"
                 />
                 <KpiCard
-                  icon={<Zap className="h-3.5 w-3.5" />}
+                  icon={<Zap className="h-4 w-4" />}
                   label="Automações ativas"
                   value={automationsQ.isLoading ? "—" : activeAutos.length.toLocaleString("pt-BR")}
-                  sub={automationsQ.isLoading ? "" : `de ${automations.length} no total`}
+                  sub={automationsQ.isLoading ? "" : `de ${automations.length} automações`}
                   good={!automationsQ.isLoading && automations.length > 0 ? activeAutos.length > 0 : undefined}
+                  accent="#0660FE"
                 />
               </div>
             )}
 
-            {/* Below-benchmark alert */}
+            {/* ── Alert banner ── */}
             {belowBench.length > 0 && (
-              <div className="mt-5 rounded-lg border border-amber-500/20 bg-amber-500/5 p-4">
-                <div className="mb-2.5 flex items-center gap-2">
-                  <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
-                  <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+              <div className="mt-4 flex items-start gap-3 rounded border-l-4 border-amber-400 bg-amber-50 px-4 py-3 dark:bg-amber-400/5">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">
                     {belowBench.length} campanha{belowBench.length > 1 ? "s" : ""} abaixo do esperado
-                  </span>
-                </div>
-                <div className="space-y-1.5">
-                  {belowBench.map((c) => (
-                    <button
-                      key={c.id}
-                      onClick={() => navigate({ to: "/campaigns/$id", params: { id: c.id } })}
-                      className="flex w-full items-center justify-between rounded-md border border-amber-500/10 bg-background px-3 py-2 text-left transition-colors hover:bg-muted/50"
-                    >
-                      <span className="truncate text-sm">{c.name}</span>
-                      <div className="ml-4 flex shrink-0 items-center gap-3 font-mono text-xs text-muted-foreground">
-                        <span>{c.open_rate.toFixed(1)}% ab.</span>
-                        <span>{c.ctr.toFixed(2)}% CTR</span>
-                        <ChevronRight className="h-3.5 w-3.5" />
-                      </div>
-                    </button>
-                  ))}
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {belowBench.map((c) => (
+                      <button
+                        key={c.id}
+                        onClick={() => navigate({ to: "/campaigns/$id", params: { id: c.id } })}
+                        className="flex items-center gap-2 rounded border border-amber-200 bg-white px-2.5 py-1 text-xs text-amber-800 transition-colors hover:bg-amber-50 dark:border-amber-400/20 dark:bg-amber-400/5 dark:text-amber-300"
+                      >
+                        <span className="max-w-[180px] truncate">{c.name}</span>
+                        <span className="font-mono text-[10px] opacity-70">{c.open_rate.toFixed(1)}% ab.</span>
+                        <ChevronRight className="h-3 w-3 opacity-50" />
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* Main content: top campaigns table + sidebar */}
-            <div className="mt-6 grid gap-5 lg:grid-cols-[1fr_260px]">
+            {/* ── Main grid ── */}
+            <div className="mt-6 grid gap-5 lg:grid-cols-[1fr_240px]">
 
               {/* Top campaigns */}
-              <div className="overflow-hidden rounded-lg border border-border bg-card">
+              <div className="overflow-hidden rounded border border-border bg-card">
                 <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
-                  <h2 className="text-sm font-medium">Melhores campanhas</h2>
-                  <Button asChild variant="ghost" size="sm" className="h-7 text-xs">
-                    <Link to="/campanhas">
-                      Ver todas <ChevronRight className="ml-0.5 h-3 w-3" />
-                    </Link>
+                  <div>
+                    <h2 className="text-sm font-semibold text-foreground">Melhores campanhas</h2>
+                    <p className="text-[11px] text-muted-foreground">por score no período</p>
+                  </div>
+                  <Button asChild variant="ghost" size="sm" className="h-7 gap-1 text-xs text-primary hover:text-primary">
+                    <Link to="/campanhas">Ver todas <ArrowUpRight className="h-3 w-3" /></Link>
                   </Button>
                 </div>
+
                 {isLoading ? (
-                  <div className="space-y-2 p-4">
-                    {[0, 1, 2, 3, 4].map((i) => <div key={i} className="h-9 animate-pulse rounded bg-muted" />)}
+                  <div className="space-y-px p-0">
+                    {[0,1,2,3,4].map((i) => <div key={i} className="h-14 animate-pulse bg-muted/40" />)}
                   </div>
                 ) : topCampaigns.length === 0 ? (
-                  <div className="px-5 py-12 text-center text-sm text-muted-foreground">
-                    Nenhuma campanha enviada no período.
+                  <div className="py-16 text-center text-sm text-muted-foreground">
+                    Nenhuma campanha enviada no período selecionado.
                   </div>
                 ) : (
                   <table className="w-full text-sm">
-                    <thead className="border-b border-border bg-muted/30 text-[11px] uppercase tracking-wider text-muted-foreground">
-                      <tr>
-                        <th className="px-5 py-2.5 text-left font-medium">Campanha</th>
-                        <th className="px-4 py-2.5 text-right font-medium">Abertura</th>
-                        <th className="px-4 py-2.5 text-right font-medium">CTR</th>
-                        <th className="px-4 py-2.5 text-right font-medium">Score</th>
-                        <th className="w-8 px-3 py-2.5" />
+                    <thead>
+                      <tr className="border-b border-border bg-surface text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                        <th className="px-5 py-2.5 text-left">#</th>
+                        <th className="px-3 py-2.5 text-left">Campanha</th>
+                        <th className="px-3 py-2.5 text-right">Abertura</th>
+                        <th className="px-3 py-2.5 text-right">CTR</th>
+                        <th className="px-4 py-2.5 text-right">Score</th>
+                        <th className="w-6 px-3 py-2.5" />
                       </tr>
                     </thead>
                     <tbody>
@@ -297,31 +272,38 @@ function DashboardPage() {
                           key={c.id}
                           onClick={() => navigate({ to: "/campaigns/$id", params: { id: c.id } })}
                           className={cn(
-                            "cursor-pointer transition-colors hover:bg-muted/30",
-                            i !== 0 && "border-t border-border",
+                            "group cursor-pointer border-t border-border transition-colors hover:bg-surface",
+                            i === 0 && "bg-primary/[0.03]",
                           )}
                         >
-                          <td className="px-5 py-3">
-                            <div className="max-w-[280px] truncate font-medium">{c.name}</div>
-                            <div className="font-mono text-[11px] text-muted-foreground">
+                          <td className="px-5 py-3.5">
+                            <span className={cn(
+                              "flex h-5 w-5 items-center justify-center rounded text-[10px] font-bold",
+                              i === 0 ? "bg-primary text-white" : "bg-surface text-muted-foreground"
+                            )}>{i + 1}</span>
+                          </td>
+                          <td className="px-3 py-3.5">
+                            <div className="max-w-[260px] truncate font-medium text-foreground">{c.name}</div>
+                            <div className="font-mono text-[10px] text-muted-foreground">
                               {c.sdate ? format(new Date(c.sdate), "d MMM yyyy", { locale: ptBR }) : "—"}
+                              {" · "}{c.send_amt.toLocaleString("pt-BR")} envios
                             </div>
                           </td>
-                          <td className="px-4 py-3 text-right">
-                            <span className={cn("font-mono text-xs tabular-nums", c.open_rate >= benchOR ? "text-emerald-600 dark:text-emerald-400" : "text-destructive")}>
+                          <td className="px-3 py-3.5 text-right font-mono text-xs tabular-nums">
+                            <span className={cn(c.open_rate >= benchOR ? "text-success font-semibold" : "text-destructive")}>
                               {c.open_rate.toFixed(1)}%
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-right">
-                            <span className={cn("font-mono text-xs tabular-nums", c.ctr >= benchCTR ? "text-emerald-600 dark:text-emerald-400" : "text-destructive")}>
+                          <td className="px-3 py-3.5 text-right font-mono text-xs tabular-nums">
+                            <span className={cn(c.ctr >= benchCTR ? "text-success font-semibold" : "text-destructive")}>
                               {c.ctr.toFixed(2)}%
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-right">
-                            <ScorePill score={c.score} />
+                          <td className="px-4 py-3.5 text-right">
+                            <ScoreBar score={c.score} />
                           </td>
-                          <td className="px-3 py-3 text-muted-foreground">
-                            <ChevronRight className="h-3.5 w-3.5" />
+                          <td className="px-3 py-3.5">
+                            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
                           </td>
                         </tr>
                       ))}
@@ -330,30 +312,50 @@ function DashboardPage() {
                 )}
               </div>
 
-              {/* Sidebar quick links */}
-              <div className="space-y-3">
-                <QuickCard
-                  icon={<BarChart3 className="h-4 w-4 text-primary" />}
-                  title="Fluxos"
-                  description={
-                    isLoading
-                      ? "Carregando…"
-                      : `${allSent.length} campanhas · ${activeAutos.length} automações ativas`
-                  }
+              {/* Sidebar */}
+              <div className="flex flex-col gap-3">
+                <NavCard
+                  icon={<BarChart3 className="h-4 w-4" />}
+                  label="Fluxos"
+                  description={isLoading ? "Carregando…" : `${allSent.length} campanhas · ${activeAutos.length} automações`}
                   to="/campanhas"
+                  color="#0660FE"
                 />
-                <QuickCard
-                  icon={<AlertTriangle className="h-4 w-4 text-amber-500" />}
-                  title="Alertas"
+                <NavCard
+                  icon={<TrendingUp className="h-4 w-4" />}
+                  label="Influência"
+                  description="Quem operou após o e-mail"
+                  to="/influencia"
+                  color="#0660FE"
+                />
+                <NavCard
+                  icon={<AlertTriangle className="h-4 w-4" />}
+                  label="Alertas"
                   description="Clientes para acionar"
                   to="/alertas"
+                  color="#f59e0b"
                 />
-                <QuickCard
-                  icon={<SettingsIcon className="h-4 w-4 text-muted-foreground" />}
-                  title="Configurações"
+                <NavCard
+                  icon={<SettingsIcon className="h-4 w-4" />}
+                  label="Configurações"
                   description="API key e benchmarks"
                   to="/settings"
+                  color="#6b7280"
                 />
+
+                {/* Score legend */}
+                <div className="mt-1 rounded border border-border bg-card px-4 py-3.5">
+                  <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Score</p>
+                  <div className="space-y-1.5">
+                    {[{ label: "Excelente", min: 70, color: "bg-success" }, { label: "Regular", min: 40, color: "bg-warning" }, { label: "Fraco", min: 0, color: "bg-destructive" }].map((r) => (
+                      <div key={r.label} className="flex items-center gap-2">
+                        <div className={cn("h-2 w-2 rounded-full", r.color)} />
+                        <span className="text-xs text-muted-foreground">{r.label}</span>
+                        <span className="ml-auto font-mono text-[10px] text-muted-foreground">≥ {r.min}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           </>
@@ -363,64 +365,73 @@ function DashboardPage() {
   );
 }
 
-function KpiCard({ icon, label, value, sub, good }: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  sub: string;
-  good?: boolean;
+/* ── KPI Card ── */
+function KpiCard({ icon, label, value, sub, good, bar, accent }: {
+  icon: React.ReactNode; label: string; value: string; sub: string;
+  good?: boolean; accent?: string;
+  bar?: { value: number; max: number; bench: number };
 }) {
+  const borderColor = good === true ? "var(--color-success)" : good === false ? "var(--color-destructive)" : accent ?? "#0660FE";
+  const valueColor  = good === true ? "text-success" : good === false ? "text-destructive" : "text-foreground";
+
   return (
-    <div className={cn(
-      "rounded-lg border border-border bg-card px-5 py-4 border-l-[3px]",
-      good === true  ? "border-l-success"
-      : good === false ? "border-l-destructive"
-      : "border-l-primary",
-    )}>
-      <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-        {icon}
+    <div className="relative overflow-hidden rounded border border-border bg-card px-5 py-4" style={{ borderTopColor: borderColor, borderTopWidth: "3px" }}>
+      <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+        <span style={{ color: borderColor }}>{icon}</span>
         {label}
       </div>
-      <div className={cn(
-        "mt-2.5 text-2xl font-bold tabular-nums",
-        good === true ? "text-success"
-        : good === false ? "text-destructive"
-        : "text-foreground",
-      )}>
+      <div className={cn("mt-3 font-mono text-3xl font-bold tabular-nums leading-none", valueColor)}>
         {value}
       </div>
-      <div className="mt-0.5 text-xs text-muted-foreground">{sub}</div>
+      <div className="mt-1 text-[11px] text-muted-foreground">{sub}</div>
+      {bar && (
+        <div className="mt-3 space-y-1">
+          <div className="relative h-1.5 overflow-hidden rounded-full bg-border">
+            <div
+              className="absolute inset-y-0 left-0 rounded-full transition-all"
+              style={{ width: `${Math.min((bar.value / bar.max) * 100, 100)}%`, backgroundColor: borderColor }}
+            />
+            <div
+              className="absolute inset-y-0 w-px bg-muted-foreground/40"
+              style={{ left: `${Math.min((bar.bench / bar.max) * 100, 100)}%` }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function ScorePill({ score }: { score: number }) {
+/* ── Score Bar ── */
+function ScoreBar({ score }: { score: number }) {
+  const color = score >= 70 ? "#22c55e" : score >= 40 ? "#f59e0b" : "#ef4444";
   return (
-    <span className={cn(
-      "inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold tabular-nums",
-      score >= 70 ? "bg-success/15 text-success" : score >= 40 ? "bg-warning/15 text-warning" : "bg-destructive/15 text-destructive",
-    )}>
-      {score}
-    </span>
+    <div className="flex items-center justify-end gap-2">
+      <div className="h-1.5 w-16 overflow-hidden rounded-full bg-border">
+        <div className="h-full rounded-full" style={{ width: `${score}%`, backgroundColor: color }} />
+      </div>
+      <span className="w-7 font-mono text-xs tabular-nums" style={{ color }}>{score}</span>
+    </div>
   );
 }
 
-function QuickCard({ icon, title, description, to }: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  to: string;
+/* ── Nav Card ── */
+function NavCard({ icon, label, description, to, color }: {
+  icon: React.ReactNode; label: string; description: string; to: string; color: string;
 }) {
   return (
-    <Link to={to} className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3.5 transition-colors hover:bg-muted/30">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted">
+    <Link
+      to={to}
+      className="group flex items-center gap-3 rounded border border-border bg-card px-4 py-3 transition-all hover:border-primary/30 hover:shadow-sm"
+    >
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded" style={{ backgroundColor: `${color}18`, color }}>
         {icon}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="text-sm font-medium">{title}</div>
-        <div className="truncate text-xs text-muted-foreground">{description}</div>
+        <div className="text-sm font-semibold text-foreground">{label}</div>
+        <div className="truncate text-[11px] text-muted-foreground">{description}</div>
       </div>
-      <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+      <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
     </Link>
   );
 }
