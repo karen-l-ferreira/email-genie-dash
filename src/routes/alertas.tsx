@@ -437,111 +437,98 @@ function ClientesTab({
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {rowsOrdenados.map((r) => {
             const days = mode === "inativos" ? daysDiff(r.ultimaOperacao) : null;
-            const accentBorder =
-              tab === "sem_operar_15"     ? "border-l-amber-400"
-              : tab === "sem_operar_30"   ? "border-l-red-400"
-              : tab === "valor_aprovado"  ? "border-l-[#0660FE]"
-              : "border-l-[#0660FE]";
+            const urgencyColor =
+              tab === "sem_operar_30" ? "#ef4444"
+              : tab === "sem_operar_15" ? "#f59e0b"
+              : "#0660FE";
+            const done = r.ultimoFollowupEm ? 3 : r.followupEm ? 2 : r.contatado ? 1 : 0;
+
+            const StageBtn = ({ stage, action, undoAction, label }: { stage: number; action: "check1"|"check2"|"check3"; undoAction: "uncheck1"|"uncheck2"|"uncheck3"; label: string }) => {
+              const completed = done >= stage;
+              const isNext = done === stage - 1;
+              const canClick = completed || isNext;
+              return (
+                <button
+                  type="button"
+                  disabled={!canClick}
+                  title={completed ? `Desfazer: ${label}` : label}
+                  onClick={() => canClick && toggleMutation.mutate({ contactId: r.contactId, action: completed ? undoAction : action, razaoSocial: r.razaoSocial })}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded px-2 py-1 text-[10px] font-semibold transition-all",
+                    completed
+                      ? "bg-white/20 text-white"
+                      : isNext
+                      ? "bg-white/10 text-white/60 hover:bg-white/15 hover:text-white/80"
+                      : "text-white/20 cursor-default"
+                  )}
+                >
+                  <span className={cn(
+                    "flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold",
+                    completed ? "bg-white text-[#193469]" : "border border-white/30 text-white/30"
+                  )}>
+                    {completed ? <Check className="h-2.5 w-2.5" /> : stage}
+                  </span>
+                  {label}
+                </button>
+              );
+            };
 
             return (
               <div
                 key={r.contactId}
-                className={[
-                  "relative flex flex-col gap-3 rounded-xl border border-border border-l-4 bg-card p-4 transition-shadow hover:shadow-md",
-                  accentBorder,
-                  r.ultimoFollowupEm ? "opacity-50" : r.followupEm ? "opacity-70" : r.contatado ? "opacity-85" : "",
-                ].join(" ")}
+                className={cn(
+                  "overflow-hidden rounded-xl border border-border bg-card transition-all hover:shadow-lg hover:-translate-y-px",
+                  r.ultimoFollowupEm ? "opacity-45" : r.followupEm ? "opacity-65" : r.contatado ? "opacity-80" : ""
+                )}
               >
-                {/* Header */}
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-semibold text-sm leading-tight">{r.razaoSocial || "Empresa sem nome"}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {r.clienteId ? `ID ${r.clienteId}` : ""}
-                      {r.clienteId && r.cnpj ? " · " : ""}
-                      {r.cnpj ?? ""}
-                      {!r.clienteId && !r.cnpj ? "Sem identificação" : ""}
-                    </p>
+                {/* Header escuro */}
+                <div className="relative px-4 pt-4 pb-3" style={{ backgroundColor: "#193469" }}>
+                  {/* Accent stripe top */}
+                  <div className="absolute top-0 left-0 right-0 h-0.5" style={{ backgroundColor: urgencyColor }} />
+
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold leading-tight text-white">{r.razaoSocial || "Empresa sem nome"}</p>
+                      <p className="mt-0.5 text-[10px] text-white/40 font-mono">
+                        {r.clienteId ? `ID ${r.clienteId}` : ""}
+                        {r.clienteId && r.cnpj ? " · " : ""}
+                        {r.cnpj ?? ""}
+                      </p>
+                    </div>
+                    {/* Urgency badge */}
+                    {mode === "inativos" && days !== null && (
+                      <div className="shrink-0 text-right">
+                        <div className="font-mono text-2xl font-bold leading-none" style={{ color: urgencyColor }}>{days}</div>
+                        <div className="text-[9px] text-white/35 uppercase tracking-wider">dias</div>
+                      </div>
+                    )}
                   </div>
 
-                  {/* 3 checks progressivos */}
-                  <div className="flex items-center gap-1 shrink-0">
-                    {/* Check 1 — primeiro contato */}
-                    <button
-                      type="button"
-                      title={r.contatado ? "Desmarcar primeiro contato" : "Marcar como contatado"}
-                      onClick={() => toggleMutation.mutate({ contactId: r.contactId, action: r.contatado ? "uncheck1" : "check1", razaoSocial: r.razaoSocial })}
-                      className={[
-                        "flex h-6 w-6 items-center justify-center rounded border transition-all",
-                        r.contatado ? "border-success bg-success text-white" : "border-border bg-background text-transparent hover:border-foreground/50",
-                      ].join(" ")}
-                    >
-                      <Check className="h-3.5 w-3.5" />
-                    </button>
-                    {/* Check 2 — follow-up (só aparece após check 1) */}
-                    {r.contatado && (
-                      <button
-                        type="button"
-                        title={r.followupEm ? "Desmarcar follow-up" : "Marcar follow-up feito"}
-                        onClick={() => toggleMutation.mutate({ contactId: r.contactId, action: r.followupEm ? "uncheck2" : "check2", razaoSocial: r.razaoSocial })}
-                        className={[
-                          "flex h-6 w-6 items-center justify-center rounded border transition-all",
-                          r.followupEm ? "border-primary bg-primary text-white" : "border-border bg-background text-transparent hover:border-foreground/50",
-                        ].join(" ")}
-                      >
-                        <Check className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                    {/* Check 3 — último follow-up (só aparece após check 2) */}
-                    {r.followupEm && (
-                      <button
-                        type="button"
-                        title={r.ultimoFollowupEm ? "Desmarcar último follow-up" : "Marcar último follow-up feito"}
-                        onClick={() => toggleMutation.mutate({ contactId: r.contactId, action: r.ultimoFollowupEm ? "uncheck3" : "check3", razaoSocial: r.razaoSocial })}
-                        className={[
-                          "flex h-6 w-6 items-center justify-center rounded border transition-all",
-                          r.ultimoFollowupEm ? "border-warning bg-warning text-white" : "border-border bg-background text-transparent hover:border-foreground/50",
-                        ].join(" ")}
-                      >
-                        <Check className="h-3.5 w-3.5" />
-                      </button>
-                    )}
+                  {/* Pipeline de etapas */}
+                  <div className="mt-3 flex items-center gap-1">
+                    <StageBtn stage={1} action="check1" undoAction="uncheck1" label="Contato" />
+                    <span className="text-white/15 text-xs">›</span>
+                    <StageBtn stage={2} action="check2" undoAction="uncheck2" label="Follow-up" />
+                    <span className="text-white/15 text-xs">›</span>
+                    <StageBtn stage={3} action="check3" undoAction="uncheck3" label="Encerrado" />
                   </div>
                 </div>
 
-                {/* Status de contatos */}
-                <div className="flex flex-col gap-0.5">
-                  {r.contatado && (
-                    <div className="flex items-center gap-1.5 text-xs font-medium text-success">
-                      <Check className="h-3 w-3" />
-                      Contatado{r.contatadoEm ? ` em ${fmtDate(r.contatadoEm)}` : ""}
+                {/* Body claro */}
+                <div className="px-4 py-3 space-y-2">
+                  {/* Datas de status */}
+                  {done > 0 && (
+                    <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+                      {r.contatadoEm && <span className="text-[10px] text-muted-foreground">✓ Contatado <span className="font-medium text-foreground">{fmtDate(r.contatadoEm)}</span></span>}
+                      {r.followupEm && <span className="text-[10px] text-muted-foreground">✓ Follow-up <span className="font-medium text-foreground">{fmtDate(r.followupEm)}</span></span>}
+                      {r.ultimoFollowupEm && <span className="text-[10px] text-muted-foreground">✓ Encerrado <span className="font-medium text-foreground">{fmtDate(r.ultimoFollowupEm)}</span></span>}
                     </div>
                   )}
-                  {r.followupEm && (
-                    <div className="flex items-center gap-1.5 text-xs font-medium text-primary">
-                      <Check className="h-3 w-3" />
-                      Follow-up em {fmtDate(r.followupEm)}
-                    </div>
-                  )}
-                  {r.ultimoFollowupEm && (
-                    <div className="flex items-center gap-1.5 text-xs font-medium text-warning">
-                      <Check className="h-3 w-3" />
-                      Último follow-up em {fmtDate(r.ultimoFollowupEm)}
-                    </div>
-                  )}
-                </div>
 
                 {/* Key metric */}
-                {mode === "inativos" && (
-                  <div className="flex items-end justify-between rounded-lg bg-muted/50 px-3 py-2">
-                    <div>
-                      <div className="text-2xl font-bold tabular-nums leading-none">{days ?? "?"}</div>
-                      <div className="mt-0.5 text-[11px] text-muted-foreground">dias sem operar</div>
-                    </div>
-                    <div className="text-right text-xs text-muted-foreground">
-                      <div>Última operação</div>
-                      <div className="font-medium text-foreground">{fmtDate(r.ultimaOperacao)}</div>
-                    </div>
+                {mode === "inativos" && r.ultimaOperacao && (
+                  <div className="text-[10px] text-muted-foreground">
+                    Última operação: <span className="font-medium text-foreground">{fmtDate(r.ultimaOperacao)}</span>
                   </div>
                 )}
                 {mode === "valor" && (
@@ -569,22 +556,23 @@ function ClientesTab({
 
                 {/* Contact info */}
                 {(r.email || r.phone) && (
-                  <div className="space-y-1 border-t border-border pt-2">
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-border pt-2">
                     {r.email && (
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                         <Mail className="h-3 w-3 shrink-0" />
                         <span className="truncate">{r.email}</span>
                       </div>
                     )}
                     {r.phone && (
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                         <Phone className="h-3 w-3 shrink-0" />
                         <span>{r.phone}</span>
                       </div>
                     )}
                   </div>
                 )}
-              </div>
+              </div>{/* end body */}
+            </div>{/* end card */}
             );
           })}
         </div>
