@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+﻿import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
@@ -119,16 +119,16 @@ function DashboardPage() {
   const today = format(new Date(), "EEEE, d 'de' MMMM", { locale: ptBR });
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pl-[220px]">
       <AppHeader />
 
       <main className="mx-auto max-w-[1400px] px-6 py-8">
 
-        {/* ── Page header ── */}
+        {/* â”€â”€ Page header â”€â”€ */}
         <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-xs font-medium text-muted-foreground capitalize">{today}</p>
-            <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-foreground">Visão geral</h1>
+            <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-foreground">VisÃ£o geral</h1>
           </div>
           <div className="flex items-center gap-2">
             {/* Period selector */}
@@ -163,7 +163,7 @@ function DashboardPage() {
           </div>
         ) : (
           <>
-            {/* ── KPIs ── */}
+            {/* â”€â”€ KPIs â”€â”€ */}
             {isLoading ? (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {[0,1,2,3].map((i) => <div key={i} className="h-28 animate-pulse rounded bg-muted" />)}
@@ -188,7 +188,7 @@ function DashboardPage() {
                 />
                 <KpiCard
                   icon={<MousePointerClick className="h-4 w-4" />}
-                  label="CTR médio"
+                  label="CTR mÃ©dio"
                   value={`${avgCTR.toFixed(2)}%`}
                   sub={`benchmark ${benchCTR}%`}
                   good={sent.length > 0 ? avgCTR >= benchCTR : undefined}
@@ -197,16 +197,16 @@ function DashboardPage() {
                 />
                 <KpiCard
                   icon={<Zap className="h-4 w-4" />}
-                  label="Automações ativas"
-                  value={automationsQ.isLoading ? "—" : activeAutos.length.toLocaleString("pt-BR")}
-                  sub={automationsQ.isLoading ? "" : `de ${automations.length} automações`}
+                  label="AutomaÃ§Ãµes ativas"
+                  value={automationsQ.isLoading ? "â€”" : activeAutos.length.toLocaleString("pt-BR")}
+                  sub={automationsQ.isLoading ? "" : `de ${automations.length} automaÃ§Ãµes`}
                   good={!automationsQ.isLoading && automations.length > 0 ? activeAutos.length > 0 : undefined}
                   accent="#0660FE"
                 />
               </div>
             )}
 
-            {/* ── Alert banner ── */}
+            {/* â”€â”€ Alert banner â”€â”€ */}
             {belowBench.length > 0 && (
               <div className="mt-4 flex items-start gap-3 rounded border-l-4 border-amber-400 bg-amber-50 px-4 py-3 dark:bg-amber-400/5">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
@@ -231,7 +231,7 @@ function DashboardPage() {
               </div>
             )}
 
-            {/* ── Main grid ── */}
+            {/* â”€â”€ Main grid â”€â”€ */}
             <div className="mt-6 grid gap-5 lg:grid-cols-[1fr_240px]">
 
               {/* Top campaigns */}
@@ -239,7 +239,7 @@ function DashboardPage() {
                 <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
                   <div>
                     <h2 className="text-sm font-semibold text-foreground">Melhores campanhas</h2>
-                    <p className="text-[11px] text-muted-foreground">por score no período</p>
+                    <p className="text-[11px] text-muted-foreground">por score no perÃ­odo</p>
                   </div>
                   <Button asChild variant="ghost" size="sm" className="h-7 gap-1 text-xs text-primary hover:text-primary">
                     <Link to="/campanhas">Ver todas <ArrowUpRight className="h-3 w-3" /></Link>
@@ -252,7 +252,7 @@ function DashboardPage() {
                   </div>
                 ) : topCampaigns.length === 0 ? (
                   <div className="py-16 text-center text-sm text-muted-foreground">
-                    Nenhuma campanha enviada no período selecionado.
+                    Nenhuma campanha enviada no perÃ­odo selecionado.
                   </div>
                 ) : (
                   <table className="w-full text-sm">
@@ -285,8 +285,8 @@ function DashboardPage() {
                           <td className="px-3 py-3.5">
                             <div className="max-w-[260px] truncate font-medium text-foreground">{c.name}</div>
                             <div className="font-mono text-[10px] text-muted-foreground">
-                              {c.sdate ? format(new Date(c.sdate), "d MMM yyyy", { locale: ptBR }) : "—"}
-                              {" · "}{c.send_amt.toLocaleString("pt-BR")} envios
+                              {c.sdate ? format(new Date(c.sdate), "d MMM yyyy", { locale: ptBR }) : "â€”"}
+                              {" Â· "}{c.send_amt.toLocaleString("pt-BR")} envios
                             </div>
                           </td>
                           <td className="px-3 py-3.5 text-right font-mono text-xs tabular-nums">
@@ -317,14 +317,14 @@ function DashboardPage() {
                 <NavCard
                   icon={<BarChart3 className="h-4 w-4" />}
                   label="Fluxos"
-                  description={isLoading ? "Carregando…" : `${allSent.length} campanhas · ${activeAutos.length} automações`}
+                  description={isLoading ? "Carregandoâ€¦" : `${allSent.length} campanhas Â· ${activeAutos.length} automaÃ§Ãµes`}
                   to="/campanhas"
                   color="#0660FE"
                 />
                 <NavCard
                   icon={<TrendingUp className="h-4 w-4" />}
-                  label="Influência"
-                  description="Quem operou após o e-mail"
+                  label="InfluÃªncia"
+                  description="Quem operou apÃ³s o e-mail"
                   to="/influencia"
                   color="#0660FE"
                 />
@@ -337,7 +337,7 @@ function DashboardPage() {
                 />
                 <NavCard
                   icon={<SettingsIcon className="h-4 w-4" />}
-                  label="Configurações"
+                  label="ConfiguraÃ§Ãµes"
                   description="API key e benchmarks"
                   to="/settings"
                   color="#6b7280"
@@ -351,7 +351,7 @@ function DashboardPage() {
                       <div key={r.label} className="flex items-center gap-2">
                         <div className={cn("h-2 w-2 rounded-full", r.color)} />
                         <span className="text-xs text-muted-foreground">{r.label}</span>
-                        <span className="ml-auto font-mono text-[10px] text-muted-foreground">≥ {r.min}</span>
+                        <span className="ml-auto font-mono text-[10px] text-muted-foreground">â‰¥ {r.min}</span>
                       </div>
                     ))}
                   </div>
@@ -365,7 +365,7 @@ function DashboardPage() {
   );
 }
 
-/* ── KPI Card ── */
+/* â”€â”€ KPI Card â”€â”€ */
 function KpiCard({ icon, label, value, sub, good, bar, accent }: {
   icon: React.ReactNode; label: string; value: string; sub: string;
   good?: boolean; accent?: string;
@@ -402,7 +402,7 @@ function KpiCard({ icon, label, value, sub, good, bar, accent }: {
   );
 }
 
-/* ── Score Bar ── */
+/* â”€â”€ Score Bar â”€â”€ */
 function ScoreBar({ score }: { score: number }) {
   const color = score >= 70 ? "#22c55e" : score >= 40 ? "#f59e0b" : "#ef4444";
   return (
@@ -415,7 +415,7 @@ function ScoreBar({ score }: { score: number }) {
   );
 }
 
-/* ── Nav Card ── */
+/* â”€â”€ Nav Card â”€â”€ */
 function NavCard({ icon, label, description, to, color }: {
   icon: React.ReactNode; label: string; description: string; to: string; color: string;
 }) {
@@ -435,3 +435,4 @@ function NavCard({ icon, label, description, to, color }: {
     </Link>
   );
 }
+

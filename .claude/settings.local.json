@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git remote *)",
+      "Bash(git branch *)",
+      "Bash(git push *)",
+      "Bash(git pull *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(New-Item -ItemType Directory -Force \"c:\\\\Users\\\\KarenLeticiaFerreira\\\\Downloads\\\\email-genie\\\\public\")",
+      "Bash(Out-Null)",
+      "Bash(Write-Output \"ok\")"
+    ]
+  }
+}

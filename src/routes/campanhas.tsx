@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+﻿import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
@@ -62,15 +62,15 @@ export const Route = createFileRoute("/campanhas")({
 
 const TABS = [
   { key: "campanhas",  label: "Campanhas" },
-  { key: "cobranca",   label: "Cobrança" },
-  { key: "automacoes", label: "Automações" },
+  { key: "cobranca",   label: "CobranÃ§a" },
+  { key: "automacoes", label: "AutomaÃ§Ãµes" },
 ] as const;
 type FluxoTab = typeof TABS[number]["key"];
 
 function FluxosPage() {
   const [tab, setTab] = useState<FluxoTab>("campanhas");
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pl-[220px]">
       <AppHeader />
       <div className="mx-auto max-w-[1400px] px-6 py-8">
         <div className="mb-7 border-b border-border pb-5">
@@ -204,11 +204,11 @@ function CampaignListPage() {
             <TabsTrigger value="campaigns">Campanhas</TabsTrigger>
             <TabsTrigger value="history">
               <Clock className="mr-1.5 h-3.5 w-3.5" />
-              Histórico
+              HistÃ³rico
             </TabsTrigger>
           </TabsList>
 
-          {/* ── Aba Campanhas ── */}
+          {/* â”€â”€ Aba Campanhas â”€â”€ */}
           <TabsContent value="campaigns" className="mt-6">
             <div className="flex flex-wrap items-center gap-3">
               <button
@@ -238,7 +238,7 @@ function CampaignListPage() {
                 <Input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Buscar por nome…"
+                  placeholder="Buscar por nomeâ€¦"
                   className="pl-9"
                 />
               </div>
@@ -270,7 +270,7 @@ function CampaignListPage() {
                   {isLoading ? (
                     <tr>
                       <td colSpan={6} className="px-5 py-16 text-center text-muted-foreground">
-                        Carregando campanhas…
+                        Carregando campanhasâ€¦
                       </td>
                     </tr>
                   ) : isError ? (
@@ -301,7 +301,7 @@ function CampaignListPage() {
                           <span className="font-medium">{c.name}</span>
                         </td>
                         <td className="px-3 py-4 font-mono text-xs text-muted-foreground">
-                          {c.sdate ? format(new Date(c.sdate), "d 'de' MMM, yyyy", { locale: ptBR }) : "—"}
+                          {c.sdate ? format(new Date(c.sdate), "d 'de' MMM, yyyy", { locale: ptBR }) : "â€”"}
                         </td>
                         <td className="px-3 py-4 font-mono tabular-nums">{c.send_amt.toLocaleString("pt-BR")}</td>
                         <td className="px-3 py-4">
@@ -327,19 +327,19 @@ function CampaignListPage() {
                 </span>
                 <Button variant="outline" size="sm" onClick={loadMore} disabled={loadingMore}>
                   <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", loadingMore && "animate-spin")} />
-                  {loadingMore ? "Carregando…" : `Carregar mais ${Math.min(100, total - allCampaigns.length)}`}
+                  {loadingMore ? "Carregandoâ€¦" : `Carregar mais ${Math.min(100, total - allCampaigns.length)}`}
                 </Button>
               </div>
             )}
           </TabsContent>
 
-          {/* ── Aba Histórico ── */}
+          {/* â”€â”€ Aba HistÃ³rico â”€â”€ */}
           <TabsContent value="history" className="mt-6">
             {history.length === 0 ? (
               <div className="rounded-xl border border-border bg-card p-10 text-center">
                 <Clock className="mx-auto mb-3 h-8 w-8 text-muted-foreground/40" />
                 <p className="text-sm text-muted-foreground">
-                  Nenhuma campanha visualizada ainda. Abra o detalhe de uma campanha para começar seu histórico.
+                  Nenhuma campanha visualizada ainda. Abra o detalhe de uma campanha para comeÃ§ar seu histÃ³rico.
                 </p>
               </div>
             ) : (
@@ -356,7 +356,7 @@ function CampaignListPage() {
                     }}
                   >
                     <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                    Limpar histórico
+                    Limpar histÃ³rico
                   </Button>
                 </div>
                 <div className="overflow-hidden rounded-xl border border-border bg-card">
@@ -380,7 +380,7 @@ function CampaignListPage() {
                         >
                           <td className="px-5 py-4 font-medium">{h.name}</td>
                           <td className="px-3 py-4 font-mono text-xs text-muted-foreground">
-                            {h.sdate ? format(new Date(h.sdate), "d 'de' MMM, yyyy", { locale: ptBR }) : "—"}
+                            {h.sdate ? format(new Date(h.sdate), "d 'de' MMM, yyyy", { locale: ptBR }) : "â€”"}
                           </td>
                           <td className="px-3 py-4 text-right">
                             <RateCell value={h.open_rate} bench={benchOR} />
@@ -494,7 +494,7 @@ function CobrancaTab() {
         label: format(new Date(), "dd/MM/yyyy HH:mm"),
         entity_type: "campaign",
         entity_id: "cobranca",
-        entity_name: "Cobrança",
+        entity_name: "CobranÃ§a",
         metrics,
       }});
       await histQ.refetch();
@@ -516,7 +516,7 @@ function CobrancaTab() {
 
   return (
     <div className="space-y-5">
-      {/* Cabeçalho + ações */}
+      {/* CabeÃ§alho + aÃ§Ãµes */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex gap-1 rounded-lg border border-border bg-surface p-0.5">
           {(["atual", "historico"] as const).map((v) => (
@@ -528,7 +528,7 @@ function CobrancaTab() {
                 view === v ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
               )}
             >
-              {v === "atual" ? "Hoje" : `Histórico (${history.length})`}
+              {v === "atual" ? "Hoje" : `HistÃ³rico (${history.length})`}
             </button>
           ))}
         </div>
@@ -539,7 +539,7 @@ function CobrancaTab() {
           </Button>
           <Button size="sm" onClick={handleSave} disabled={saving || !cmpQ.data || cmpQ.isFetching}>
             <Save className="mr-1.5 h-3.5 w-3.5" />
-            {saving ? "Salvando…" : "Salvar"}
+            {saving ? "Salvandoâ€¦" : "Salvar"}
           </Button>
         </div>
       </div>
@@ -553,12 +553,12 @@ function CobrancaTab() {
       {/* Debug panel */}
       <div>
         <button onClick={loadDebug} disabled={loadingDebug} className="text-[11px] text-muted-foreground underline hover:text-foreground">
-          {loadingDebug ? "Carregando nomes reais…" : "Ver nomes reais do AC (debug)"}
+          {loadingDebug ? "Carregando nomes reaisâ€¦" : "Ver nomes reais do AC (debug)"}
         </button>
         {showDebug && debugData && (
           <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/20 p-4 text-xs font-mono space-y-3">
             <div>
-              <p className="font-bold text-amber-800 dark:text-amber-300 mb-1">Automações no AC ({debugData.autoNames.length}):</p>
+              <p className="font-bold text-amber-800 dark:text-amber-300 mb-1">AutomaÃ§Ãµes no AC ({debugData.autoNames.length}):</p>
               <ul className="space-y-0.5 max-h-48 overflow-y-auto">
                 {debugData.autoNames.map((a) => (
                   <li key={a.id} className="text-amber-900 dark:text-amber-200">[{a.id}] {a.name}</li>
@@ -578,7 +578,7 @@ function CobrancaTab() {
         )}
       </div>
 
-      {/* ── Vista atual ── */}
+      {/* â”€â”€ Vista atual â”€â”€ */}
       {view === "atual" && (
         <>
           {isLoading ? (
@@ -589,13 +589,13 @@ function CobrancaTab() {
             </div>
           ) : rows.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border px-6 py-12 text-center text-sm text-muted-foreground">
-              Nenhum dado encontrado. Verifique se as automações e campos de conta estão configurados.
+              Nenhum dado encontrado. Verifique se as automaÃ§Ãµes e campos de conta estÃ£o configurados.
             </div>
           ) : (
             <>
               {cmpQ.data?.fetchedAt && (
                 <p className="text-[11px] text-muted-foreground">
-                  Atualizado às {format(new Date(cmpQ.data.fetchedAt), "HH:mm 'de' dd/MM/yyyy")}
+                  Atualizado Ã s {format(new Date(cmpQ.data.fetchedAt), "HH:mm 'de' dd/MM/yyyy")}
                 </p>
               )}
               <CobrancaCompareTable title="Cedente" accent="border-l-primary" rows={cedente} />
@@ -605,7 +605,7 @@ function CobrancaTab() {
         </>
       )}
 
-      {/* ── Histórico ── */}
+      {/* â”€â”€ HistÃ³rico â”€â”€ */}
       {view === "historico" && (
         <>
           {history.length === 0 ? (
@@ -634,10 +634,10 @@ function CobrancaTab() {
                             ))}
                           </tr>
                           <tr className="border-t border-border">
-                            <th className="px-4 py-1 text-[10px] text-muted-foreground/50">—</th>
+                            <th className="px-4 py-1 text-[10px] text-muted-foreground/50">â€”</th>
                             {tipoRows.map((r) => (
                               <>
-                                <th key={`${r.type}-${r.fieldDay}-el`} className="px-2 py-1 text-center text-[10px] text-muted-foreground">Elegíveis</th>
+                                <th key={`${r.type}-${r.fieldDay}-el`} className="px-2 py-1 text-center text-[10px] text-muted-foreground">ElegÃ­veis</th>
                                 <th key={`${r.type}-${r.fieldDay}-en`} className="px-2 py-1 text-center text-[10px] text-primary">Enviados</th>
                               </>
                             ))}
@@ -655,10 +655,10 @@ function CobrancaTab() {
                                 return (
                                   <>
                                     <td key={`${key}-el`} className="px-2 py-2.5 text-center font-mono tabular-nums text-xs">
-                                      {el > 0 ? el.toLocaleString("pt-BR") : <span className="text-muted-foreground/30">—</span>}
+                                      {el > 0 ? el.toLocaleString("pt-BR") : <span className="text-muted-foreground/30">â€”</span>}
                                     </td>
                                     <td key={`${key}-en`} className={cn("px-2 py-2.5 text-center font-mono tabular-nums text-xs font-medium", diff < 0 ? "text-destructive" : diff === 0 && en > 0 ? "text-success" : "")}>
-                                      {en > 0 ? en.toLocaleString("pt-BR") : <span className="text-muted-foreground/30">—</span>}
+                                      {en > 0 ? en.toLocaleString("pt-BR") : <span className="text-muted-foreground/30">â€”</span>}
                                     </td>
                                   </>
                                 );
@@ -689,9 +689,9 @@ function CobrancaCompareTable({ title, accent, rows }: { title: string; accent: 
         <table className="w-full text-sm">
           <thead className="bg-surface text-[11px] uppercase tracking-wider text-muted-foreground">
             <tr>
-              <th className="px-4 py-2.5 text-left font-medium">Régua</th>
-              <th className="px-4 py-2.5 text-left font-medium">Automação</th>
-              <th className="px-4 py-2.5 text-right font-medium">Elegíveis</th>
+              <th className="px-4 py-2.5 text-left font-medium">RÃ©gua</th>
+              <th className="px-4 py-2.5 text-left font-medium">AutomaÃ§Ã£o</th>
+              <th className="px-4 py-2.5 text-right font-medium">ElegÃ­veis</th>
               <th className="px-4 py-2.5 text-right font-medium">Enviados AC</th>
               <th className="px-4 py-2.5 text-right font-medium">Diff</th>
             </tr>
@@ -706,17 +706,17 @@ function CobrancaCompareTable({ title, accent, rows }: { title: string; accent: 
                 <tr key={`${r.type}-${r.fieldDay}`} className={cn("border-t border-border transition-colors hover:bg-surface-2", !hasAny && "opacity-40")}>
                   <td className={cn("border-l-[3px] px-4 py-3 font-mono font-bold text-xs", accent)}>{r.label}</td>
                   <td className="px-4 py-3 text-xs text-muted-foreground">
-                    {r.automation_id ? r.automation_name : <span className="text-destructive/70 italic">não encontrada</span>}
+                    {r.automation_id ? r.automation_name : <span className="text-destructive/70 italic">nÃ£o encontrada</span>}
                   </td>
                   <td className="px-4 py-3 text-right font-mono tabular-nums">
-                    {r.elegiveis > 0 ? r.elegiveis.toLocaleString("pt-BR") : <span className="text-muted-foreground/40">—</span>}
+                    {r.elegiveis > 0 ? r.elegiveis.toLocaleString("pt-BR") : <span className="text-muted-foreground/40">â€”</span>}
                   </td>
                   <td className="px-4 py-3 text-right font-mono tabular-nums font-medium">
-                    {r.enviados > 0 ? r.enviados.toLocaleString("pt-BR") : <span className="text-muted-foreground/40">—</span>}
+                    {r.enviados > 0 ? r.enviados.toLocaleString("pt-BR") : <span className="text-muted-foreground/40">â€”</span>}
                   </td>
                   <td className="px-4 py-3 text-right font-mono tabular-nums text-xs">
-                    {!hasAny ? <span className="text-muted-foreground/40">—</span>
-                      : diff === 0 ? <span className="text-success">✓</span>
+                    {!hasAny ? <span className="text-muted-foreground/40">â€”</span>
+                      : diff === 0 ? <span className="text-success">âœ“</span>
                       : diff < 0 ? <span className="text-destructive">{diff.toLocaleString("pt-BR")}</span>
                       : <span className="text-warning">+{diff.toLocaleString("pt-BR")}</span>}
                   </td>
@@ -750,7 +750,7 @@ function AutomacoesInline() {
     return <div className="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">{(autosQ.error as Error).message}</div>;
   }
   if (autos.length === 0) {
-    return <div className="rounded-md border border-border px-6 py-16 text-center text-sm text-muted-foreground">Nenhuma automação encontrada.</div>;
+    return <div className="rounded-md border border-border px-6 py-16 text-center text-sm text-muted-foreground">Nenhuma automaÃ§Ã£o encontrada.</div>;
   }
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -764,10 +764,11 @@ function AutomacoesInline() {
           <p className="truncate text-sm font-medium">{a.name}</p>
           <div className="flex items-center gap-4 text-xs text-muted-foreground">
             <span>{a.entered.toLocaleString("pt-BR")} entradas</span>
-            <span>{a.completion_rate.toFixed(1)}% conclusão</span>
+            <span>{a.completion_rate.toFixed(1)}% conclusÃ£o</span>
           </div>
         </button>
       ))}
     </div>
   );
 }
+

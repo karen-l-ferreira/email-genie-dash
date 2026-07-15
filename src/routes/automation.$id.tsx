@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+﻿import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
@@ -117,7 +117,7 @@ function AutomationDetailPage() {
   }
 
   if (autoQ.isLoading) return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pl-[220px]">
       <AppHeader />
       <div className="mx-auto max-w-[1400px] px-6 py-10 space-y-4">
         <div className="h-8 w-64 animate-pulse rounded bg-surface" />
@@ -127,7 +127,7 @@ function AutomationDetailPage() {
   );
 
   if (autoQ.isError || !a) return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pl-[220px]">
       <AppHeader />
       <div className="mx-auto max-w-[1400px] px-6 py-10">
         <p className="text-sm text-destructive">{(autoQ.error as Error)?.message ?? "Erro ao carregar"}</p>
@@ -139,11 +139,11 @@ function AutomationDetailPage() {
   );
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pl-[220px]">
       <AppHeader />
       <main className="mx-auto max-w-[1400px] px-6 py-8 space-y-8">
 
-        {/* Cabeçalho */}
+        {/* CabeÃ§alho */}
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-3">
@@ -152,21 +152,21 @@ function AutomationDetailPage() {
             </div>
             <p className="mt-1 font-mono text-xs text-muted-foreground">
               ID {a.id}
-              {a.mdate && ` • Modificado em ${format(new Date(a.mdate), "d 'de' MMM, yyyy", { locale: ptBR })}`}
+              {a.mdate && ` â€¢ Modificado em ${format(new Date(a.mdate), "d 'de' MMM, yyyy", { locale: ptBR })}`}
             </p>
           </div>
           <Button asChild variant="outline" size="sm">
-            <Link to="/automations"><ArrowLeft className="mr-1.5 h-4 w-4" />Automações</Link>
+            <Link to="/automations"><ArrowLeft className="mr-1.5 h-4 w-4" />AutomaÃ§Ãµes</Link>
           </Button>
         </div>
 
-        {/* Métricas da automação */}
+        {/* MÃ©tricas da automaÃ§Ã£o */}
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           {[
             { label: "Entrou", value: a.entered },
             { label: "Ativo", value: a.active },
             { label: "Saiu", value: a.exited },
-            { label: "Conclusão", value: `${a.completion_rate.toFixed(1)}%` },
+            { label: "ConclusÃ£o", value: `${a.completion_rate.toFixed(1)}%` },
           ].map((m) => (
             <div key={m.label} className="rounded-xl border border-border bg-card p-4">
               <div className="text-xs text-muted-foreground">{m.label}</div>
@@ -175,7 +175,7 @@ function AutomationDetailPage() {
           ))}
         </div>
 
-        {/* Métricas agregadas dos emails da régua */}
+        {/* MÃ©tricas agregadas dos emails da rÃ©gua */}
         {messages.length > 0 && (() => {
           const totalSends = messages.reduce((s, m) => s + m.sends, 0);
           const totalOpens = messages.reduce((s, m) => s + m.uniqueopens, 0);
@@ -185,15 +185,15 @@ function AutomationDetailPage() {
           const avgCtr = messages.reduce((s, m) => s + m.ctr, 0) / messages.length;
           return (
             <div>
-              <h2 className="mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wider">Métricas da Régua</h2>
+              <h2 className="mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wider">MÃ©tricas da RÃ©gua</h2>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
                 {[
                   { label: "Total enviados", value: totalSends.toLocaleString("pt-BR") },
                   { label: "Total aberturas", value: totalOpens.toLocaleString("pt-BR") },
                   { label: "Cliques totais", value: totalClicks.toLocaleString("pt-BR") },
-                  { label: "Cliques únicos", value: totalUniqueClicks.toLocaleString("pt-BR") },
-                  { label: "Média abertura", value: `${avgOpenRate.toFixed(1)}%` },
-                  { label: "Média CTR", value: `${avgCtr.toFixed(1)}%` },
+                  { label: "Cliques Ãºnicos", value: totalUniqueClicks.toLocaleString("pt-BR") },
+                  { label: "MÃ©dia abertura", value: `${avgOpenRate.toFixed(1)}%` },
+                  { label: "MÃ©dia CTR", value: `${avgCtr.toFixed(1)}%` },
                 ].map((stat) => (
                   <div key={stat.label} className="rounded-lg border border-border bg-card px-4 py-3">
                     <div className="text-[11px] text-muted-foreground">{stat.label}</div>
@@ -205,12 +205,12 @@ function AutomationDetailPage() {
           );
         })()}
 
-        {/* E-mails da automação */}
+        {/* E-mails da automaÃ§Ã£o */}
         <div>
           <div className="mb-4 flex items-center justify-between">
             <h2 className="flex items-center gap-2 text-base font-semibold">
               <Mail className="h-4 w-4 text-primary" />
-              E-mails desta automação
+              E-mails desta automaÃ§Ã£o
               {messages.length > 0 && (
                 <span className="rounded-full bg-primary/20 px-2 py-0.5 text-xs font-semibold text-primary">{messages.length}</span>
               )}
@@ -226,7 +226,7 @@ function AutomationDetailPage() {
             <div className="space-y-3">{[0,1].map(i => <div key={i} className="h-16 animate-pulse rounded-xl bg-surface" />)}</div>
           ) : messages.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
-              Nenhum e-mail encontrado nesta automação.
+              Nenhum e-mail encontrado nesta automaÃ§Ã£o.
               {hiddenIds.size > 0 && (
                 <div className="mt-3">
                   <button onClick={restoreAll} className="text-xs text-primary underline">Restaurar ocultos</button>
@@ -249,7 +249,7 @@ function AutomationDetailPage() {
                       )}
                     >
                       <span className="font-semibold">{m.campaignName || `E-mail ${i + 1}`}</span>
-                      {m.subject && <span className="ml-1 opacity-70">— {m.subject.slice(0, 30)}</span>}
+                      {m.subject && <span className="ml-1 opacity-70">â€” {m.subject.slice(0, 30)}</span>}
                     </button>
                     <button
                       onClick={() => { hideEmail(m.campaignId); if (safeIdx >= i) setSelectedIdx(Math.max(0, safeIdx - 1)); }}
@@ -264,13 +264,13 @@ function AutomationDetailPage() {
 
               {msg && (
                 <>
-                  {/* Métricas do email selecionado */}
+                  {/* MÃ©tricas do email selecionado */}
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
                     {[
                       { label: "Enviados", value: msg.sends.toLocaleString("pt-BR") },
-                      { label: "Aberturas únicas", value: msg.uniqueopens.toLocaleString("pt-BR") },
+                      { label: "Aberturas Ãºnicas", value: msg.uniqueopens.toLocaleString("pt-BR") },
                       { label: "Cliques totais", value: msg.linkclicks.toLocaleString("pt-BR") },
-                      { label: "Cliques únicos", value: msg.uniquelinkclicks.toLocaleString("pt-BR") },
+                      { label: "Cliques Ãºnicos", value: msg.uniquelinkclicks.toLocaleString("pt-BR") },
                       { label: "Taxa de abertura", value: `${msg.open_rate.toFixed(1)}%` },
                       { label: "CTR", value: `${msg.ctr.toFixed(1)}%` },
                     ].map((stat) => (
@@ -282,7 +282,7 @@ function AutomationDetailPage() {
                   </div>
 
                   <div className="grid gap-5 lg:grid-cols-2">
-                    {/* Prévia */}
+                    {/* PrÃ©via */}
                     <div className="space-y-4">
                       <div className="rounded-xl border border-border bg-card p-4">
                         <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Assunto</p>
@@ -299,7 +299,7 @@ function AutomationDetailPage() {
                       )}
                     </div>
 
-                    {/* Análise IA */}
+                    {/* AnÃ¡lise IA */}
                     <div className="space-y-4">
                       {!analysis && !analyzing[msg.id] && (
                         <div className="rounded-xl border border-border bg-card p-8 text-center">
@@ -390,7 +390,7 @@ function AutomationDetailPage() {
               </div>
               <div className="rounded-xl border border-border bg-card p-4">
                 <div className="mb-2 flex justify-between items-center">
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Prévia</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">PrÃ©via</p>
                   <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(generated.html); toast.success("HTML copiado"); }}>
                     <Copy className="mr-1.5 h-3.5 w-3.5" />Copiar HTML
                   </Button>
@@ -404,3 +404,4 @@ function AutomationDetailPage() {
     </div>
   );
 }
+

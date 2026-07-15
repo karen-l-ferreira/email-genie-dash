@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+﻿import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { AppHeader } from "@/components/app/Header";
 import { Button } from "@/components/ui/button";
@@ -59,12 +59,12 @@ function AnalisarPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pl-[220px]">
       <AppHeader />
       <main className="mx-auto max-w-[1100px] px-6 py-10 space-y-8">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Analisar E-mail</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Cole o HTML do e-mail e receba uma análise completa.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Cole o HTML do e-mail e receba uma anÃ¡lise completa.</p>
         </div>
 
         {/* Inputs */}
@@ -111,7 +111,7 @@ function AnalisarPage() {
                   <ul className="space-y-1.5">
                     {analysis.strengths.map((s, i) => (
                       <li key={i} className="flex gap-2 text-sm text-foreground/80">
-                        <span className="mt-0.5 text-green-400">✓</span>
+                        <span className="mt-0.5 text-green-400">âœ“</span>
                         {s}
                       </li>
                     ))}
@@ -126,7 +126,7 @@ function AnalisarPage() {
                   <ul className="space-y-1.5">
                     {analysis.weaknesses.map((w, i) => (
                       <li key={i} className="flex gap-2 text-sm text-foreground/80">
-                        <span className="mt-0.5 text-red-400">✗</span>
+                        <span className="mt-0.5 text-red-400">âœ—</span>
                         {w}
                       </li>
                     ))}
@@ -135,10 +135,10 @@ function AnalisarPage() {
               )}
             </div>
 
-            {/* Sugestões */}
+            {/* SugestÃµes */}
             {analysis.suggestions.length > 0 && (
               <div className="space-y-2">
-                <div className="text-sm font-semibold text-muted-foreground">Sugestões</div>
+                <div className="text-sm font-semibold text-muted-foreground">SugestÃµes</div>
                 {analysis.suggestions.map((s: any, i: number) => (
                   <div key={i} className="rounded-lg border border-border bg-surface p-4 flex gap-3 items-start">
                     <Badge className={`shrink-0 text-xs border ${PRIORITY_COLOR[s.priority] ?? ""}`}>{s.priority}</Badge>
@@ -158,7 +158,7 @@ function AnalisarPage() {
                   onClick={() => setPreviewOpen((v) => !v)}
                   className="flex w-full items-center justify-between px-5 py-3 text-sm font-medium hover:bg-muted/30 transition-colors"
                 >
-                  Prévia do e-mail
+                  PrÃ©via do e-mail
                   {previewOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                 </button>
                 {previewOpen && (
@@ -177,3 +177,4 @@ function AnalisarPage() {
     </div>
   );
 }
+

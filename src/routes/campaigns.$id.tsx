@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+﻿import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -129,7 +129,7 @@ function CampaignDetailPage() {
           metrics: { open_rate: c.open_rate, ctr: c.ctr, uniquelinkclicks: c.uniquelinkclicks, linkclicks: c.linkclicks, send_amt: c.send_amt, uniqueopens: c.uniqueopens, hardbounces: c.hardbounces, unsubscribes: c.unsubscribes },
         },
       });
-      toast.success("Régua salva com sucesso");
+      toast.success("RÃ©gua salva com sucesso");
       setSnapshotLabel("");
       snapshotsQ.refetch();
     } catch (e: any) {
@@ -160,7 +160,7 @@ function CampaignDetailPage() {
 
   if (cQ.isLoading || !c) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background pl-[220px]">
         <AppHeader />
         <div className="mx-auto max-w-[1400px] px-6 py-10">
           <div className="h-10 w-64 animate-pulse rounded-lg bg-surface" />
@@ -176,18 +176,18 @@ function CampaignDetailPage() {
     { axis: "T. Abertura", value: Math.min(150, (c.open_rate / benchOR) * 100), bench: 100 },
     { axis: "CTR", value: Math.min(150, (c.ctr / benchCTR) * 100), bench: 100 },
     { axis: "Engajamento", value: Math.min(150, (c.uniquelinkclicks / Math.max(1, c.send_amt)) * 100 * 10), bench: 100 },
-    { axis: "Não-Bounce", value: c.send_amt ? ((c.send_amt - c.hardbounces) / c.send_amt) * 100 : 0, bench: 98 },
+    { axis: "NÃ£o-Bounce", value: c.send_amt ? ((c.send_amt - c.hardbounces) / c.send_amt) * 100 : 0, bench: 98 },
   ];
 
   function downloadCSV() {
     const rows = [
-      ["Métrica", "Valor", "Benchmark"],
+      ["MÃ©trica", "Valor", "Benchmark"],
       ["Taxa de Abertura", c!.open_rate.toFixed(2) + "%", benchOR + "%"],
       ["CTR", c!.ctr.toFixed(2) + "%", benchCTR + "%"],
       ["Envios", String(c!.send_amt), ""],
       ["Total de Aberturas", String(c!.opens), ""],
-      ["Aberturas Únicas", String(c!.uniqueopens), ""],
-      ["Devoluções", String(c!.hardbounces + c!.softbounces), ""],
+      ["Aberturas Ãšnicas", String(c!.uniqueopens), ""],
+      ["DevoluÃ§Ãµes", String(c!.hardbounces + c!.softbounces), ""],
       ["Descadastros", String(c!.unsubscribes), ""],
     ];
     const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
@@ -201,10 +201,10 @@ function CampaignDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pl-[220px]">
       <AppHeader />
       <main className="mx-auto max-w-[1400px] px-6 py-8">
-        {/* Cabeçalho */}
+        {/* CabeÃ§alho */}
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-3">
@@ -213,17 +213,17 @@ function CampaignDetailPage() {
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-xs text-muted-foreground">
               <span>ID {c.id}</span>
-              <span>•</span>
+              <span>â€¢</span>
               <span>{c.type}</span>
-              <span>•</span>
-              <span>{c.sdate ? format(new Date(c.sdate), "d 'de' MMM, yyyy", { locale: ptBR }) : "—"}</span>
-              <span>•</span>
+              <span>â€¢</span>
+              <span>{c.sdate ? format(new Date(c.sdate), "d 'de' MMM, yyyy", { locale: ptBR }) : "â€”"}</span>
+              <span>â€¢</span>
               <span>{c.send_amt.toLocaleString("pt-BR")} envios</span>
-              <span>•</span>
-              <span className="text-foreground">Pontuação {c.score}/100</span>
+              <span>â€¢</span>
+              <span className="text-foreground">PontuaÃ§Ã£o {c.score}/100</span>
               {c.message_ids.length > 1 && (
                 <>
-                  <span>•</span>
+                  <span>â€¢</span>
                   <span className="text-primary">{c.message_ids.length} mensagens</span>
                 </>
               )}
@@ -242,8 +242,8 @@ function CampaignDetailPage() {
         {/* Abas principais */}
         <Tabs value={pageTab} onValueChange={(v) => setPageTab(v as "overview" | "regua" | "messages")} className="mt-8">
           <TabsList className="bg-surface">
-            <TabsTrigger value="overview">Visão Geral</TabsTrigger>
-            <TabsTrigger value="regua"><BookmarkPlus className="mr-1.5 h-3.5 w-3.5" />Régua</TabsTrigger>
+            <TabsTrigger value="overview">VisÃ£o Geral</TabsTrigger>
+            <TabsTrigger value="regua"><BookmarkPlus className="mr-1.5 h-3.5 w-3.5" />RÃ©gua</TabsTrigger>
             <TabsTrigger value="messages">
               <Mail className="mr-1.5 h-3.5 w-3.5" />
               Mensagens
@@ -255,19 +255,19 @@ function CampaignDetailPage() {
             </TabsTrigger>
           </TabsList>
 
-          {/* ── Aba Visão Geral ── */}
+          {/* â”€â”€ Aba VisÃ£o Geral â”€â”€ */}
           <TabsContent value="overview">
             <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-7">
               <MetricCard label="Taxa de Abertura" value={`${c.open_rate.toFixed(1)}%`} detail={`${c.uniqueopens}/${c.send_amt}`} variance={c.open_rate - benchOR} />
               <MetricCard label="CTR" value={`${c.ctr.toFixed(2)}%`} detail={`${c.uniquelinkclicks}/${c.uniqueopens || 0}`} variance={c.ctr - benchCTR} />
-              <MetricCard label="Cliques Únicos" value={c.uniquelinkclicks.toLocaleString("pt-BR")} detail={`${c.linkclicks.toLocaleString("pt-BR")} no total`} />
-              <MetricCard label="Total de Aberturas" value={c.opens.toLocaleString("pt-BR")} detail={`${c.uniqueopens.toLocaleString("pt-BR")} únicos`} />
+              <MetricCard label="Cliques Ãšnicos" value={c.uniquelinkclicks.toLocaleString("pt-BR")} detail={`${c.linkclicks.toLocaleString("pt-BR")} no total`} />
+              <MetricCard label="Total de Aberturas" value={c.opens.toLocaleString("pt-BR")} detail={`${c.uniqueopens.toLocaleString("pt-BR")} Ãºnicos`} />
               <MetricCard label="Envios" value={c.send_amt.toLocaleString("pt-BR")} detail={`${c.total_amt.toLocaleString("pt-BR")} na fila`} />
-              <MetricCard label="Devoluções" value={(c.hardbounces + c.softbounces).toLocaleString("pt-BR")} detail={`${c.hardbounces} hard`} variance={-(((c.hardbounces + c.softbounces) / Math.max(1, c.send_amt)) * 100 - 2)} invertColor />
+              <MetricCard label="DevoluÃ§Ãµes" value={(c.hardbounces + c.softbounces).toLocaleString("pt-BR")} detail={`${c.hardbounces} hard`} variance={-(((c.hardbounces + c.softbounces) / Math.max(1, c.send_amt)) * 100 - 2)} invertColor />
               <MetricCard label="Descadastros" value={c.unsubscribes.toLocaleString("pt-BR")} detail={`${((c.unsubscribes / Math.max(1, c.send_amt)) * 100).toFixed(2)}%`} />
             </div>
 
-            {/* Gráficos */}
+            {/* GrÃ¡ficos */}
             <div className="mt-6 grid gap-4 lg:grid-cols-2">
               <div className="rounded-xl border border-border bg-card p-5">
                 <h3 className="text-sm font-semibold">Performance vs Benchmark</h3>
@@ -284,7 +284,7 @@ function CampaignDetailPage() {
                 </div>
               </div>
               <div className="rounded-xl border border-border bg-card p-5">
-                <h3 className="text-sm font-semibold">Taxa de Abertura — últimas campanhas</h3>
+                <h3 className="text-sm font-semibold">Taxa de Abertura â€” Ãºltimas campanhas</h3>
                 <div className="h-72">
                   <ResponsiveContainer>
                     <LineChart data={trend} margin={{ top: 10, right: 10, bottom: 0, left: -10 }}>
@@ -306,10 +306,10 @@ function CampaignDetailPage() {
               <table className="w-full text-sm">
                 <thead className="bg-surface text-[11px] uppercase tracking-wider text-muted-foreground">
                   <tr>
-                    <th className="px-5 py-2 text-left font-medium">Métrica</th>
+                    <th className="px-5 py-2 text-left font-medium">MÃ©trica</th>
                     <th className="px-3 py-2 text-right font-medium">Campanha</th>
                     <th className="px-3 py-2 text-right font-medium">Benchmark</th>
-                    <th className="px-5 py-2 text-right font-medium">Δ</th>
+                    <th className="px-5 py-2 text-right font-medium">Î”</th>
                   </tr>
                 </thead>
                 <tbody className="font-mono">
@@ -321,16 +321,16 @@ function CampaignDetailPage() {
               </table>
             </div>
 
-            {/* Recomendações de IA */}
+            {/* RecomendaÃ§Ãµes de IA */}
             <section className="mt-8">
               <div className="mb-3 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <Sparkles className="h-4 w-4 text-primary" />
-                  <h2 className="text-base font-semibold">Recomendações de Melhoria por IA</h2>
+                  <h2 className="text-base font-semibold">RecomendaÃ§Ãµes de Melhoria por IA</h2>
                 </div>
                 {!recsEnabled ? (
                   <Button size="sm" onClick={() => setRecsEnabled(true)}>
-                    <Sparkles className="mr-1.5 h-3.5 w-3.5" />Gerar recomendações
+                    <Sparkles className="mr-1.5 h-3.5 w-3.5" />Gerar recomendaÃ§Ãµes
                   </Button>
                 ) : recsQ.data && !recsQ.isLoading && (
                   <Button variant="outline" size="sm" onClick={() => { setRecsRefresh((v) => !v); }} disabled={recsQ.isLoading}>
@@ -340,7 +340,7 @@ function CampaignDetailPage() {
               </div>
               {!recsEnabled ? (
                 <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-                  Clique em "Gerar recomendações" para analisar esta campanha com IA.
+                  Clique em "Gerar recomendaÃ§Ãµes" para analisar esta campanha com IA.
                 </div>
               ) : recsQ.isLoading ? (
                 <div className="grid gap-3 md:grid-cols-2">
@@ -360,18 +360,18 @@ function CampaignDetailPage() {
               <div className="mt-6">
                 <Button size="lg" disabled={!recsEnabled || !recsQ.data || varsM.isPending} onClick={() => { setDrawerOpen(true); varsM.mutate(false); }}>
                   <Sparkles className="mr-2 h-4 w-4" />
-                  {varsM.isPending ? "Gerando…" : "Gerar 3 Variações com IA"}
+                  {varsM.isPending ? "Gerandoâ€¦" : "Gerar 3 VariaÃ§Ãµes com IA"}
                 </Button>
               </div>
             </section>
           </TabsContent>
 
-          {/* ── Aba Régua ── */}
+          {/* â”€â”€ Aba RÃ©gua â”€â”€ */}
           <TabsContent value="regua">
             <div className="mt-6 space-y-6">
               <div className="rounded-xl border border-border bg-card p-5 space-y-3">
                 <h3 className="text-sm font-semibold">Salvar snapshot atual</h3>
-                <p className="text-xs text-muted-foreground">Salve as métricas de agora com um rótulo. Use antes e depois de uma alteração para comparar o impacto.</p>
+                <p className="text-xs text-muted-foreground">Salve as mÃ©tricas de agora com um rÃ³tulo. Use antes e depois de uma alteraÃ§Ã£o para comparar o impacto.</p>
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -398,7 +398,7 @@ function CampaignDetailPage() {
             </div>
           </TabsContent>
 
-          {/* ── Aba Mensagens ── */}
+          {/* â”€â”€ Aba Mensagens â”€â”€ */}
           <TabsContent value="messages">
             <MessagesTab
               campaignId={id}
@@ -413,11 +413,11 @@ function CampaignDetailPage() {
         </Tabs>
       </main>
 
-      {/* Drawer de variações */}
+      {/* Drawer de variaÃ§Ãµes */}
       <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
         <SheetContent className="w-full overflow-y-auto bg-background sm:max-w-3xl">
           <SheetHeader className="flex flex-row items-center justify-between">
-            <SheetTitle>Variações de E-mail por IA</SheetTitle>
+            <SheetTitle>VariaÃ§Ãµes de E-mail por IA</SheetTitle>
             <Button size="sm" variant="outline" disabled={varsM.isPending} onClick={() => varsM.mutate(true)}>
               <RefreshCw className="mr-1.5 h-3.5 w-3.5" />Gerar novamente
             </Button>
@@ -433,7 +433,7 @@ function CampaignDetailPage() {
             <Tabs defaultValue="0" className="mt-6">
               <TabsList className="bg-surface">
                 {varsM.data.variations.map((_: unknown, i: number) => (
-                  <TabsTrigger key={i} value={String(i)}>Variação {i + 1}</TabsTrigger>
+                  <TabsTrigger key={i} value={String(i)}>VariaÃ§Ã£o {i + 1}</TabsTrigger>
                 ))}
               </TabsList>
               {varsM.data.variations.map((v: { subject: string; changes: string[]; html: string }, i: number) => (
@@ -448,16 +448,16 @@ function CampaignDetailPage() {
                     </div>
                   </div>
                   <div className="rounded-xl border border-border bg-card p-4">
-                    <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Principais alterações</div>
+                    <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Principais alteraÃ§Ãµes</div>
                     <ul className="mt-2 space-y-1.5 text-sm">
                       {(v.changes ?? []).map((ch: string, k: number) => (
-                        <li key={k} className="flex gap-2"><span className="text-primary">→</span>{ch}</li>
+                        <li key={k} className="flex gap-2"><span className="text-primary">â†’</span>{ch}</li>
                       ))}
                     </ul>
                   </div>
                   <div className="rounded-xl border border-border bg-card p-4">
                     <div className="mb-3 flex items-center justify-between">
-                      <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Prévia</div>
+                      <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">PrÃ©via</div>
                       <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(v.html); toast.success("HTML copiado"); }}>
                         <Copy className="mr-1.5 h-3.5 w-3.5" />Copiar HTML
                       </Button>
@@ -468,7 +468,7 @@ function CampaignDetailPage() {
               ))}
             </Tabs>
           ) : (
-            <p className="mt-6 text-sm text-muted-foreground">Nenhuma variação ainda.</p>
+            <p className="mt-6 text-sm text-muted-foreground">Nenhuma variaÃ§Ã£o ainda.</p>
           )}
         </SheetContent>
       </Sheet>
@@ -476,7 +476,7 @@ function CampaignDetailPage() {
   );
 }
 
-// ─── Aba Mensagens ────────────────────────────────────────────────────────────
+// â”€â”€â”€ Aba Mensagens â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type FetchAnalysis = (opts: {
   data: { campaign_id: string; message_id: string; subject: string; html: string; refresh?: boolean };
@@ -563,7 +563,7 @@ function MessagesTab({ campaignId, messages, isLoading, isError, error, fetchAna
             <button key={m.id} onClick={() => setSelectedIdx(i)}
               className={cn("rounded-full border px-4 py-1.5 text-xs font-medium transition-colors",
                 selectedIdx === i ? "border-primary/40 bg-primary/15 text-primary" : "border-border bg-surface text-muted-foreground hover:text-foreground")}>
-              Mensagem {i + 1}{m.subject ? ` — ${m.subject.slice(0, 30)}` : ""}
+              Mensagem {i + 1}{m.subject ? ` â€” ${m.subject.slice(0, 30)}` : ""}
             </button>
           ))}
         </div>
@@ -589,7 +589,7 @@ function MessagesTab({ campaignId, messages, isLoading, isError, error, fetchAna
 
             <div className="rounded-xl border border-border bg-card p-4">
               <div className="mb-3 flex items-center justify-between">
-                <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Prévia do e-mail</div>
+                <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">PrÃ©via do e-mail</div>
                 <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(msg.html); toast.success("HTML copiado"); }}>
                   <Copy className="mr-1.5 h-3.5 w-3.5" />Copiar HTML
                 </Button>
@@ -597,7 +597,7 @@ function MessagesTab({ campaignId, messages, isLoading, isError, error, fetchAna
               {msg.html ? (
                 <iframe srcDoc={msg.html} className="h-[500px] w-full rounded-md border border-border bg-white" sandbox="" title={`message-${msg.id}`} />
               ) : (
-                <div className="flex h-32 items-center justify-center text-sm text-muted-foreground">Sem conteúdo HTML</div>
+                <div className="flex h-32 items-center justify-center text-sm text-muted-foreground">Sem conteÃºdo HTML</div>
               )}
             </div>
           </div>
@@ -624,7 +624,7 @@ function MessagesTab({ campaignId, messages, isLoading, isError, error, fetchAna
                 <div className="rounded-xl border border-border bg-card p-5">
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Pontuação do E-mail</div>
+                      <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">PontuaÃ§Ã£o do E-mail</div>
                       <div className="mt-2 font-mono text-4xl font-semibold">
                         <span className={cn(analysis.score >= 70 ? "text-success" : analysis.score >= 40 ? "text-warning" : "text-destructive")}>
                           {analysis.score}
@@ -659,7 +659,7 @@ function MessagesTab({ campaignId, messages, isLoading, isError, error, fetchAna
                   <div>
                     <div className="mb-2 flex items-center gap-2">
                       <Sparkles className="h-3.5 w-3.5 text-primary" />
-                      <span className="text-xs font-semibold">Sugestões</span>
+                      <span className="text-xs font-semibold">SugestÃµes</span>
                     </div>
                     <div className="space-y-2">
                       {analysis.suggestions.map((r, idx) => <RecommendationCard key={idx} rec={r} compact />)}
@@ -712,7 +712,7 @@ function MessagesTab({ campaignId, messages, isLoading, isError, error, fetchAna
               </div>
               <div className="rounded-xl border border-border bg-card p-4">
                 <div className="mb-3 flex items-center justify-between">
-                  <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Prévia</div>
+                  <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">PrÃ©via</div>
                   <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(generatedEmail.html); toast.success("HTML copiado"); }}>
                     <Copy className="mr-1.5 h-3.5 w-3.5" />Copiar HTML
                   </Button>
@@ -727,7 +727,7 @@ function MessagesTab({ campaignId, messages, isLoading, isError, error, fetchAna
   );
 }
 
-// ─── Subcomponentes ───────────────────────────────────────────────────────────
+// â”€â”€â”€ Subcomponentes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function RecommendationCard({ rec, compact }: { rec: Recommendation; compact?: boolean }) {
   return (
@@ -758,8 +758,8 @@ function ScoreRing({ score }: { score: number }) {
 function CampaignSnapshotTable({ snapshots, onDelete }: { snapshots: MetricSnapshot[]; onDelete: (id: string) => void }) {
   const KEYS = ["open_rate", "ctr", "uniquelinkclicks", "linkclicks", "send_amt", "uniqueopens", "hardbounces", "unsubscribes"];
   const LABELS: Record<string, string> = {
-    open_rate: "Abertura %", ctr: "CTR %", uniquelinkclicks: "Cliques únicos", linkclicks: "Total cliques",
-    send_amt: "Envios", uniqueopens: "Aberturas únicas", hardbounces: "Hard bounce", unsubscribes: "Descadastros",
+    open_rate: "Abertura %", ctr: "CTR %", uniquelinkclicks: "Cliques Ãºnicos", linkclicks: "Total cliques",
+    send_amt: "Envios", uniqueopens: "Aberturas Ãºnicas", hardbounces: "Hard bounce", unsubscribes: "Descadastros",
   };
   const PCT_KEYS = new Set(["open_rate", "ctr"]);
   const presentKeys = KEYS.filter(k => snapshots.some(s => s.metrics[k] !== undefined));
@@ -769,7 +769,7 @@ function CampaignSnapshotTable({ snapshots, onDelete }: { snapshots: MetricSnaps
       <table className="w-full text-sm">
         <thead className="bg-surface text-[11px] uppercase tracking-wider text-muted-foreground">
           <tr>
-            <th className="px-4 py-2.5 text-left font-medium">Rótulo</th>
+            <th className="px-4 py-2.5 text-left font-medium">RÃ³tulo</th>
             <th className="px-4 py-2.5 text-left font-medium">Data</th>
             {presentKeys.map(k => <th key={k} className="px-4 py-2.5 text-right font-medium">{LABELS[k] ?? k}</th>)}
             <th className="px-4 py-2.5" />
@@ -788,7 +788,7 @@ function CampaignSnapshotTable({ snapshots, onDelete }: { snapshots: MetricSnaps
                     ? PCT_KEYS.has(k)
                       ? `${Number(s.metrics[k]).toFixed(2)}%`
                       : Number(s.metrics[k]).toLocaleString("pt-BR")
-                    : "—"}
+                    : "â€”"}
                 </td>
               ))}
               <td className="px-4 py-3 text-right">
@@ -818,3 +818,4 @@ function CmpRow({ label, v, b, suffix, invert }: { label: string; v: number; b: 
     </tr>
   );
 }
+
