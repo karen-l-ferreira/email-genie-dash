@@ -78,6 +78,35 @@ function daysDiff(iso: string | null): number | null {
 
 function AlertasPage() {
   const [tab, setTab] = useState<TabKey>("sem_operar_15");
+  const fetchFn = useServerFn(listAlertasClientes);
+
+  const q15 = useQuery({
+    queryKey: ["alertas-count", "sem_operar_15"],
+    queryFn: () => fetchFn({ data: { tab: "sem_operar_15", page: 1, sort: "desc", search: "" } }),
+  });
+  const q30 = useQuery({
+    queryKey: ["alertas-count", "sem_operar_30"],
+    queryFn: () => fetchFn({ data: { tab: "sem_operar_30", page: 1, sort: "desc", search: "" } }),
+  });
+  const qVal = useQuery({
+    queryKey: ["alertas-count", "valor_aprovado"],
+    queryFn: () => fetchFn({ data: { tab: "valor_aprovado", page: 1, sort: "desc", search: "" } }),
+  });
+  const qLim = useQuery({
+    queryKey: ["alertas-count", "limite_disponivel"],
+    queryFn: () => fetchFn({ data: { tab: "limite_disponivel", page: 1, sort: "desc", search: "" } }),
+  });
+
+  const total15  = q15.data?.total ?? null;
+  const total30  = q30.data?.total ?? null;
+  const totalOpp = (qVal.data?.total ?? 0) + (qLim.data?.total ?? 0);
+  const oppReady = qVal.isFetched && qLim.isFetched;
+
+  function fmt(n: number | null, loading: boolean) {
+    if (loading) return "…";
+    if (n === null) return "—";
+    return n.toLocaleString("pt-BR");
+  }
 
   return (
     <div className="min-h-screen bg-background pl-[220px]">
@@ -102,7 +131,7 @@ function AlertasPage() {
               <AlertTriangle className="h-3.5 w-3.5" style={{ color: "#f59e0b" }} />
               15 dias sem operar
             </div>
-            <div className="mt-3 font-mono text-3xl font-bold tabular-nums leading-none text-foreground">—</div>
+            <div className="mt-3 font-mono text-3xl font-bold tabular-nums leading-none text-foreground">{fmt(total15, q15.isLoading)}</div>
             <div className="mt-1 text-[11px] text-muted-foreground">clientes inativos</div>
           </div>
           <div className="relative overflow-hidden rounded border border-border bg-card px-5 py-4" style={{ borderTopColor: "#ef4444", borderTopWidth: "3px" }}>
@@ -110,7 +139,7 @@ function AlertasPage() {
               <AlertTriangle className="h-3.5 w-3.5" style={{ color: "#ef4444" }} />
               30 dias sem operar
             </div>
-            <div className="mt-3 font-mono text-3xl font-bold tabular-nums leading-none text-foreground">—</div>
+            <div className="mt-3 font-mono text-3xl font-bold tabular-nums leading-none text-foreground">{fmt(total30, q30.isLoading)}</div>
             <div className="mt-1 text-[11px] text-muted-foreground">risco elevado</div>
           </div>
           <div className="relative overflow-hidden rounded border border-border bg-card px-5 py-4" style={{ borderTopColor: "#0660FE", borderTopWidth: "3px" }}>
@@ -118,7 +147,7 @@ function AlertasPage() {
               <Users className="h-3.5 w-3.5" style={{ color: "#0660FE" }} />
               Oportunidades
             </div>
-            <div className="mt-3 font-mono text-3xl font-bold tabular-nums leading-none text-foreground">—</div>
+            <div className="mt-3 font-mono text-3xl font-bold tabular-nums leading-none text-foreground">{fmt(oppReady ? totalOpp : null, !oppReady)}</div>
             <div className="mt-1 text-[11px] text-muted-foreground">valor aprovado + limite</div>
           </div>
         </div>
