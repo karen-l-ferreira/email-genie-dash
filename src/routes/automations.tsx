@@ -1,4 +1,4 @@
-﻿import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
@@ -15,7 +15,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 function exportAutomationsCSV(automations: Automation[]) {
-  const header = ["Nome", "Status", "Entrou", "Ativo", "Saiu", "ConclusÃ£o %", "Ãšlt. ModificaÃ§Ã£o"];
+  const header = ["Nome", "Status", "Entrou", "Ativo", "Saiu", "Conclusão %", "Últ. Modificação"];
   const rows = automations.map((a) => [
     `"${a.name.replace(/"/g, '""')}"`,
     a.status,
@@ -92,8 +92,8 @@ function AutomationsPage() {
             <GitBranch className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h1 className="text-2xl font-semibold">AutomaÃ§Ãµes</h1>
-            <p className="text-sm text-muted-foreground">Analise os fluxos de automaÃ§Ã£o do ActiveCampaign</p>
+            <h1 className="text-2xl font-semibold">Automações</h1>
+            <p className="text-sm text-muted-foreground">Analise os fluxos de automação do ActiveCampaign</p>
           </div>
         </div>
 
@@ -117,7 +117,7 @@ function AutomationsPage() {
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar automaÃ§Ãµesâ€¦"
+              placeholder="Buscar automações…"
               className="pl-9"
             />
           </div>
@@ -137,13 +137,13 @@ function AutomationsPage() {
           <table className="w-full text-sm">
             <thead className="bg-surface text-[11px] uppercase tracking-wider text-muted-foreground">
               <tr>
-                <th className="px-5 py-3 text-left font-medium">AutomaÃ§Ã£o</th>
+                <th className="px-5 py-3 text-left font-medium">Automação</th>
                 <th className="px-3 py-3 text-left font-medium">Status</th>
                 <th className="px-3 py-3 text-right font-medium">Entrou</th>
                 <th className="px-3 py-3 text-right font-medium">Ativo</th>
                 <th className="px-3 py-3 text-right font-medium">Saiu</th>
-                <th className="px-3 py-3 text-right font-medium">ConclusÃ£o</th>
-                <th className="px-3 py-3 text-right font-medium">Ãšlt. ModificaÃ§Ã£o</th>
+                <th className="px-3 py-3 text-right font-medium">Conclusão</th>
+                <th className="px-3 py-3 text-right font-medium">Últ. Modificação</th>
                 <th className="w-12 px-3 py-3" />
               </tr>
             </thead>
@@ -151,7 +151,7 @@ function AutomationsPage() {
               {automationsQ.isLoading ? (
                 <tr>
                   <td colSpan={8} className="px-5 py-16 text-center text-muted-foreground">
-                    Carregando automaÃ§Ãµesâ€¦
+                    Carregando automações…
                   </td>
                 </tr>
               ) : automationsQ.isError ? (
@@ -168,7 +168,7 @@ function AutomationsPage() {
               ) : rows.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-5 py-16 text-center text-muted-foreground">
-                    Nenhuma automaÃ§Ã£o encontrada.
+                    Nenhuma automação encontrada.
                   </td>
                 </tr>
               ) : (
@@ -193,7 +193,7 @@ function AutomationsPage() {
                       <CompletionCell rate={a.completion_rate} />
                     </td>
                     <td className="px-3 py-4 text-right font-mono text-xs text-muted-foreground">
-                      {a.mdate ? format(new Date(a.mdate), "d 'de' MMM, yyyy", { locale: ptBR }) : "â€”"}
+                      {a.mdate ? format(new Date(a.mdate), "d 'de' MMM, yyyy", { locale: ptBR }) : "—"}
                     </td>
                     <td className="px-3 py-4 text-muted-foreground">
                       <ChevronRight className="h-4 w-4" />
@@ -216,4 +216,3 @@ function CompletionCell({ rate }: { rate: number }) {
     </span>
   );
 }
-

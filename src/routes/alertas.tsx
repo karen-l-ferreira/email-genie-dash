@@ -1,4 +1,4 @@
-﻿import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useRef, useMemo } from "react";
@@ -41,7 +41,7 @@ export const Route = createFileRoute("/alertas")({
       <div className="mx-auto max-w-5xl px-6 py-10 text-sm text-destructive">{error.message}</div>
     </div>
   ),
-  notFoundComponent: () => <div>NÃ£o encontrado</div>,
+  notFoundComponent: () => <div>Não encontrado</div>,
 });
 
 type TabKey = "sem_operar_15" | "sem_operar_30" | "valor_aprovado" | "limite_disponivel" | "cliques";
@@ -49,17 +49,17 @@ type TabKey = "sem_operar_15" | "sem_operar_30" | "valor_aprovado" | "limite_dis
 const TABS: { key: TabKey; label: string }[] = [
   { key: "sem_operar_15",    label: "15 dias sem operar" },
   { key: "sem_operar_30",    label: "30 dias sem operar" },
-  { key: "valor_aprovado",   label: "Valor aprovado nÃ£o operado" },
-  { key: "limite_disponivel",label: "Limite disponÃ­vel" },
+  { key: "valor_aprovado",   label: "Valor aprovado não operado" },
+  { key: "limite_disponivel",label: "Limite disponível" },
   { key: "cliques",          label: "Cliques em e-mail" },
 ];
 
-// â”€â”€â”€ Formatters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Formatters ─────────────────────────────────────────────────────────────
 
 function fmtDate(iso: string | null) {
-  if (!iso) return "â€”";
+  if (!iso) return "—";
   const d = new Date(iso);
-  if (isNaN(d.getTime())) return "â€”";
+  if (isNaN(d.getTime())) return "—";
   return d.toLocaleDateString("pt-BR");
 }
 function fmtMoney(n: number) {
@@ -72,7 +72,7 @@ function daysDiff(iso: string | null): number | null {
   return Math.floor((Date.now() - d.getTime()) / 86400000);
 }
 
-// â”€â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Page ───────────────────────────────────────────────────────────────────
 
 function AlertasPage() {
   const [tab, setTab] = useState<TabKey>("sem_operar_15");
@@ -122,7 +122,7 @@ function AlertasPage() {
   );
 }
 
-// â”€â”€â”€ Skeleton â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Skeleton ───────────────────────────────────────────────────────────────
 
 function SkeletonRows() {
   return (
@@ -141,20 +141,20 @@ function SkeletonRows() {
   );
 }
 
-// â”€â”€â”€ Pager â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Pager ──────────────────────────────────────────────────────────────────
 
 function Pager({ page, total, pageSize, onChange }: { page: number; total: number; pageSize: number; onChange: (p: number) => void }) {
   const pages = Math.max(1, Math.ceil(total / pageSize));
   return (
     <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
-      <span>{total} {total === 1 ? "empresa" : "empresas"} Â· pÃ¡gina {page} de {pages}</span>
+      <span>{total} {total === 1 ? "empresa" : "empresas"} · página {page} de {pages}</span>
       <div className="flex items-center gap-1.5">
         <Button variant="outline" size="sm" className="h-7 text-xs" disabled={page <= 1} onClick={() => onChange(page - 1)}>
           <ChevronLeft className="h-3.5 w-3.5" />
           Anterior
         </Button>
         <Button variant="outline" size="sm" className="h-7 text-xs" disabled={page >= pages} onClick={() => onChange(page + 1)}>
-          PrÃ³xima
+          Próxima
           <ChevronRight className="h-3.5 w-3.5" />
         </Button>
       </div>
@@ -162,7 +162,7 @@ function Pager({ page, total, pageSize, onChange }: { page: number; total: numbe
   );
 }
 
-// â”€â”€â”€ ClientesTab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── ClientesTab ─────────────────────────────────────────────────────────────
 
 function ClientesTab({
   tab,
@@ -223,11 +223,11 @@ function ClientesTab({
         return exists ? old.map((r) => r.contact_id === vars.contactId ? updated : r) : [...old, updated];
       });
       if (vars.action === "check1") {
-        toast.success(`${vars.razaoSocial || "Contato"} marcado â€” movido para o final da fila`);
+        toast.success(`${vars.razaoSocial || "Contato"} marcado — movido para o final da fila`);
       } else if (vars.action === "check2") {
         toast.success(`Follow-up registrado para ${vars.razaoSocial || "contato"}`);
       } else if (vars.action === "check3") {
-        toast.success(`Ãšltimo follow-up registrado para ${vars.razaoSocial || "contato"}`);
+        toast.success(`Último follow-up registrado para ${vars.razaoSocial || "contato"}`);
       }
       return { prev };
     },
@@ -287,7 +287,7 @@ function ClientesTab({
           type="text"
           value={searchInput}
           onChange={(e) => handleSearch(e.target.value)}
-          placeholder="Buscar por empresa, CNPJ, ID ou e-mailâ€¦"
+          placeholder="Buscar por empresa, CNPJ, ID ou e-mail…"
           className="w-full rounded-md border border-border bg-background pl-9 pr-8 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
         />
         {searchInput && (
@@ -301,15 +301,15 @@ function ClientesTab({
         )}
       </div>
 
-      {/* Filtro por estÃ¡gio de contato â€” sÃ³ para valor e limite */}
+      {/* Filtro por estágio de contato — só para valor e limite */}
       {(mode === "valor" || mode === "limite") && (
         <div className="mb-3 flex flex-wrap gap-1.5">
           {([
             { key: "todos",       label: "Todos" },
             { key: "sem_contato", label: "Sem contato" },
-            { key: "primeiro",    label: "1Âº Contato" },
+            { key: "primeiro",    label: "1º Contato" },
             { key: "followup",    label: "Follow-up" },
-            { key: "ultimo",      label: "Ãšltimo follow-up" },
+            { key: "ultimo",      label: "Último follow-up" },
           ] as const).map((f) => (
             <button
               key={f.key}
@@ -332,8 +332,8 @@ function ClientesTab({
       <div className="mb-3 flex items-center justify-between">
         <span className="text-xs text-muted-foreground">
           {rowsOrdenados.length} {rowsOrdenados.length === 1 ? "empresa" : "empresas"}
-          {search && <span className="ml-1">Â· filtrado por "{search}"</span>}
-          {contatoFiltro !== "todos" && <span className="ml-1">Â· {contatoFiltro === "sem_contato" ? "sem contato" : contatoFiltro === "primeiro" ? "1Âº contato feito" : contatoFiltro === "followup" ? "follow-up feito" : "Ãºltimo follow-up feito"}</span>}
+          {search && <span className="ml-1">· filtrado por "{search}"</span>}
+          {contatoFiltro !== "todos" && <span className="ml-1">· {contatoFiltro === "sem_contato" ? "sem contato" : contatoFiltro === "primeiro" ? "1º contato feito" : contatoFiltro === "followup" ? "follow-up feito" : "último follow-up feito"}</span>}
         </span>
 
         {mode === "inativos" && (
@@ -369,7 +369,7 @@ function ClientesTab({
 
       {rowsOrdenados.length === 0 ? (
         <div className="rounded-xl border border-border bg-card px-6 py-16 text-center text-sm text-muted-foreground">
-          Nenhum cliente encontrado para este critÃ©rio.
+          Nenhum cliente encontrado para este critério.
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -396,15 +396,15 @@ function ClientesTab({
                     <p className="truncate font-semibold text-sm leading-tight">{r.razaoSocial || "Empresa sem nome"}</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       {r.clienteId ? `ID ${r.clienteId}` : ""}
-                      {r.clienteId && r.cnpj ? " Â· " : ""}
+                      {r.clienteId && r.cnpj ? " · " : ""}
                       {r.cnpj ?? ""}
-                      {!r.clienteId && !r.cnpj ? "Sem identificaÃ§Ã£o" : ""}
+                      {!r.clienteId && !r.cnpj ? "Sem identificação" : ""}
                     </p>
                   </div>
 
                   {/* 3 checks progressivos */}
                   <div className="flex items-center gap-1 shrink-0">
-                    {/* Check 1 â€” primeiro contato */}
+                    {/* Check 1 — primeiro contato */}
                     <button
                       type="button"
                       title={r.contatado ? "Desmarcar primeiro contato" : "Marcar como contatado"}
@@ -416,7 +416,7 @@ function ClientesTab({
                     >
                       <Check className="h-3.5 w-3.5" />
                     </button>
-                    {/* Check 2 â€” follow-up (sÃ³ aparece apÃ³s check 1) */}
+                    {/* Check 2 — follow-up (só aparece após check 1) */}
                     {r.contatado && (
                       <button
                         type="button"
@@ -430,11 +430,11 @@ function ClientesTab({
                         <Check className="h-3.5 w-3.5" />
                       </button>
                     )}
-                    {/* Check 3 â€” Ãºltimo follow-up (sÃ³ aparece apÃ³s check 2) */}
+                    {/* Check 3 — último follow-up (só aparece após check 2) */}
                     {r.followupEm && (
                       <button
                         type="button"
-                        title={r.ultimoFollowupEm ? "Desmarcar Ãºltimo follow-up" : "Marcar Ãºltimo follow-up feito"}
+                        title={r.ultimoFollowupEm ? "Desmarcar último follow-up" : "Marcar último follow-up feito"}
                         onClick={() => toggleMutation.mutate({ contactId: r.contactId, action: r.ultimoFollowupEm ? "uncheck3" : "check3", razaoSocial: r.razaoSocial })}
                         className={[
                           "flex h-6 w-6 items-center justify-center rounded border transition-all",
@@ -464,7 +464,7 @@ function ClientesTab({
                   {r.ultimoFollowupEm && (
                     <div className="flex items-center gap-1.5 text-xs font-medium text-amber-600">
                       <Check className="h-3 w-3" />
-                      Ãšltimo follow-up em {fmtDate(r.ultimoFollowupEm)}
+                      Último follow-up em {fmtDate(r.ultimoFollowupEm)}
                     </div>
                   )}
                 </div>
@@ -477,7 +477,7 @@ function ClientesTab({
                       <div className="mt-0.5 text-[11px] text-muted-foreground">dias sem operar</div>
                     </div>
                     <div className="text-right text-xs text-muted-foreground">
-                      <div>Ãšltima operaÃ§Ã£o</div>
+                      <div>Última operação</div>
                       <div className="font-medium text-foreground">{fmtDate(r.ultimaOperacao)}</div>
                     </div>
                   </div>
@@ -485,12 +485,12 @@ function ClientesTab({
                 {mode === "valor" && (
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
-                      <span className="text-xs text-muted-foreground">Aprovado nÃ£o operado</span>
+                      <span className="text-xs text-muted-foreground">Aprovado não operado</span>
                       <span className="font-semibold text-sm text-emerald-600">{fmtMoney(r.valorAprovadoNaoOperado)}</span>
                     </div>
                     {r.limiteDisponivel > 0 && (
                       <div className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
-                        <span className="text-xs text-muted-foreground">Limite disponÃ­vel</span>
+                        <span className="text-xs text-muted-foreground">Limite disponível</span>
                         <span className="text-sm font-medium">{fmtMoney(r.limiteDisponivel)}</span>
                       </div>
                     )}
@@ -500,7 +500,7 @@ function ClientesTab({
                   <div className="flex items-end justify-between rounded-lg bg-muted/50 px-3 py-2">
                     <div>
                       <div className="text-lg font-bold text-blue-600">{fmtMoney(r.limiteDisponivel)}</div>
-                      <div className="text-[11px] text-muted-foreground">limite disponÃ­vel</div>
+                      <div className="text-[11px] text-muted-foreground">limite disponível</div>
                     </div>
                   </div>
                 )}
@@ -540,7 +540,7 @@ function ClientesTab({
   );
 }
 
-// â”€â”€â”€ CliquesTab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── CliquesTab ──────────────────────────────────────────────────────────────
 
 type CliqueRaw = { razaoSocial: string; clienteId: string; cnpj: string; email: string; phone: string; contactId: string; clicadoEm: string };
 
@@ -570,7 +570,7 @@ function CliquesTab() {
     return (
       <div className="flex items-center gap-2 py-12 text-sm text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" />
-        Varrendo campanhas dos Ãºltimos 60 diasâ€¦
+        Varrendo campanhas dos últimos 60 dias…
       </div>
     );
   }
@@ -590,14 +590,14 @@ function CliquesTab() {
       {/* Meta info */}
       {q.data && (
         <p className="text-xs text-muted-foreground">
-          {q.data.campanhasEscaneadas} campanhas verificadas Â· Ãºltimos 60 dias
-          {q.data.campanhasComErro > 0 && ` Â· ${q.data.campanhasComErro} com erro`}
+          {q.data.campanhasEscaneadas} campanhas verificadas · últimos 60 dias
+          {q.data.campanhasComErro > 0 && ` · ${q.data.campanhasComErro} com erro`}
         </p>
       )}
 
       {campanhas.length === 0 ? (
         <div className="rounded-md border border-border px-6 py-16 text-center text-sm text-muted-foreground">
-          Nenhum clique em link de WhatsApp ou Portal encontrado nos Ãºltimos 60 dias.
+          Nenhum clique em link de WhatsApp ou Portal encontrado nos últimos 60 dias.
         </div>
       ) : (
         <>
@@ -617,7 +617,7 @@ function CliquesTab() {
                       <MessageCircle className="h-3.5 w-3.5" />
                       WhatsApp
                       <span className="ml-1 font-normal text-muted-foreground">
-                        Â· {dedupeClientes(camp.whatsapp).length} {dedupeClientes(camp.whatsapp).length === 1 ? "cliente" : "clientes"}
+                        · {dedupeClientes(camp.whatsapp).length} {dedupeClientes(camp.whatsapp).length === 1 ? "cliente" : "clientes"}
                       </span>
                     </div>
                     <div className="divide-y divide-border/50">
@@ -635,7 +635,7 @@ function CliquesTab() {
                       <ExternalLink className="h-3.5 w-3.5" />
                       Portal
                       <span className="ml-1 font-normal text-muted-foreground">
-                        Â· {dedupeClientes(camp.portal).length} {dedupeClientes(camp.portal).length === 1 ? "cliente" : "clientes"}
+                        · {dedupeClientes(camp.portal).length} {dedupeClientes(camp.portal).length === 1 ? "cliente" : "clientes"}
                       </span>
                     </div>
                     <div className="divide-y divide-border/50">
@@ -701,4 +701,3 @@ function CliqueRow({ c }: { c: CliqueRaw & { cliques: number } }) {
     </div>
   );
 }
-

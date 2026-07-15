@@ -1,4 +1,4 @@
-﻿import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
@@ -47,12 +47,12 @@ function SettingsPage() {
           benchmark_ctr: Number(ctr),
         },
       });
-      toast.success("ConfiguraÃ§Ãµes salvas");
+      toast.success("Configurações salvas");
       setApiKey("");
       await refetch();
       navigate({ to: "/dashboard" });
     } catch (e: any) {
-      toast.error(e.message ?? "NÃ£o foi possÃ­vel salvar");
+      toast.error(e.message ?? "Não foi possível salvar");
     } finally {
       setBusy(false);
     }
@@ -62,7 +62,7 @@ function SettingsPage() {
     <div className="min-h-screen bg-background pl-[220px]">
       <AppHeader />
       <main className="mx-auto max-w-2xl px-6 py-10">
-        <h1 className="text-2xl font-semibold">ConfiguraÃ§Ãµes</h1>
+        <h1 className="text-2xl font-semibold">Configurações</h1>
         <p className="mt-1 text-sm text-muted-foreground">Configure seu acesso ao ActiveCampaign e os benchmarks.</p>
         {isLoading ? (
           <div className="mt-8 h-40 animate-pulse rounded-xl bg-surface" />
@@ -71,7 +71,7 @@ function SettingsPage() {
             <div>
               <Label htmlFor="api">Chave de API do ActiveCampaign</Label>
               <Input id="api" type="password" value={apiKey}
-                placeholder={data?.hasApiKey ? "â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢ (salva â€” deixe em branco para manter)" : "Cole seu Api-Token"}
+                placeholder={data?.hasApiKey ? "•••••••••• (salva — deixe em branco para manter)" : "Cole seu Api-Token"}
                 onChange={(e) => setApiKey(e.target.value)} />
               <p className="mt-1.5 text-xs text-muted-foreground">Armazenada no servidor. Nunca enviada ao navegador.</p>
             </div>
@@ -89,11 +89,10 @@ function SettingsPage() {
                 <Input id="ctr" type="number" step="0.1" value={ctr} onChange={(e) => setCtr(e.target.value)} />
               </div>
             </div>
-            <Button type="submit" disabled={busy} className="w-full">{busy ? "Salvandoâ€¦" : "Salvar configuraÃ§Ãµes"}</Button>
+            <Button type="submit" disabled={busy} className="w-full">{busy ? "Salvando…" : "Salvar configurações"}</Button>
           </form>
         )}
       </main>
     </div>
   );
 }
-
