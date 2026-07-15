@@ -418,10 +418,7 @@ export const getContactsByIds = createServerFn({ method: "GET" })
         if (!c) return;
         const fieldValues: Record<string, string> = {};
         for (const fv of (json.fieldValues ?? []) as any[]) {
-          if (fv.field && fv.value != null && fv.value !== "") {
-            fieldValues[String(fv.field)] = String(fv.value);
-            if (String(fv.value).includes("2026")) console.log("[AC fieldValue]", fv.field, JSON.stringify(fv.value));
-          }
+          if (fv.field && fv.value != null && fv.value !== "") fieldValues[String(fv.field)] = String(fv.value);
         }
         const accountId = ((json.accountContacts ?? []) as any[])[0]?.account ?? null;
         contacts.push({

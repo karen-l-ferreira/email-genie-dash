@@ -27,7 +27,7 @@ export const Route = createFileRoute("/influencia")({
   ),
 });
 
-const FIELD_TITLE = "Data da Última Operação";
+const FIELD_TITLE = "Data Última Operação";
 const INFLUENCE_WINDOW_HOURS = 24;
 
 type InfluenceStatus = "influenced" | "not_influenced" | "no_operation";
@@ -404,7 +404,6 @@ function RowItem({ row, showOperation }: { row: AnalysisRow; showOperation: bool
       {showOperation && <>
         <td className="px-3 py-3 font-mono text-xs">
           <span className="text-success font-semibold">{fmtDate(operationDate, true)}</span>
-          {rawOperationValue && <span className="ml-2 text-[10px] text-amber-400">[raw: {rawOperationValue}]</span>}
         </td>
         <td className="px-3 py-3 text-right font-mono text-xs">
           <span className="font-semibold text-success">{fmtDelta(deltaMinutes)}</span>
