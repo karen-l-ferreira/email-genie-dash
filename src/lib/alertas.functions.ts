@@ -25,7 +25,7 @@ const AC = {
 // Avoids re-fetching AC field maps and contact/account data on every request.
 type CacheEntry<T> = { data: T; expiresAt: number };
 const _cache = new Map<string, CacheEntry<unknown>>();
-const CACHE_TTL = 5 * 60 * 1000;
+const CACHE_TTL = 60 * 1000; // 1 min — garante dados frescos
 
 function cacheGet<T>(key: string): T | null {
   const e = _cache.get(key);

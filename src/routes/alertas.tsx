@@ -83,18 +83,22 @@ function AlertasPage() {
   const q15 = useQuery({
     queryKey: ["alertas-count", "sem_operar_15"],
     queryFn: () => fetchFn({ data: { tab: "sem_operar_15", page: 1, sort: "desc", search: "" } }),
+    refetchInterval: 30000,
   });
   const q30 = useQuery({
     queryKey: ["alertas-count", "sem_operar_30"],
     queryFn: () => fetchFn({ data: { tab: "sem_operar_30", page: 1, sort: "desc", search: "" } }),
+    refetchInterval: 30000,
   });
   const qVal = useQuery({
     queryKey: ["alertas-count", "valor_aprovado"],
     queryFn: () => fetchFn({ data: { tab: "valor_aprovado", page: 1, sort: "desc", search: "" } }),
+    refetchInterval: 30000,
   });
   const qLim = useQuery({
     queryKey: ["alertas-count", "limite_disponivel"],
     queryFn: () => fetchFn({ data: { tab: "limite_disponivel", page: 1, sort: "desc", search: "" } }),
+    refetchInterval: 30000,
   });
 
   const total15  = q15.data?.total ?? null;
@@ -253,6 +257,7 @@ function ClientesTab({
   const q = useQuery({
     queryKey: ["alertas", tab, page, sort, search],
     queryFn: () => fetchFn({ data: { tab, page, sort, search } }),
+    refetchInterval: 30000,
   });
 
   // Mapa de contatados do Supabase (atualizado a cada 5s independente do AC)
