@@ -28,6 +28,7 @@ export const Route = createFileRoute("/influencia")({
 });
 
 const FIELD_TITLE = "Data da Última Operação";
+const INFLUENCE_WINDOW_HOURS = 48;
 
 type InfluenceStatus = "influenced" | "not_influenced" | "no_operation";
 
@@ -115,6 +116,7 @@ function InfluenciaPage() {
     return fields.find((f) => f.title === FIELD_TITLE)?.id ?? null;
   }, [contactFieldsQ.data]);
 
+  const [resultsTab, setResultsTab] = useState<"operaram" | "nao_operaram">("operaram");
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>("");
   const [contacts, setContacts] = useState<ContactSummary[]>([]);
   const [openedAtMap, setOpenedAtMap] = useState<Record<string, string>>({});
@@ -175,15 +177,16 @@ function InfluenciaPage() {
         }
 
         const deltaMinutes = differenceInMinutes(operationDate, emailReceivedAt);
+        const withinWindow = deltaMinutes > 0 && deltaMinutes <= INFLUENCE_WINDOW_HOURS * 60;
         return {
           contact,
           emailReceivedAt,
           operationDate,
           deltaMinutes,
-          status: operationDate.getTime() > emailReceivedAt.getTime() ? "influenced" : "not_influenced",
+          status: withinWindow ? "influenced" : "not_influenced",
         };
       })
-      .filter((r): r is AnalysisRow => r !== null && r.operationDate !== null)
+      .filter((r): r is AnalysisRow => r !== null)
       .sort((a, b) => {
         const order = { influenced: 0, not_influenced: 1, no_operation: 2 };
         return order[a.status] - order[b.status];
@@ -191,7 +194,9 @@ function InfluenciaPage() {
   }, [contacts, openedAtMap, operationFieldId, loaded]);
 
   const influenced = rows.filter((r) => r.status === "influenced");
-  const influenceRate = rows.length > 0 ? (influenced.length / rows.length) * 100 : 0;
+  const notOperated = rows.filter((r) => r.status === "no_operation" || r.status === "not_influenced");
+  const totalOpened = rows.length;
+  const influenceRate = totalOpened > 0 ? (influenced.length / totalOpened) * 100 : 0;
   const avgDeltaMinutes = influenced.length > 0
     ? influenced.reduce((s, r) => s + (r.deltaMinutes ?? 0), 0) / influenced.length
     : null;
@@ -267,7 +272,7 @@ function InfluenciaPage() {
               </Button>
               {loaded && (
                 <p className="mt-1.5 text-center text-[11px] text-muted-foreground">
-                  {totalContacts.toLocaleString("pt-BR")} contatos · {rows.length} com operação registrada
+                  {totalContacts.toLocaleString("pt-BR")} abriram · {influenced.length} operaram em até {INFLUENCE_WINDOW_HOURS}h
                 </p>
               )}
             </div>
@@ -278,9 +283,9 @@ function InfluenciaPage() {
         {loaded && selectedCampaign && (
           <>
             <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <KpiCard icon={<Users className="h-4 w-4 text-primary" />} label="Contatos com operação" value={rows.length.toLocaleString("pt-BR")} sub={`de ${totalContacts.toLocaleString("pt-BR")} que abriram o e-mail`} />
-              <KpiCard icon={<Zap className="h-4 w-4 text-primary" />} label="Influenciados" value={influenced.length.toLocaleString("pt-BR")} sub="operaram após o e-mail" good={influenced.length > 0} />
-              <KpiCard icon={<TrendingUp className="h-4 w-4 text-primary" />} label="Taxa de influência" value={rows.length > 0 ? `${influenceRate.toFixed(1)}%` : "—"} sub="dos contatos com operação" good={rows.length > 0 ? influenceRate >= 5 : undefined} />
+              <KpiCard icon={<Users className="h-4 w-4 text-primary" />} label="Abriram o e-mail" value={totalContacts.toLocaleString("pt-BR")} sub="contatos únicos" />
+              <KpiCard icon={<Zap className="h-4 w-4 text-primary" />} label="Operaram em até 48h" value={influenced.length.toLocaleString("pt-BR")} sub={`de ${totalContacts.toLocaleString("pt-BR")} que abriram`} good={influenced.length > 0} />
+              <KpiCard icon={<TrendingUp className="h-4 w-4 text-primary" />} label="Taxa de influência" value={totalContacts > 0 ? `${influenceRate.toFixed(1)}%` : "—"} sub="abriram e operaram em 48h" good={totalContacts > 0 ? influenceRate >= 5 : undefined} />
               <KpiCard
                 icon={<Clock className="h-4 w-4 text-primary" />}
                 label="Tempo médio"
@@ -291,18 +296,41 @@ function InfluenciaPage() {
 
             <div className="mt-6">
               <div className="mb-3 flex items-center justify-between">
-                <div>
-                  <h2 className="text-sm font-semibold">Contatos com operação registrada</h2>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
-                    E-mail: <span className="font-medium text-foreground">{selectedCampaign.name}</span>
-                    {" · "}Enviada: <span className="font-mono">{fmtDate(parseDateSafe(selectedCampaign.sdate), true)}</span>
-                  </p>
-                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  E-mail: <span className="font-medium text-foreground">{selectedCampaign.name}</span>
+                  {" · "}Enviada: <span className="font-mono">{fmtDate(parseDateSafe(selectedCampaign.sdate), true)}</span>
+                </p>
                 {rows.length > 0 && (
-                  <Button variant="outline" size="sm" onClick={() => exportCSV(rows, selectedCampaign.name)}>
+                  <Button variant="outline" size="sm" onClick={() => exportCSV(resultsTab === "operaram" ? influenced : notOperated, selectedCampaign.name)}>
                     <Download className="mr-1.5 h-3.5 w-3.5" />CSV
                   </Button>
                 )}
+              </div>
+
+              {/* Abas */}
+              <div className="mb-4 flex gap-2">
+                <button
+                  onClick={() => setResultsTab("operaram")}
+                  className={cn(
+                    "rounded-lg px-4 py-2 text-sm font-medium transition-colors",
+                    resultsTab === "operaram"
+                      ? "bg-success/15 text-success"
+                      : "bg-muted text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  ✓ Operaram <span className="ml-1 font-mono text-xs">({influenced.length})</span>
+                </button>
+                <button
+                  onClick={() => setResultsTab("nao_operaram")}
+                  className={cn(
+                    "rounded-lg px-4 py-2 text-sm font-medium transition-colors",
+                    resultsTab === "nao_operaram"
+                      ? "bg-muted text-foreground"
+                      : "bg-muted text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Não operaram <span className="ml-1 font-mono text-xs">({notOperated.length})</span>
+                </button>
               </div>
 
               <div className="overflow-hidden rounded-xl border border-border bg-card">
@@ -311,20 +339,25 @@ function InfluenciaPage() {
                     <tr>
                       <th className="px-5 py-3 text-left font-medium">Contato</th>
                       <th className="px-3 py-3 text-left font-medium text-blue-400">📨 Abriu o e-mail</th>
-                      <th className="px-3 py-3 text-left font-medium text-green-400">💼 Última Operação</th>
-                      <th className="px-3 py-3 text-right font-medium">Δ tempo</th>
-                      <th className="px-3 py-3 text-center font-medium">Status</th>
+                      {resultsTab === "operaram" && <>
+                        <th className="px-3 py-3 text-left font-medium text-green-400">💼 Última Operação</th>
+                        <th className="px-3 py-3 text-right font-medium">Δ tempo</th>
+                      </>}
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="px-5 py-12 text-center text-muted-foreground">
-                          Nenhum contato com operação registrada encontrado.
-                        </td>
-                      </tr>
+                    {resultsTab === "operaram" ? (
+                      influenced.length === 0 ? (
+                        <tr><td colSpan={4} className="px-5 py-12 text-center text-muted-foreground">Nenhum contato operou dentro de {INFLUENCE_WINDOW_HOURS}h após abrir o e-mail.</td></tr>
+                      ) : (
+                        influenced.map((row) => <RowItem key={row.contact.id} row={row} showOperation />)
+                      )
                     ) : (
-                      rows.map((row) => <RowItem key={row.contact.id} row={row} />)
+                      notOperated.length === 0 ? (
+                        <tr><td colSpan={2} className="px-5 py-12 text-center text-muted-foreground">Todos os contatos operaram!</td></tr>
+                      ) : (
+                        notOperated.map((row) => <RowItem key={row.contact.id} row={row} showOperation={false} />)
+                      )
                     )}
                   </tbody>
                 </table>
@@ -349,10 +382,9 @@ function InfluenciaPage() {
   );
 }
 
-function RowItem({ row }: { row: AnalysisRow }) {
-  const { contact, emailReceivedAt, operationDate, deltaMinutes, status } = row;
+function RowItem({ row, showOperation }: { row: AnalysisRow; showOperation: boolean }) {
+  const { contact, emailReceivedAt, operationDate, deltaMinutes } = row;
   const name = [contact.firstName, contact.lastName].filter(Boolean).join(" ") || "—";
-  const isInfluenced = status === "influenced";
 
   return (
     <tr className="border-t border-border transition-colors hover:bg-surface-2">
@@ -361,19 +393,14 @@ function RowItem({ row }: { row: AnalysisRow }) {
         <div className="text-[11px] text-muted-foreground font-mono">{contact.email}</div>
       </td>
       <td className="px-3 py-3 font-mono text-xs">{fmtDate(emailReceivedAt, true)}</td>
-      <td className="px-3 py-3 font-mono text-xs">
-        {operationDate ? (
-          <span className={cn(isInfluenced ? "text-success font-semibold" : "")}>
-            {fmtDate(operationDate, true)}
-          </span>
-        ) : <span className="text-muted-foreground">—</span>}
-      </td>
-      <td className="px-3 py-3 text-right font-mono text-xs">
-        <span className={cn("font-semibold", isInfluenced ? "text-success" : "text-muted-foreground")}>
-          {fmtDelta(deltaMinutes)}
-        </span>
-      </td>
-      <td className="px-3 py-3 text-center"><StatusBadge status={status} /></td>
+      {showOperation && <>
+        <td className="px-3 py-3 font-mono text-xs">
+          <span className="text-success font-semibold">{fmtDate(operationDate, true)}</span>
+        </td>
+        <td className="px-3 py-3 text-right font-mono text-xs">
+          <span className="font-semibold text-success">{fmtDelta(deltaMinutes)}</span>
+        </td>
+      </>}
     </tr>
   );
 }
