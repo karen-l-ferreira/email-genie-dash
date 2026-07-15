@@ -52,13 +52,13 @@
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 }
 
-/* ── Adiante Brand Palette ──────────────────────────────
+/* - Adiante Brand Palette -
    #0660FE  bright blue   → primary action
    #193469  dark navy     → header, anchors
    #003292  deep blue     → hover / pressed state
    #CEE6FF  ice blue      → tinted surfaces, highlights
    #ffffff  white         → card, foreground text on dark
-──────────────────────────────────────────────────────── */
+- */
 
 /* Light */
 :root {
