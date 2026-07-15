@@ -38,6 +38,7 @@ type AnalysisRow = {
   operationDate: Date | null;
   deltaMinutes: number | null;
   status: InfluenceStatus;
+  rawOperationValue?: string;
 };
 
 function fmtDelta(minutes: number | null): string {
@@ -179,7 +180,7 @@ function InfluenciaPage() {
         const operationDate = parseDateSafe(rawValue);
 
         if (!operationDate) {
-          return { contact, emailReceivedAt, operationDate: null, deltaMinutes: null, status: "no_operation" };
+          return { contact, emailReceivedAt, operationDate: null, deltaMinutes: null, status: "no_operation", rawOperationValue: rawValue };
         }
 
         const deltaMinutes = differenceInMinutes(operationDate, emailReceivedAt);
@@ -190,6 +191,7 @@ function InfluenciaPage() {
           operationDate,
           deltaMinutes,
           status: withinWindow ? "influenced" : "not_influenced",
+          rawOperationValue: rawValue,
         };
       })
       .filter((r): r is AnalysisRow => r !== null)
@@ -389,7 +391,7 @@ function InfluenciaPage() {
 }
 
 function RowItem({ row, showOperation }: { row: AnalysisRow; showOperation: boolean }) {
-  const { contact, emailReceivedAt, operationDate, deltaMinutes } = row;
+  const { contact, emailReceivedAt, operationDate, deltaMinutes, rawOperationValue } = row;
   const name = [contact.firstName, contact.lastName].filter(Boolean).join(" ") || "—";
 
   return (
@@ -402,6 +404,7 @@ function RowItem({ row, showOperation }: { row: AnalysisRow; showOperation: bool
       {showOperation && <>
         <td className="px-3 py-3 font-mono text-xs">
           <span className="text-success font-semibold">{fmtDate(operationDate, true)}</span>
+          {rawOperationValue && <span className="ml-2 text-[10px] text-amber-400">[raw: {rawOperationValue}]</span>}
         </td>
         <td className="px-3 py-3 text-right font-mono text-xs">
           <span className="font-semibold text-success">{fmtDelta(deltaMinutes)}</span>
