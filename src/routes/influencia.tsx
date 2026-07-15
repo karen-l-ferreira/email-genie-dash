@@ -292,8 +292,8 @@ function InfluenciaPage() {
           <>
             <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <KpiCard icon={<Users className="h-4 w-4 text-primary" />} label="Abriram o e-mail" value={totalContacts.toLocaleString("pt-BR")} sub="contatos únicos" />
-              <KpiCard icon={<Zap className="h-4 w-4 text-primary" />} label="Operaram em até 48h" value={influenced.length.toLocaleString("pt-BR")} sub={`de ${totalContacts.toLocaleString("pt-BR")} que abriram`} good={influenced.length > 0} />
-              <KpiCard icon={<TrendingUp className="h-4 w-4 text-primary" />} label="Taxa de influência" value={totalContacts > 0 ? `${influenceRate.toFixed(1)}%` : "—"} sub="abriram e operaram em 48h" good={totalContacts > 0 ? influenceRate >= 5 : undefined} />
+              <KpiCard icon={<Zap className="h-4 w-4 text-primary" />} label={`Operaram em até ${INFLUENCE_WINDOW_HOURS}h`} value={influenced.length.toLocaleString("pt-BR")} sub={`de ${totalContacts.toLocaleString("pt-BR")} que abriram`} good={influenced.length > 0} />
+              <KpiCard icon={<TrendingUp className="h-4 w-4 text-primary" />} label="Taxa de influência" value={totalContacts > 0 ? `${influenceRate.toFixed(1)}%` : "—"} sub={`abriram e operaram em ${INFLUENCE_WINDOW_HOURS}h`} good={totalContacts > 0 ? influenceRate >= 5 : undefined} />
               <KpiCard
                 icon={<Clock className="h-4 w-4 text-primary" />}
                 label="Tempo médio"
