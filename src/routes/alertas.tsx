@@ -572,7 +572,7 @@ function ClientesTab({
                   </div>
                 )}
               </div>{/* end body */}
-            </div>{/* end card */}
+              </div>
             );
           })}
         </div>
