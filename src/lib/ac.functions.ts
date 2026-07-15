@@ -371,6 +371,22 @@ export const listContactFields = createServerFn({ method: "GET" })
     return { fields };
   });
 
+export const getCampaignListIds = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ id: z.string().min(1).max(64) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const creds = await getCreds(context.supabase, context.userId);
+    const json = await acFetch(creds, `campaigns/${data.id}/campaignLists`);
+    const listIds = Array.from(
+      new Set(
+        ((json.campaignLists ?? []) as any[])
+          .map((cl) => String(cl.listid ?? cl.list ?? ""))
+          .filter(Boolean),
+      ),
+    );
+    return { listIds };
+  });
+
 export const listContactsForAnalysis = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ offset: z.number().int().min(0).optional(), listId: z.string().optional() }).parse(d ?? {}))

@@ -6,6 +6,7 @@ import {
   listContactFields,
   listContactsForAnalysis,
   listCampaigns,
+  getCampaignListIds,
   type ContactSummary,
 } from "@/lib/ac.functions";
 import { getSettings } from "@/lib/settings.functions";
@@ -90,6 +91,7 @@ function InfluenciaPage() {
   const fetchContactFields = useServerFn(listContactFields);
   const fetchContacts = useServerFn(listContactsForAnalysis);
   const fetchCampaigns = useServerFn(listCampaigns);
+  const fetchCampaignListIds = useServerFn(getCampaignListIds);
 
   const settingsQ = useQuery({ queryKey: ["settings"], queryFn: () => fetchSettings() });
   const hasKey = !!settingsQ.data?.hasApiKey;
@@ -125,24 +127,41 @@ function InfluenciaPage() {
   );
   const selectedCampaign = sentCampaigns.find((c) => c.id === selectedCampaignId) ?? null;
 
+  const campaignListsQ = useQuery({
+    queryKey: ["campaign-lists", selectedCampaignId],
+    queryFn: () => fetchCampaignListIds({ data: { id: selectedCampaignId } }),
+    enabled: !!selectedCampaignId,
+  });
+  const campaignListIds = campaignListsQ.data?.listIds ?? [];
+  const noListFound = !!selectedCampaignId && campaignListsQ.isFetched && campaignListIds.length === 0;
+
+  // Fetches every contact of a single AC list (paginated), 100 per page.
+  const fetchAllContactsOfList = useCallback(async (listId: string) => {
+    const first = await fetchContacts({ data: { offset: 0, listId } });
+    const pages = Math.ceil(first.total / 100);
+    const offsets = Array.from({ length: pages - 1 }, (_, i) => (i + 1) * 100);
+    const rest = await Promise.all(offsets.map((o) => fetchContacts({ data: { offset: o, listId } })));
+    return [first.contacts, ...rest.map((r) => r.contacts)].flat();
+  }, [fetchContacts]);
+
   const loadAll = useCallback(async () => {
-    if (!selectedCampaignId || !operationFieldId) return;
+    if (!selectedCampaignId || !operationFieldId || campaignListIds.length === 0) return;
     setLoadingAll(true);
     setContacts([]);
     setLoaded(false);
     try {
-      const listId = selectedCampaign?.listId ?? undefined;
-      const first = await fetchContacts({ data: { offset: 0, listId } });
-      setTotalContacts(first.total);
-      const pages = Math.ceil(first.total / 100);
-      const offsets = Array.from({ length: pages - 1 }, (_, i) => (i + 1) * 100);
-      const rest = await Promise.all(offsets.map((o) => fetchContacts({ data: { offset: o, listId } })));
-      setContacts([...first.contacts, ...rest.flatMap((r) => r.contacts)]);
+      // Only contacts that actually belong to the list(s) this campaign was sent to.
+      const perList = await Promise.all(campaignListIds.map((listId) => fetchAllContactsOfList(listId)));
+      const byId = new Map<string, ContactSummary>();
+      for (const contact of perList.flat()) byId.set(contact.id, contact);
+      const merged = Array.from(byId.values());
+      setTotalContacts(merged.length);
+      setContacts(merged);
       setLoaded(true);
     } finally {
       setLoadingAll(false);
     }
-  }, [fetchContacts, selectedCampaignId, operationFieldId, selectedCampaign]);
+  }, [selectedCampaignId, operationFieldId, campaignListIds, fetchAllContactsOfList]);
 
   const rows: AnalysisRow[] = useMemo(() => {
     if (!loaded || !selectedCampaign || !operationFieldId) return [];
@@ -180,7 +199,7 @@ function InfluenciaPage() {
     ? influenced.reduce((s, r) => s + (r.deltaMinutes ?? 0), 0) / influenced.length
     : null;
 
-  const canRun = !!selectedCampaignId && !!operationFieldId;
+  const canRun = !!selectedCampaignId && !!operationFieldId && campaignListIds.length > 0;
 
   const fieldNotFound = contactFieldsQ.isFetched && !operationFieldId;
 
@@ -203,6 +222,12 @@ function InfluenciaPage() {
         {fieldNotFound && (
           <div className="mb-4 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
             Campo <strong>"{FIELD_TITLE}"</strong> não encontrado nos campos de contato do ActiveCampaign.
+          </div>
+        )}
+
+        {noListFound && (
+          <div className="mb-4 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            Não foi possível identificar a(s) lista(s) para a qual esta campanha foi enviada. Selecione outra campanha.
           </div>
         )}
 
