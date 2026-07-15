@@ -56,9 +56,15 @@ function fmtDelta(minutes: number | null): string {
 
 function parseDateSafe(s: string | undefined | null): Date | null {
   if (!s || s.startsWith("0000") || s.trim() === "") return null;
-  const dateOnly = s.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const t = s.trim();
+  // YYYY-MM-DD (sem hora)
+  const dateOnly = t.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (dateOnly) return new Date(+dateOnly[1], +dateOnly[2] - 1, +dateOnly[3]);
-  const d = new Date(s.replace(" ", "T"));
+  // MM/DD/YYYY HH:mm (formato AC de campo de contato)
+  const mdyHm = t.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})/);
+  if (mdyHm) return new Date(+mdyHm[3], +mdyHm[1] - 1, +mdyHm[2], +mdyHm[4], +mdyHm[5]);
+  // ISO / outros
+  const d = new Date(t.replace(" ", "T"));
   return isNaN(d.getTime()) ? null : d;
 }
 
