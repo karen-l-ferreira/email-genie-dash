@@ -25,11 +25,9 @@ export function AppHeader({ campaignCount }: Props) {
     >
       {/* Logo */}
       <Link to="/dashboard" className="flex items-center gap-2.5 px-5 py-5 select-none shrink-0">
-        <svg width="28" height="28" viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect x="3"  y="40" width="10" height="16" rx="5" fill="white" transform="rotate(-10 8 48)"/>
-          <rect x="17" y="28" width="10" height="28" rx="5" fill="white" transform="rotate(-10 22 42)"/>
-          <rect x="31" y="16" width="10" height="40" rx="5" fill="white" transform="rotate(-10 36 36)"/>
-          <rect x="45" y="4"  width="10" height="52" rx="5" fill="white" transform="rotate(-10 50 30)"/>
+        <svg width="36" height="28" viewBox="0 0 36 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M2 22 C6 22 8 6 13 6 C18 6 20 22 25 22 C30 22 32 12 34 12" stroke="white" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M2 16 C6 16 8 4 12 4 C16 4 18 16 22 16 C26 16 28 8 30 8" stroke="#0660FE" strokeWidth="1.8" strokeLinecap="round" strokeOpacity="0.6"/>
         </svg>
         <div className="flex flex-col leading-none">
           <span className="text-[15px] font-bold tracking-[.06em] uppercase text-white">FLUXI</span>
