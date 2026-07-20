@@ -28,7 +28,7 @@ export const Route = createFileRoute("/influencia")({
 });
 
 const FIELD_TITLE = "Data Última Operação";
-const INFLUENCE_WINDOW_HOURS = 1;
+const WINDOW_OPTIONS = [1, 3, 6, 12, 24];
 
 type InfluenceStatus = "influenced" | "not_influenced" | "no_operation";
 
@@ -125,6 +125,7 @@ function InfluenciaPage() {
 
   const [resultsTab, setResultsTab] = useState<"operaram" | "nao_operaram">("operaram");
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>("");
+  const [windowHours, setWindowHours] = useState<number>(1);
   const [contacts, setContacts] = useState<ContactSummary[]>([]);
   const [openedAtMap, setOpenedAtMap] = useState<Record<string, string>>({});
   const [totalContacts, setTotalContacts] = useState(0);
@@ -184,7 +185,7 @@ function InfluenciaPage() {
         }
 
         const deltaMinutes = differenceInMinutes(operationDate, emailReceivedAt);
-        const withinWindow = deltaMinutes > 0 && deltaMinutes <= INFLUENCE_WINDOW_HOURS * 60;
+        const withinWindow = deltaMinutes > 0 && deltaMinutes <= windowHours * 60;
         return {
           contact,
           emailReceivedAt,
@@ -199,7 +200,7 @@ function InfluenciaPage() {
         const order = { influenced: 0, not_influenced: 1, no_operation: 2 };
         return order[a.status] - order[b.status];
       });
-  }, [contacts, openedAtMap, operationFieldId, loaded]);
+  }, [contacts, openedAtMap, operationFieldId, loaded, windowHours]);
 
   const influenced = rows.filter((r) => r.status === "influenced");
   const notOperated = rows.filter((r) => r.status === "no_operation" || r.status === "not_influenced");
@@ -263,6 +264,26 @@ function InfluenciaPage() {
                   : <><Zap className="mr-1.5 h-4 w-4" />Rodar análise</>}
               </Button>
             </div>
+            <div className="mt-3 flex items-center gap-2">
+              <span className="text-xs text-muted-foreground shrink-0">Janela de influência:</span>
+              <div className="flex gap-1.5">
+                {WINDOW_OPTIONS.map((h) => (
+                  <button
+                    key={h}
+                    type="button"
+                    onClick={() => setWindowHours(h)}
+                    className={[
+                      "rounded-md px-3 py-1 text-xs font-medium transition-colors border",
+                      windowHours === h
+                        ? "border-primary text-primary bg-primary/10"
+                        : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/30",
+                    ].join(" ")}
+                  >
+                    {h}h
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="mt-2 flex items-center gap-4 text-[11px] text-muted-foreground">
               <span>Campo fixo: <span className="font-medium text-foreground">{FIELD_TITLE}</span>
                 {operationFieldId && <span className="ml-1 text-success">✓</span>}
@@ -272,7 +293,7 @@ function InfluenciaPage() {
                 <span>Enviada: <span className="font-mono">{fmtDate(parseDateSafe(selectedCampaign.sdate), true)}</span></span>
               )}
               {loaded && (
-                <span>{totalContacts.toLocaleString("pt-BR")} abriram · {influenced.length} operaram em até {INFLUENCE_WINDOW_HOURS}h</span>
+                <span>{totalContacts.toLocaleString("pt-BR")} abriram · {influenced.length} operaram em até {windowHours}h</span>
               )}
             </div>
           </div>
