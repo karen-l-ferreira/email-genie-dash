@@ -530,7 +530,7 @@ export const toggleAlertaContatado = createServerFn({ method: "POST" })
 // ─── listCliquesAlertas ────────────────────────────────────────────────────
 
 const WHATSAPP_LINK_RE = /wa\.me|api\.whatsapp\.com/i;
-const PORTAL_LINK_RE = /portal\.adiantesa\.com/i;
+const PORTAL_LINK_RE = /adiantesa\.com|adiante\.com\.br/i;
 
 export type CliqueInfo = {
   contactId: string;
