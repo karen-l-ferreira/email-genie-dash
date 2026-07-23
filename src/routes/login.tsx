@@ -15,12 +15,36 @@ function LoginPage() {
   const [busy, setBusy] = useState(false);
   const [resetMode, setResetMode] = useState(false);
   const [resetBusy, setResetBusy] = useState(false);
+  const [newPassMode, setNewPassMode] = useState(false);
+  const [newPass, setNewPass] = useState("");
+  const [newPassBusy, setNewPassBusy] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session) navigate({ to: "/" });
+      if (data.session && !newPassMode) navigate({ to: "/" });
     });
-  }, [navigate]);
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") setNewPassMode(true);
+    });
+    return () => subscription.unsubscribe();
+  }, [navigate, newPassMode]);
+
+  async function saveNewPassword(e: React.FormEvent) {
+    e.preventDefault();
+    setNewPassBusy(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPass });
+      if (error) throw error;
+      toast.success("Senha atualizada com sucesso!");
+      setNewPassMode(false);
+      navigate({ to: "/" });
+    } catch (e: any) {
+      toast.error(e.message ?? "Não foi possível atualizar a senha");
+    } finally {
+      setNewPassBusy(false);
+    }
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -74,7 +98,21 @@ function LoginPage() {
         </div>
 
         <div className="rounded-2xl border border-border bg-card p-7">
-          {!resetMode ? (
+          {newPassMode ? (
+            <>
+              <h2 className="text-xl font-semibold">Criar nova senha</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Digite sua nova senha para continuar.</p>
+              <form onSubmit={saveNewPassword} className="mt-5 space-y-4">
+                <div>
+                  <Label htmlFor="new-password">Nova senha</Label>
+                  <Input id="new-password" type="password" required minLength={6} value={newPass} onChange={(e) => setNewPass(e.target.value)} />
+                </div>
+                <Button type="submit" disabled={newPassBusy} className="w-full">
+                  {newPassBusy ? "Salvando…" : "Salvar nova senha"}
+                </Button>
+              </form>
+            </>
+          ) : !resetMode ? (
             <>
               <h2 className="text-xl font-semibold">Acesso privado</h2>
               <p className="mt-1 text-sm text-muted-foreground">Entre com suas credenciais para acessar o painel.</p>
