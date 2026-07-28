@@ -634,19 +634,22 @@ export const listCliquesAlertas = createServerFn({ method: "GET" })
       const json = await acFetch(creds, "campaigns", {
         limit: "100",
         offset: String(page * 100),
-        "orders[sdate]": "DESC",
+        "orders[mdate]": "DESC",
       });
       const rows: any[] = json.campaigns ?? [];
       for (const c of rows) {
-        const rawDate = (!c.sdate || String(c.sdate).startsWith("0000")) ? c.ldate : c.sdate;
-        if (!rawDate || String(rawDate).startsWith("0000")) continue;
+        // prefer sdate, fall back to ldate, then mdate
+        const rawDate = [c.sdate, c.ldate, c.mdate].find(
+          (d) => d && !String(d).startsWith("0000"),
+        );
+        if (!rawDate) continue;
         const sdate = new Date(rawDate);
         if (isNaN(sdate.getTime())) continue;
         if (sdate >= cutoffStart) campaigns.push({ id: String(c.id), name: c.name ?? "(sem nome)", sdate });
       }
       const last = rows[rows.length - 1];
-      const lastDate = last?.sdate && !String(last.sdate).startsWith("0000") ? new Date(last.sdate) : null;
-      if (rows.length < 100 || (lastDate && lastDate < cutoffStart)) break;
+      const lastMdate = last?.mdate && !String(last.mdate).startsWith("0000") ? new Date(last.mdate) : null;
+      if (rows.length < 100 || (lastMdate && lastMdate < cutoffStart)) break;
       if (campaigns.length >= MAX_CAMPAIGNS) break;
     }
 
