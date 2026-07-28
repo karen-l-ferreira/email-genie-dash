@@ -552,6 +552,7 @@ export type CampanhaCliquesRow = {
 
 export type ListCliquesResult = {
   campanhas: CampanhaCliquesRow[];
+  erros: { nome: string; motivo: string }[];
   total: number;
   page: number;
   pageSize: number;
@@ -657,7 +658,7 @@ export const listCliquesAlertas = createServerFn({ method: "GET" })
 
     const campanhasOut: CampanhaCliquesRow[] = [];
     let campanhasComErro = 0;
-    let firstError: string | null = null;
+    const erros: { nome: string; motivo: string }[] = [];
 
     for (const camp of targetCampaigns) {
       let json: any;
@@ -665,12 +666,12 @@ export const listCliquesAlertas = createServerFn({ method: "GET" })
         json = await acLegacyFetch(creds, { api_action: "campaign_report_link_list", campaignid: camp.id });
       } catch (e) {
         campanhasComErro++;
-        if (!firstError) firstError = (e as Error).message;
+        erros.push({ nome: camp.name, motivo: (e as Error).message });
         continue;
       }
       if (json?.result_code === 0) {
         campanhasComErro++;
-        if (!firstError) firstError = `result_code=0: ${json?.result_message ?? "sem mensagem"}`;
+        erros.push({ nome: camp.name, motivo: json?.result_message ?? "sem mensagem" });
         continue;
       }
 
@@ -708,7 +709,7 @@ export const listCliquesAlertas = createServerFn({ method: "GET" })
     }
 
     if (campanhasOut.length === 0 && campanhasComErro === targetCampaigns.length && targetCampaigns.length > 0) {
-      throw new Error(`Falha ao consultar a API legada do AC em todas as ${targetCampaigns.length} campanhas. Erro: ${firstError}`);
+      throw new Error(`Falha ao consultar a API legada do AC em todas as ${targetCampaigns.length} campanhas. Erro: ${erros[0]?.motivo}`);
     }
 
     const [contactFieldMap, acctFieldMap] = await fieldMapsPromise;
@@ -756,5 +757,6 @@ export const listCliquesAlertas = createServerFn({ method: "GET" })
       pageSize,
       campanhasEscaneadas: targetCampaigns.length,
       campanhasComErro,
+      erros,
     } satisfies ListCliquesResult;
   });

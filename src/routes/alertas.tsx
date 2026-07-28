@@ -646,7 +646,11 @@ function CliquesTab() {
       {q.data && (
         <p className="text-xs text-muted-foreground">
           {q.data.campanhasEscaneadas} campanhas verificadas · últimos 60 dias
-          {q.data.campanhasComErro > 0 && ` · ${q.data.campanhasComErro} com erro`}
+          {q.data.campanhasComErro > 0 && (
+            <span title={q.data.erros.map(e => `${e.nome}: ${e.motivo}`).join("\n")}>
+              {` · ${q.data.campanhasComErro} com erro`}
+            </span>
+          )}
         </p>
       )}
 
