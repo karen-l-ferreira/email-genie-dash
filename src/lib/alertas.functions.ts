@@ -638,8 +638,9 @@ export const listCliquesAlertas = createServerFn({ method: "GET" })
       });
       const rows: any[] = json.campaigns ?? [];
       for (const c of rows) {
-        if (!c.sdate || String(c.sdate).startsWith("0000")) continue;
-        const sdate = new Date(c.sdate);
+        const rawDate = (!c.sdate || String(c.sdate).startsWith("0000")) ? c.ldate : c.sdate;
+        if (!rawDate || String(rawDate).startsWith("0000")) continue;
+        const sdate = new Date(rawDate);
         if (isNaN(sdate.getTime())) continue;
         if (sdate >= cutoffStart) campaigns.push({ id: String(c.id), name: c.name ?? "(sem nome)", sdate });
       }
