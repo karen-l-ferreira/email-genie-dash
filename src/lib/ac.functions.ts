@@ -126,7 +126,11 @@ function parseAcDate(s: string | null | undefined): string | null {
 function mapCampaign(c: any): Campaign {
   const send = Number(c.send_amt ?? c.total_amt ?? 0);
   const uo = Number(c.uniqueopens ?? 0);
-  const ulc = Number(c.uniquelinkclicks ?? 0);
+  // AC's own "uniquelinkclicks" counts per (contact, link) pair, so a contact who
+  // clicks 2 different links counts twice — it doesn't match the "Cliques únicos"
+  // ActiveCampaign shows on its campaign report screen. "subscriberclicks" is the
+  // per-contact-deduped count and is what matches the AC UI.
+  const ulc = Number(c.subscriberclicks ?? c.uniquelinkclicks ?? 0);
   const open_rate = send > 0 ? (uo / send) * 100 : 0;
   const ctr = uo > 0 ? (ulc / uo) * 100 : 0;
   const score = Math.min(100, Math.round(open_rate * 2 + ctr * 8));
@@ -486,18 +490,6 @@ export const getAutomationMessages = createServerFn({ method: "GET" })
     });
     const camps: any[] = json.campaigns ?? [];
 
-    // Log all click/open related fields from first campaign to find correct mapping
-    if (camps.length > 0) {
-      const f = camps[0];
-      const clickFields: Record<string, any> = {};
-      for (const k of Object.keys(f)) {
-        if (/click|open|link|unique|subscriber|forward/i.test(k)) {
-          clickFields[k] = f[k];
-        }
-      }
-      console.error("[AC_FIELDS]", JSON.stringify(clickFields));
-    }
-
     const emails: AutomationEmail[] = [];
     for (const c of camps.slice(0, 20)) {
       const mid = c.message_id ?? c.messageid ?? c.message;
@@ -508,7 +500,8 @@ export const getAutomationMessages = createServerFn({ method: "GET" })
         const sends = Number(c.send_amt ?? c.total_amt ?? 0);
         const uo = Number(c.uniqueopens ?? 0);
         const lc = Number(c.linkclicks ?? 0);
-        const ulc = Number(c.uniquelinkclicks ?? 0);
+        // subscriberclicks = unique clicks per contact, matches AC's own campaign report UI
+        const ulc = Number(c.subscriberclicks ?? c.uniquelinkclicks ?? 0);
         emails.push({
           id: String(m.message.id ?? mid),
           campaignId: String(c.id),
