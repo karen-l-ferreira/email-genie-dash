@@ -260,7 +260,7 @@ function CampaignDetailPage() {
             <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-7">
               <MetricCard label="Taxa de Abertura" value={`${c.open_rate.toFixed(1)}%`} detail={`${c.uniqueopens}/${c.send_amt}`} variance={c.open_rate - benchOR} />
               <MetricCard label="CTR" value={`${c.ctr.toFixed(2)}%`} detail={`${c.uniquelinkclicks}/${c.uniqueopens || 0}`} variance={c.ctr - benchCTR} />
-              <MetricCard label="Cliques Únicos" value={c.uniquelinkclicks.toLocaleString("pt-BR")} detail={`${c.linkclicks.toLocaleString("pt-BR")} no total`} />
+              <MetricCard label="Cliques Únicos" value={c.uniquelinkclicks.toLocaleString("pt-BR")} detail={`Total de cliques: ${c.linkclicks.toLocaleString("pt-BR")}`} />
               <MetricCard label="Aberturas Únicas" value={c.uniqueopens.toLocaleString("pt-BR")} detail={`${c.opens.toLocaleString("pt-BR")} no total`} />
               <MetricCard label="Envios" value={c.send_amt.toLocaleString("pt-BR")} detail={`${c.total_amt.toLocaleString("pt-BR")} na fila`} />
               <MetricCard label="Devoluções" value={(c.hardbounces + c.softbounces).toLocaleString("pt-BR")} detail={`${c.hardbounces} hard`} variance={-(((c.hardbounces + c.softbounces) / Math.max(1, c.send_amt)) * 100 - 2)} invertColor />
