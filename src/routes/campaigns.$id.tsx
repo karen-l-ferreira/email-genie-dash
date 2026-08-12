@@ -261,7 +261,7 @@ function CampaignDetailPage() {
               <MetricCard label="Taxa de Abertura" value={`${c.open_rate.toFixed(1)}%`} detail={`${c.uniqueopens}/${c.send_amt}`} variance={c.open_rate - benchOR} />
               <MetricCard label="CTR" value={`${c.ctr.toFixed(2)}%`} detail={`${c.uniquelinkclicks}/${c.uniqueopens || 0}`} variance={c.ctr - benchCTR} />
               <MetricCard label="Cliques Únicos" value={c.uniquelinkclicks.toLocaleString("pt-BR")} detail={`${c.linkclicks.toLocaleString("pt-BR")} no total`} />
-              <MetricCard label="Total de Aberturas" value={c.opens.toLocaleString("pt-BR")} detail={`${c.uniqueopens.toLocaleString("pt-BR")} únicos`} />
+              <MetricCard label="Aberturas Únicas" value={c.uniqueopens.toLocaleString("pt-BR")} detail={`${c.opens.toLocaleString("pt-BR")} no total`} />
               <MetricCard label="Envios" value={c.send_amt.toLocaleString("pt-BR")} detail={`${c.total_amt.toLocaleString("pt-BR")} na fila`} />
               <MetricCard label="Devoluções" value={(c.hardbounces + c.softbounces).toLocaleString("pt-BR")} detail={`${c.hardbounces} hard`} variance={-(((c.hardbounces + c.softbounces) / Math.max(1, c.send_amt)) * 100 - 2)} invertColor />
               <MetricCard label="Descadastros" value={c.unsubscribes.toLocaleString("pt-BR")} detail={`${((c.unsubscribes / Math.max(1, c.send_amt)) * 100).toFixed(2)}%`} />
