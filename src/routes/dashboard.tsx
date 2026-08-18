@@ -136,9 +136,31 @@ function DashboardPage() {
 
   const campaignsQ = useQuery({
 
-    queryKey: ["campaigns", 0],
+    queryKey: ["campaigns", "all"],
 
-    queryFn: () => fetchCampaigns({ data: { offset: 0 } }),
+    queryFn: async () => {
+
+      const MAX_PAGES = 20;
+
+      let campaigns: Campaign[] = [];
+
+      let total = Infinity;
+
+      for (let page = 0; page < MAX_PAGES && campaigns.length < total; page++) {
+
+        const res = await fetchCampaigns({ data: { offset: campaigns.length } });
+
+        total = res.total;
+
+        if (res.campaigns.length === 0) break;
+
+        campaigns = campaigns.concat(res.campaigns);
+
+      }
+
+      return { campaigns, total };
+
+    },
 
     enabled: !!settingsQ.data?.hasApiKey, retry: false,
 
