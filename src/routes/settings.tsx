@@ -22,15 +22,12 @@ function SettingsPage() {
   const save = useServerFn(saveSettings);
   const { data, isLoading, refetch } = useQuery({ queryKey: ["settings"], queryFn: () => fetchSettings() });
 
-  const [apiKey, setApiKey] = useState("");
-  const [baseUrl, setBaseUrl] = useState("");
   const [openR, setOpenR] = useState("22");
   const [ctr, setCtr] = useState("2.9");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (data) {
-      setBaseUrl(data.ac_base_url);
       setOpenR(String(data.benchmark_open_rate));
       setCtr(String(data.benchmark_ctr));
     }
@@ -42,14 +39,11 @@ function SettingsPage() {
     try {
       await save({
         data: {
-          ...(apiKey ? { ac_api_key: apiKey } : {}),
-          ac_base_url: baseUrl,
           benchmark_open_rate: Number(openR),
           benchmark_ctr: Number(ctr),
         },
       });
       toast.success("Configurações salvas");
-      setApiKey("");
       await refetch();
       navigate({ to: "/dashboard" });
     } catch (e: any) {
@@ -69,24 +63,18 @@ function SettingsPage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-foreground">Configurações</h1>
-            <p className="text-sm text-muted-foreground">Configure seu acesso ao ActiveCampaign e os benchmarks.</p>
+            <p className="text-sm text-muted-foreground">Configure os benchmarks de campanha.</p>
           </div>
         </div>
         {isLoading ? (
           <div className="mt-8 h-40 animate-pulse rounded-xl bg-surface" />
         ) : (
           <form onSubmit={submit} className="mt-8 space-y-6 rounded-2xl border border-border bg-card p-7">
-            <div>
-              <Label htmlFor="api">Chave de API do ActiveCampaign</Label>
-              <Input id="api" type="password" value={apiKey}
-                placeholder={data?.hasApiKey ? "•••••••••• (salva — deixe em branco para manter)" : "Cole seu Api-Token"}
-                onChange={(e) => setApiKey(e.target.value)} />
-              <p className="mt-1.5 text-xs text-muted-foreground">Armazenada no servidor. Nunca enviada ao navegador.</p>
-            </div>
-            <div>
-              <Label htmlFor="base">URL Base da API</Label>
-              <Input id="base" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
-            </div>
+            {!data?.hasApiKey && (
+              <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                A conexão com o ActiveCampaign ainda não foi configurada pelo administrador do servidor.
+              </p>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="or">Benchmark de Taxa de Abertura (%)</Label>
