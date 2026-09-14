@@ -190,8 +190,6 @@ export type Database = {
       }
       user_settings: {
         Row: {
-          ac_api_key: string | null
-          ac_base_url: string
           benchmark_ctr: number
           benchmark_open_rate: number
           created_at: string
@@ -199,8 +197,6 @@ export type Database = {
           user_id: string
         }
         Insert: {
-          ac_api_key?: string | null
-          ac_base_url?: string
           benchmark_ctr?: number
           benchmark_open_rate?: number
           created_at?: string
@@ -208,8 +204,6 @@ export type Database = {
           user_id: string
         }
         Update: {
-          ac_api_key?: string | null
-          ac_base_url?: string
           benchmark_ctr?: number
           benchmark_open_rate?: number
           created_at?: string

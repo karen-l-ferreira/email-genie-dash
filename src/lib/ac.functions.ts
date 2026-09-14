@@ -27,14 +27,13 @@ function friendlyAcError(status: number): Error {
   return new Error("ActiveCampaign: falha na requisição.");
 }
 
-async function getCreds(supabase: any, userId: string): Promise<Settings> {
-  const { data } = await supabase
-    .from("user_settings")
-    .select("ac_api_key, ac_base_url")
-    .eq("user_id", userId)
-    .maybeSingle();
-  if (!data?.ac_api_key) throw new Error("MISSING_API_KEY");
-  return { ac_api_key: data.ac_api_key, ac_base_url: data.ac_base_url };
+// Single shared ActiveCampaign account for the whole team — key lives only as a
+// server secret (never in the database), same pattern as GOOGLE_AI_API_KEY.
+async function getCreds(_supabase: any, _userId: string): Promise<Settings> {
+  const ac_api_key = process.env.AC_API_KEY;
+  const ac_base_url = process.env.AC_BASE_URL;
+  if (!ac_api_key || !ac_base_url) throw new Error("MISSING_API_KEY");
+  return { ac_api_key, ac_base_url };
 }
 
 async function acLegacyFetch(creds: Settings, params: Record<string, string>) {

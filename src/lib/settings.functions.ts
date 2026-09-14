@@ -2,16 +2,9 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
-const AC_HOST_RE = /^[a-z0-9-]+\.(api-[a-z0-9]+\.com|activehosted\.com)$/i;
-
-function isAllowedAcUrl(u: string): boolean {
-  try {
-    const parsed = new URL(u);
-    return parsed.protocol === "https:" && AC_HOST_RE.test(parsed.hostname);
-  } catch {
-    return false;
-  }
-}
+// ActiveCampaign credentials are a single shared server secret (AC_API_KEY /
+// AC_BASE_URL), not per-user data — see src/lib/ac.functions.ts. Only
+// per-user benchmark preferences live in the database.
 
 export const getSettings = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -19,12 +12,11 @@ export const getSettings = createServerFn({ method: "GET" })
     const { supabase, userId } = context;
     const { data } = await supabase
       .from("user_settings")
-      .select("ac_api_key, ac_base_url, benchmark_open_rate, benchmark_ctr")
+      .select("benchmark_open_rate, benchmark_ctr")
       .eq("user_id", userId)
       .maybeSingle();
     return {
-      hasApiKey: Boolean(data?.ac_api_key),
-      ac_base_url: data?.ac_base_url ?? "https://gcbinvestimentos.api-us1.com/api/3/",
+      hasApiKey: Boolean(process.env.AC_API_KEY),
       benchmark_open_rate: Number(data?.benchmark_open_rate ?? 22),
       benchmark_ctr: Number(data?.benchmark_ctr ?? 2.9),
     };
@@ -35,15 +27,6 @@ export const saveSettings = createServerFn({ method: "POST" })
   .inputValidator((d) =>
     z
       .object({
-        ac_api_key: z.string().min(10).max(500).optional(),
-        ac_base_url: z
-          .string()
-          .url()
-          .max(300)
-          .refine(isAllowedAcUrl, {
-            message: "URL inválida. Use https://<conta>.api-us1.com/api/3/",
-          })
-          .optional(),
         benchmark_open_rate: z.number().min(0).max(100).optional(),
         benchmark_ctr: z.number().min(0).max(100).optional(),
       })
@@ -54,8 +37,6 @@ export const saveSettings = createServerFn({ method: "POST" })
     const patch = {
       user_id: userId,
       updated_at: new Date().toISOString(),
-      ...(data.ac_api_key ? { ac_api_key: data.ac_api_key } : {}),
-      ...(data.ac_base_url ? { ac_base_url: data.ac_base_url } : {}),
       ...(data.benchmark_open_rate !== undefined ? { benchmark_open_rate: data.benchmark_open_rate } : {}),
       ...(data.benchmark_ctr !== undefined ? { benchmark_ctr: data.benchmark_ctr } : {}),
     };
