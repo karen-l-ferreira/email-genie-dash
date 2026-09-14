@@ -131,7 +131,7 @@ function mapCampaign(c: any): Campaign {
   // per-contact-deduped count and is what matches the AC UI.
   const ulc = Number(c.subscriberclicks ?? c.uniquelinkclicks ?? 0);
   const open_rate = send > 0 ? (uo / send) * 100 : 0;
-  const ctr = uo > 0 ? (ulc / uo) * 100 : 0;
+  const ctr = send > 0 ? (ulc / send) * 100 : 0;
   const score = Math.min(100, Math.round(open_rate * 2 + ctr * 8));
 
   const ids: string[] = [];
@@ -514,7 +514,7 @@ export const getAutomationMessages = createServerFn({ method: "GET" })
           linkclicks: lc,
           uniquelinkclicks: ulc,
           open_rate: sends > 0 ? (uo / sends) * 100 : 0,
-          ctr: uo > 0 ? (ulc / uo) * 100 : 0,
+          ctr: sends > 0 ? (ulc / sends) * 100 : 0,
         });
       } catch { /* skip */ }
     }
