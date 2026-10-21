@@ -174,8 +174,8 @@ function CampaignListPage() {
   const isError = campaignsQ.isError;
 
   // Same data and rule as the Dashboard: every campaign, weighted by volume sent.
-  const history = useCampaignHistory();
-  const sent = (history.campaigns ?? []).filter(isRealSend);
+  const campaignHistory = useCampaignHistory();
+  const sent = (campaignHistory.campaigns ?? []).filter(isRealSend);
   const summary = summarize(sent);
   const avgOR = summary.open_rate;
   const avgCTR = summary.ctr;
