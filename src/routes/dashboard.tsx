@@ -7,6 +7,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 
 import { listCampaigns, listAutomations, type Campaign } from "@/lib/ac.functions";
+import { isRealSend, summarize } from "@/lib/analysis/overview";
 
 import { getSettings } from "@/lib/settings.functions";
 
@@ -220,15 +221,16 @@ function DashboardPage() {
 
 
 
-  const sent    = filtered.filter((c) => c.send_amt > 0);
+  const sent    = filtered.filter((c) => isRealSend(c));
 
-  const allSent = allCampaigns.filter((c) => c.send_amt > 0);
+  const allSent = allCampaigns.filter((c) => isRealSend(c));
 
 
 
-  const avgOpenRate = sent.length ? sent.reduce((s, c) => s + c.open_rate, 0) / sent.length : 0;
+  const summary = summarize(sent);
+  const avgOpenRate = summary.open_rate;
 
-  const avgCTR      = sent.length ? sent.reduce((s, c) => s + c.ctr, 0) / sent.length : 0;
+  const avgCTR      = summary.ctr;
 
   const avgScore    = sent.length ? sent.reduce((s, c) => s + c.score, 0) / sent.length : 0;
 
@@ -372,7 +374,7 @@ function DashboardPage() {
 
                   value={sent.length.toLocaleString("pt-BR")}
 
-                  sub={period !== "all" ? `de ${allSent.length} no total` : `${allCampaigns.length - allSent.length} rascunhos`}
+                  sub={period !== "all" ? `de ${allSent.length} no total` : `${allCampaigns.length - allSent.length} rascunhos e testes ignorados`}
 
                   accent="#0660FE"
 
@@ -386,7 +388,7 @@ function DashboardPage() {
 
                   value={`${avgOpenRate.toFixed(1)}%`}
 
-                  sub={`benchmark ${benchOR}%`}
+                  sub={`benchmark ${benchOR}% · média ponderada por envios`}
 
                   good={sent.length > 0 ? avgOpenRate >= benchOR : undefined}
 
@@ -404,7 +406,7 @@ function DashboardPage() {
 
                   value={`${avgCTR.toFixed(2)}%`}
 
-                  sub={`benchmark ${benchCTR}%`}
+                  sub={`benchmark ${benchCTR}% · média ponderada por envios`}
 
                   good={sent.length > 0 ? avgCTR >= benchCTR : undefined}
 
