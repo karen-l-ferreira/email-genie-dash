@@ -59,7 +59,7 @@ export function AudienceTab({ campaigns }: { campaigns: Campaign[] }) {
   const detectedListId = selected?.sends[0].listId ?? "";
   const listId = listOverride || detectedListId;
 
-  const snapEntity = result ? `base-muda:${result.listId}` : "";
+  const snapEntity = result ? `base-muda:${result.listId || "todos"}` : "";
   const snapsQ = useQuery({
     queryKey: ["base-muda-history", snapEntity],
     queryFn: () => fetchSnaps({ data: { entity_id: snapEntity } }),
@@ -67,7 +67,7 @@ export function AudienceTab({ campaigns }: { campaigns: Campaign[] }) {
   });
 
   async function run() {
-    if (!selected || !listId) return;
+    if (!selected) return;
     setRunning(true);
     setError(null);
     setResult(null);
@@ -75,14 +75,16 @@ export function AudienceTab({ campaigns }: { campaigns: Campaign[] }) {
       const sends = selected.sends.slice(0, n);
       const ids = sends.map((s) => s.id);
       const [{ size }, history, links] = await Promise.all([
-        fetchSize({ data: { listId } }),
+        fetchSize({ data: listId ? { listId } : {} }),
         fetchHistory({ data: { ids } }),
         fetchLinks(),
       ]);
       setResult({
         seriesLabel: selected.label,
         listId,
-        listName: listsQ.data?.lists.find((l) => l.id === listId)?.name ?? `Lista ${listId}`,
+        listName: listId
+          ? (listsQ.data?.lists.find((l) => l.id === listId)?.name ?? `Lista ${listId}`)
+          : "Todos os contatos ativos",
         listSize: size,
         n: ids.length,
         dormancy: dormancyRows(size, history.opened, ids.length),
@@ -153,9 +155,9 @@ export function AudienceTab({ campaigns }: { campaigns: Campaign[] }) {
               ))}
             </select>
           </Field>
-          <Field label={detectedListId ? "Lista (detectada)" : "Lista"}>
-            <select value={listId} onChange={(e) => setListOverride(e.target.value)} className={cn(selectClass, "min-w-[240px]")} disabled={!selected}>
-              <option value="">Selecionar…</option>
+          <Field label="Base considerada">
+            <select value={listOverride} onChange={(e) => setListOverride(e.target.value)} className={cn(selectClass, "min-w-[240px]")} disabled={!selected}>
+              <option value="">{detectedListId ? "Automática (lista do disparo)" : "Automática (todos os contatos ativos)"}</option>
               {(listsQ.data?.lists ?? []).map((l) => (
                 <option key={l.id} value={l.id}>
                   {l.name}
@@ -177,13 +179,15 @@ export function AudienceTab({ campaigns }: { campaigns: Campaign[] }) {
               ))}
             </div>
           </Field>
-          <Button onClick={run} disabled={!selected || !listId || running} className="h-9">
+          <Button onClick={run} disabled={!selected || running} className="h-9">
             {running ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
             {running ? "Analisando…" : "Rodar análise"}
           </Button>
         </div>
         {selected && !detectedListId && (
-          <p className="mt-3 text-xs text-muted-foreground">O ActiveCampaign não informou a lista deste disparo. Escolha a lista que recebe esta série.</p>
+          <p className="mt-3 text-xs text-muted-foreground">
+            O ActiveCampaign não informou a lista deste disparo, então a base é o total de contatos ativos. Se quiser restringir, escolha uma lista em "Base considerada".
+          </p>
         )}
         {running && (
           <p className="mt-3 text-xs text-muted-foreground">Buscando as aberturas de cada envio no ActiveCampaign. Em listas grandes isso leva alguns segundos.</p>

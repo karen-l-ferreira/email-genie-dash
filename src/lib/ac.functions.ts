@@ -646,10 +646,15 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promis
 // auto-opens inflate them, so the real dormant share is at least what is computed here.
 export const getListSize = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ listId: z.string().min(1).max(32) }).parse(d))
+  // No listId = every active contact in the account.
+  .inputValidator((d) => z.object({ listId: z.string().min(1).max(32).optional() }).parse(d ?? {}))
   .handler(async ({ data, context }) => {
     const creds = await getCreds(context.supabase, context.userId);
-    const json = await acFetch(creds, "contacts", { listid: data.listId, status: "1", limit: "1" });
+    const json = await acFetch(creds, "contacts", {
+      ...(data.listId ? { listid: data.listId } : {}),
+      status: "1",
+      limit: "1",
+    });
     return { size: Number(json.meta?.total ?? 0) };
   });
 
