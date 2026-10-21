@@ -2,10 +2,10 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
-import { listCampaigns, listAutomations, getCobrancaComparison, debugCobrancaNames, saveSnapshot, listSnapshots, type Campaign, type Automation, type CobrancaRow, type MetricSnapshot } from "@/lib/ac.functions";
+import { listCampaigns, listAutomations, type Campaign, type Automation } from "@/lib/ac.functions";
 import { getSettings } from "@/lib/settings.functions";
 import { AuthGate } from "@/components/app/AuthGate";
-import { AppHeader } from "@/components/app/Header";
+import { PageHeader, PageShell, TabBar } from "@/components/app/ui-kit";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,12 +21,10 @@ import {
   Mail,
   MousePointerClick,
   RefreshCw,
-  Save,
   Search,
   Settings as SettingsIcon,
   Trash2,
 } from "lucide-react";
-import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { format, formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -64,51 +62,26 @@ export const Route = createFileRoute("/campanhas")({
 });
 
 const TABS = [
-  { key: "campanhas",  label: "Campanhas" },
-  { key: "cobranca",   label: "Cobrança" },
-  { key: "automacoes", label: "Automações" },
+  { value: "campanhas", label: "Campanhas" },
+  { value: "automacoes", label: "Automações" },
 ] as const;
-type FluxoTab = typeof TABS[number]["key"];
+type FluxoTab = (typeof TABS)[number]["value"];
 
 function FluxosPage() {
   const [tab, setTab] = useState<FluxoTab>("campanhas");
   return (
-    <div className="min-h-screen bg-background pl-[220px]">
-      <AppHeader />
-      <div className="mx-auto max-w-[1400px] px-6 py-8">
-        <div className="mb-8 flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ backgroundColor: "#0660FE20" }}>
-            <BarChart3 className="h-5 w-5" style={{ color: "#0660FE" }} />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">Fluxos</h1>
-            <p className="text-sm text-muted-foreground">Campanhas, automações e cobrança do ActiveCampaign.</p>
-          </div>
-        </div>
-        <div className="mb-6 border-b border-border">
-          <nav className="-mb-px flex">
-            {TABS.map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                onClick={() => setTab(t.key)}
-                className={[
-                  "shrink-0 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm transition-colors",
-                  tab === t.key
-                    ? "border-foreground font-medium text-foreground"
-                    : "border-transparent text-muted-foreground hover:text-foreground",
-                ].join(" ")}
-              >
-                {t.label}
-              </button>
-            ))}
-          </nav>
-        </div>
-        {tab === "campanhas"  && <CampaignListPage />}
-        {tab === "cobranca"   && <CobrancaTab />}
-        {tab === "automacoes" && <AutomacoesInline />}
+    <PageShell wide>
+      <PageHeader
+        icon={BarChart3}
+        title="Fluxos"
+        description="Consulta rápida de campanhas e automações. Para comparar disparos e entender resultados, use Análises."
+      />
+      <div className="mb-6">
+        <TabBar tabs={[...TABS]} value={tab} onChange={setTab} />
       </div>
-    </div>
+      {tab === "campanhas" && <CampaignListPage />}
+      {tab === "automacoes" && <AutomacoesInline />}
+    </PageShell>
   );
 }
 
@@ -299,9 +272,9 @@ function CampaignListPage() {
               )}
             </div>
 
-            <div className="mt-5 overflow-hidden rounded-xl border border-border bg-card">
+            <div className="mt-5 overflow-hidden rounded-xl border border-border bg-card shadow-card">
               <table className="w-full text-sm">
-                <thead className="bg-surface text-[11px] uppercase tracking-wider text-muted-foreground">
+                <thead className="bg-surface text-xs text-muted-foreground">
                   <tr>
                     <th className="px-5 py-3 text-left font-medium">Campanha</th>
                     <th className="px-3 py-3 text-left font-medium">Data</th>
@@ -346,10 +319,10 @@ function CampaignListPage() {
                         <td className="px-5 py-4">
                           <span className="font-medium">{c.name}</span>
                         </td>
-                        <td className="px-3 py-4 font-mono text-xs text-muted-foreground">
+                        <td className="px-3 py-4 text-xs text-muted-foreground">
                           {c.sdate ? format(new Date(c.sdate), "d 'de' MMM, yyyy", { locale: ptBR }) : "—"}
                         </td>
-                        <td className="px-3 py-4 font-mono tabular-nums">{c.send_amt.toLocaleString("pt-BR")}</td>
+                        <td className="px-3 py-4 tabular-nums">{c.send_amt.toLocaleString("pt-BR")}</td>
                         <td className="px-3 py-4">
                           <RateCell value={c.open_rate} bench={benchOR} />
                         </td>
@@ -408,9 +381,9 @@ function CampaignListPage() {
                     Limpar histórico
                   </Button>
                 </div>
-                <div className="overflow-hidden rounded-xl border border-border bg-card">
+                <div className="overflow-hidden rounded-xl border border-border bg-card shadow-card">
                   <table className="w-full text-sm">
-                    <thead className="bg-surface text-[11px] uppercase tracking-wider text-muted-foreground">
+                    <thead className="bg-surface text-xs text-muted-foreground">
                       <tr>
                         <th className="px-5 py-3 text-left font-medium">Campanha</th>
                         <th className="px-3 py-3 text-left font-medium">Enviada</th>
@@ -428,7 +401,7 @@ function CampaignListPage() {
                           className="cursor-pointer border-t border-border transition-colors hover:bg-surface-2"
                         >
                           <td className="px-5 py-4 font-medium">{h.name}</td>
-                          <td className="px-3 py-4 font-mono text-xs text-muted-foreground">
+                          <td className="px-3 py-4 text-xs text-muted-foreground">
                             {h.sdate ? format(new Date(h.sdate), "d 'de' MMM, yyyy", { locale: ptBR }) : "—"}
                           </td>
                           <td className="px-3 py-4 text-right">
@@ -437,7 +410,7 @@ function CampaignListPage() {
                           <td className="px-3 py-4 text-right">
                             <RateCell value={h.ctr} bench={benchCTR} />
                           </td>
-                          <td className="px-3 py-4 text-right font-mono text-xs text-muted-foreground">
+                          <td className="px-3 py-4 text-right text-xs text-muted-foreground">
                             {formatDistanceToNow(new Date(h.viewedAt), { addSuffix: true, locale: ptBR })}
                           </td>
                           <td className="px-3 py-4 text-muted-foreground">
@@ -487,338 +460,54 @@ function SortHeader({
   );
 }
 
+function ScoreBar({ score }: { score: number }) {
+  const bar = score >= 70 ? "bg-success" : score >= 40 ? "bg-warning" : "bg-destructive";
+  return (
+    <div className="flex items-center justify-end gap-2">
+      <div className="h-1.5 w-14 overflow-hidden rounded-full bg-muted">
+        <div className={cn("h-full rounded-full", bar)} style={{ width: `${score}%` }} />
+      </div>
+      <span className="w-6 text-right text-xs font-medium tabular-nums text-foreground">{score}</span>
+    </div>
+  );
+}
+
 function RateCell({ value, bench }: { value: number; bench: number }) {
   const above = value >= bench;
   const max = Math.max(value, bench) * 1.3 || 1;
-  const color = above ? "#22c55e" : "#ef4444";
   return (
     <div className="flex items-center gap-2">
-      <div className="h-1 w-12 overflow-hidden rounded-full bg-border">
-        <div className="h-full rounded-full transition-all" style={{ width: `${Math.min((value / max) * 100, 100)}%`, backgroundColor: color }} />
+      <div className="h-1.5 w-12 overflow-hidden rounded-full bg-muted">
+        <div
+          className={cn("h-full rounded-full transition-all", above ? "bg-success" : "bg-destructive/70")}
+          style={{ width: `${Math.min((value / max) * 100, 100)}%` }}
+        />
       </div>
-      <span className="font-mono text-xs tabular-nums" style={{ color }}>{value.toFixed(1)}%</span>
+      <span className={cn("text-xs font-medium tabular-nums", above ? "text-success" : "text-destructive")}>{value.toFixed(1)}%</span>
     </div>
   );
 }
 
-function ScoreBar({ score }: { score: number }) {
-  const color = score >= 70 ? "#22c55e" : score >= 40 ? "#f59e0b" : "#ef4444";
-  return (
-    <div className="flex items-center justify-end gap-2">
-      <div className="h-1.5 w-14 overflow-hidden rounded-full bg-border">
-        <div className="h-full rounded-full" style={{ width: `${score}%`, backgroundColor: color }} />
-      </div>
-      <span className="w-6 font-mono text-xs tabular-nums" style={{ color }}>{score}</span>
-    </div>
-  );
-}
-
-function KpiCard({ icon, label, value, sub, good, bar, accent = "#0660FE" }: {
+function KpiCard({ icon, label, value, sub, good, bar }: {
   icon: React.ReactNode; label: string; value: string; sub: string;
   good?: boolean; accent?: string;
   bar?: { value: number; max: number; bench: number };
 }) {
-  const borderColor = good === true ? "#22c55e" : good === false ? "#ef4444" : accent;
-  const valueColor  = good === true ? "text-success" : good === false ? "text-destructive" : "text-foreground";
+  const tone = good === true ? "bg-success" : good === false ? "bg-destructive/70" : "bg-primary";
   return (
-    <div className="relative overflow-hidden rounded border border-border bg-card px-5 py-4" style={{ borderTopColor: borderColor, borderTopWidth: "3px" }}>
-      <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-        <span style={{ color: borderColor }}>{icon}</span>
+    <div className="rounded-xl border border-border bg-card p-5 shadow-card">
+      <div className="flex items-center justify-between text-xs font-medium text-muted-foreground">
         {label}
+        <span className="text-muted-foreground/60">{icon}</span>
       </div>
-      <div className={cn("mt-3 font-mono text-3xl font-bold tabular-nums leading-none", valueColor)}>{value}</div>
-      <div className="mt-1 text-[11px] text-muted-foreground">{sub}</div>
+      <div className="mt-2 text-[28px] font-semibold leading-none tracking-tight tabular-nums text-foreground">{value}</div>
+      <div className="mt-2 text-xs text-muted-foreground">{sub}</div>
       {bar && (
-        <div className="mt-3">
-          <div className="relative h-1.5 overflow-hidden rounded-full bg-border">
-            <div className="absolute inset-y-0 left-0 rounded-full transition-all" style={{ width: `${Math.min((bar.value / bar.max) * 100, 100)}%`, backgroundColor: borderColor }} />
-            <div className="absolute inset-y-0 w-px bg-muted-foreground/40" style={{ left: `${Math.min((bar.bench / bar.max) * 100, 100)}%` }} />
-          </div>
+        <div className="mt-3 relative h-1.5 overflow-hidden rounded-full bg-muted">
+          <div className={cn("absolute inset-y-0 left-0 rounded-full transition-all", tone)} style={{ width: `${Math.min((bar.value / bar.max) * 100, 100)}%` }} />
+          <div className="absolute inset-y-0 w-px bg-foreground/30" style={{ left: `${Math.min((bar.bench / bar.max) * 100, 100)}%` }} />
         </div>
       )}
-    </div>
-  );
-}
-
-function CobrancaTab() {
-  const fetchSettings = useServerFn(getSettings);
-  const fetchCompare  = useServerFn(getCobrancaComparison);
-  const fetchDebug    = useServerFn(debugCobrancaNames);
-  const fetchSave     = useServerFn(saveSnapshot);
-  const fetchSnaps    = useServerFn(listSnapshots);
-
-  const settingsQ = useQuery({ queryKey: ["settings"], queryFn: () => fetchSettings() });
-  const cmpQ = useQuery({
-    queryKey: ["cobranca-comparison"],
-    queryFn: () => fetchCompare(),
-    enabled: !!settingsQ.data?.hasApiKey,
-    retry: false,
-    staleTime: 5 * 60 * 1000,
-  });
-  const histQ = useQuery({
-    queryKey: ["cobranca-history"],
-    queryFn: () => fetchSnaps({ data: { entity_id: "cobranca" } }),
-    enabled: !!settingsQ.data?.hasApiKey,
-  });
-
-  const [saving, setSaving] = useState(false);
-  const [view, setView] = useState<"atual" | "historico">("atual");
-  const [showDebug, setShowDebug] = useState(false);
-  const [debugData, setDebugData] = useState<{ autoNames: {id:string;name:string}[]; fieldLabels: {id:string;label:string}[] } | null>(null);
-  const [loadingDebug, setLoadingDebug] = useState(false);
-
-  async function loadDebug() {
-    setLoadingDebug(true);
-    try { setDebugData(await fetchDebug()); } catch {}
-    finally { setLoadingDebug(false); setShowDebug(true); }
-  }
-
-  async function handleSave() {
-    if (!cmpQ.data) return;
-    setSaving(true);
-    try {
-      const metrics: Record<string, number> = {};
-      for (const r of cmpQ.data.rows) {
-        const key = `${r.type[0]}_${r.fieldDay}`;
-        metrics[`${key}_elegiveis`] = r.elegiveis;
-        metrics[`${key}_enviados`]  = r.enviados;
-      }
-      await fetchSave({ data: {
-        label: format(new Date(), "dd/MM/yyyy HH:mm"),
-        entity_type: "campaign",
-        entity_id: "cobranca",
-        entity_name: "Cobrança",
-        metrics,
-      }});
-      await histQ.refetch();
-      toast.success("Snapshot salvo!");
-    } catch (e: any) {
-      toast.error(e?.message ?? "Erro ao salvar");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  const isLoading = settingsQ.isLoading || cmpQ.isLoading;
-  const rows: CobrancaRow[] = cmpQ.data?.rows ?? [];
-  const history: MetricSnapshot[] = histQ.data?.snapshots ?? [];
-  const cedente = rows.filter((r) => r.type === "cedente");
-  const sacado  = rows.filter((r) => r.type === "sacado");
-
-  const [drillRow, setDrillRow] = useState<CobrancaRow | null>(null);
-
-  return (
-    <div className="space-y-5">
-      {/* Cabeçalho + ações */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex gap-1 rounded-lg border border-border bg-surface p-0.5">
-          {(["atual", "historico"] as const).map((v) => (
-            <button
-              key={v}
-              onClick={() => setView(v)}
-              className={cn(
-                "rounded-md px-4 py-1.5 text-xs font-medium transition-colors",
-                view === v ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {v === "atual" ? "Hoje" : `Histórico (${history.length})`}
-            </button>
-          ))}
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => cmpQ.refetch()} disabled={cmpQ.isFetching}>
-            <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", cmpQ.isFetching && "animate-spin")} />
-            Atualizar
-          </Button>
-          <Button size="sm" onClick={handleSave} disabled={saving || !cmpQ.data || cmpQ.isFetching}>
-            <Save className="mr-1.5 h-3.5 w-3.5" />
-            {saving ? "Salvando…" : "Salvar"}
-          </Button>
-        </div>
-      </div>
-
-      {cmpQ.isError && (
-        <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-          {(cmpQ.error as Error).message}
-        </div>
-      )}
-
-      {/* Debug panel */}
-      <div>
-        <button onClick={loadDebug} disabled={loadingDebug} className="text-[11px] text-muted-foreground underline hover:text-foreground">
-          {loadingDebug ? "Carregando nomes reais…" : "Ver nomes reais do AC (debug)"}
-        </button>
-        {showDebug && debugData && (
-          <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/20 p-4 text-xs font-mono space-y-3">
-            <div>
-              <p className="font-bold text-amber-800 dark:text-amber-300 mb-1">Automações no AC ({debugData.autoNames.length}):</p>
-              <ul className="space-y-0.5 max-h-48 overflow-y-auto">
-                {debugData.autoNames.map((a) => (
-                  <li key={a.id} className="text-amber-900 dark:text-amber-200">[{a.id}] {a.name}</li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <p className="font-bold text-amber-800 dark:text-amber-300 mb-1">Campos de conta ({debugData.fieldLabels.length}):</p>
-              <ul className="space-y-0.5 max-h-48 overflow-y-auto">
-                {debugData.fieldLabels.filter((f) => /cobran/i.test(f.label)).map((f) => (
-                  <li key={f.id} className="text-amber-900 dark:text-amber-200">[{f.id}] {f.label}</li>
-                ))}
-              </ul>
-            </div>
-            <button onClick={() => setShowDebug(false)} className="text-amber-700 underline">Fechar</button>
-          </div>
-        )}
-      </div>
-
-      {/* ── Vista atual ── */}
-      {view === "atual" && (
-        <>
-          {isLoading ? (
-            <div className="space-y-2">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="h-10 animate-pulse rounded-lg bg-muted" />
-              ))}
-            </div>
-          ) : rows.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-border px-6 py-12 text-center text-sm text-muted-foreground">
-              Nenhum dado encontrado. Verifique se as automações e campos de conta estão configurados.
-            </div>
-          ) : (
-            <>
-              {cmpQ.data?.fetchedAt && (
-                <p className="text-[11px] text-muted-foreground">
-                  Atualizado às {format(new Date(cmpQ.data.fetchedAt), "HH:mm 'de' dd/MM/yyyy")}
-                </p>
-              )}
-              <CobrancaCompareTable title="Cedente" accent="border-l-primary" rows={cedente} />
-              <CobrancaCompareTable title="Sacado"  accent="border-l-amber-500" rows={sacado} />
-            </>
-          )}
-        </>
-      )}
-
-      {/* ── Histórico ── */}
-      {view === "historico" && (
-        <>
-          {history.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-border px-6 py-12 text-center text-sm text-muted-foreground">
-              Nenhum registro salvo ainda. Clique em "Salvar" para registrar o estado de hoje.
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {(["cedente", "sacado"] as const).map((tipo) => {
-                const tipoRows = rows.filter((r) => r.type === tipo);
-                if (tipoRows.length === 0) return null;
-                return (
-                  <div key={tipo}>
-                    <p className={cn("mb-2 text-[11px] font-bold uppercase tracking-widest", tipo === "sacado" ? "text-amber-500" : "text-primary")}>
-                      {tipo === "cedente" ? "Cedente" : "Sacado"}
-                    </p>
-                    <div className="overflow-x-auto rounded-xl border border-border bg-card">
-                      <table className="w-full text-sm">
-                        <thead className="bg-surface text-[11px] uppercase tracking-wider text-muted-foreground">
-                          <tr>
-                            <th className="px-4 py-2.5 text-left font-medium whitespace-nowrap">Data</th>
-                            {tipoRows.map((r) => (
-                              <th key={`${r.type}-${r.fieldDay}`} className="px-3 py-2.5 text-center font-medium whitespace-nowrap" colSpan={2}>
-                                {r.label}
-                              </th>
-                            ))}
-                          </tr>
-                          <tr className="border-t border-border">
-                            <th className="px-4 py-1 text-[10px] text-muted-foreground/50">—</th>
-                            {tipoRows.map((r) => (
-                              <>
-                                <th key={`${r.type}-${r.fieldDay}-el`} className="px-2 py-1 text-center text-[10px] text-muted-foreground">Elegíveis</th>
-                                <th key={`${r.type}-${r.fieldDay}-en`} className="px-2 py-1 text-center text-[10px] text-primary">Enviados</th>
-                              </>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {history.map((snap) => (
-                            <tr key={snap.id} className="border-t border-border hover:bg-surface-2">
-                              <td className="px-4 py-2.5 font-mono text-xs whitespace-nowrap">{snap.label}</td>
-                              {tipoRows.map((r) => {
-                                const key = `${r.type[0]}_${r.fieldDay}`;
-                                const el = Number(snap.metrics[`${key}_elegiveis`] ?? 0);
-                                const en = Number(snap.metrics[`${key}_enviados`]  ?? 0);
-                                const diff = en - el;
-                                return (
-                                  <>
-                                    <td key={`${key}-el`} className="px-2 py-2.5 text-center font-mono tabular-nums text-xs">
-                                      {el > 0 ? el.toLocaleString("pt-BR") : <span className="text-muted-foreground/30">—</span>}
-                                    </td>
-                                    <td key={`${key}-en`} className={cn("px-2 py-2.5 text-center font-mono tabular-nums text-xs font-medium", diff < 0 ? "text-destructive" : diff === 0 && en > 0 ? "text-success" : "")}>
-                                      {en > 0 ? en.toLocaleString("pt-BR") : <span className="text-muted-foreground/30">—</span>}
-                                    </td>
-                                  </>
-                                );
-                              })}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
-function CobrancaCompareTable({ title, accent, rows }: { title: string; accent: string; rows: CobrancaRow[] }) {
-  return (
-    <div>
-      <p className={cn("mb-2 text-[11px] font-bold uppercase tracking-widest", title === "Sacado" ? "text-amber-500" : "text-primary")}>
-        {title}
-      </p>
-      <div className="overflow-hidden rounded-xl border border-border bg-card">
-        <table className="w-full text-sm">
-          <thead className="bg-surface text-[11px] uppercase tracking-wider text-muted-foreground">
-            <tr>
-              <th className="px-4 py-2.5 text-left font-medium">Régua</th>
-              <th className="px-4 py-2.5 text-left font-medium">Automação</th>
-              <th className="px-4 py-2.5 text-right font-medium">Elegíveis</th>
-              <th className="px-4 py-2.5 text-right font-medium">Enviados AC</th>
-              <th className="px-4 py-2.5 text-right font-medium">Diff</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-xs text-muted-foreground">Sem dados</td></tr>
-            ) : rows.map((r) => {
-              const diff = r.enviados - r.elegiveis;
-              const hasAny = r.elegiveis > 0 || r.enviados > 0;
-              return (
-                <tr key={`${r.type}-${r.fieldDay}`} className={cn("border-t border-border transition-colors hover:bg-surface-2", !hasAny && "opacity-40")}>
-                  <td className={cn("border-l-[3px] px-4 py-3 font-mono font-bold text-xs", accent)}>{r.label}</td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground">
-                    {r.automation_id ? r.automation_name : <span className="text-destructive/70 italic">não encontrada</span>}
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono tabular-nums">
-                    {r.elegiveis > 0 ? r.elegiveis.toLocaleString("pt-BR") : <span className="text-muted-foreground/40">—</span>}
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono tabular-nums font-medium">
-                    {r.enviados > 0 ? r.enviados.toLocaleString("pt-BR") : <span className="text-muted-foreground/40">—</span>}
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono tabular-nums text-xs">
-                    {!hasAny ? <span className="text-muted-foreground/40">—</span>
-                      : diff === 0 ? <span className="text-success">✓</span>
-                      : diff < 0 ? <span className="text-destructive">{diff.toLocaleString("pt-BR")}</span>
-                      : <span className="text-warning">+{diff.toLocaleString("pt-BR")}</span>}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
     </div>
   );
 }

@@ -11,7 +11,7 @@ import {
 } from "@/lib/ac.functions";
 import { getSettings } from "@/lib/settings.functions";
 import { AuthGate } from "@/components/app/AuthGate";
-import { AppHeader } from "@/components/app/Header";
+import { PageHeader, PageShell, Stat } from "@/components/app/ui-kit";
 import { Button } from "@/components/ui/button";
 import { Clock, Download, Loader2, TrendingUp, Users, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -28,6 +28,16 @@ export const Route = createFileRoute("/influencia")({
 });
 
 const FIELD_TITLE = "Data Última Operação";
+const FIELD_STORAGE_KEY = "fluxi_operation_field_id";
+
+function normalizeText(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
 const WINDOW_OPTIONS = [1, 3, 6, 12, 24];
 
 type InfluenceStatus = "influenced" | "not_influenced" | "no_operation";
@@ -117,11 +127,32 @@ function InfluenciaPage() {
     retry: false,
   });
 
-  // Auto-resolve the fixed field ID
-  const operationFieldId = useMemo(() => {
-    const fields = contactFieldsQ.data?.fields ?? [];
-    return fields.find((f) => f.title === FIELD_TITLE)?.id ?? null;
-  }, [contactFieldsQ.data]);
+  // Resolve the operation-date field tolerant to accents, case, spacing and renames.
+  // If nothing matches, the user can pick the right one from the account's date fields.
+  const [manualFieldId, setManualFieldId] = useState<string>(() => {
+    try {
+      return localStorage.getItem(FIELD_STORAGE_KEY) ?? "";
+    } catch {
+      return "";
+    }
+  });
+  const allFields = contactFieldsQ.data?.fields ?? [];
+  const autoFieldId = useMemo(() => {
+    const exact = allFields.find((f) => normalizeText(f.title) === normalizeText(FIELD_TITLE));
+    if (exact) return exact.id;
+    const loose = allFields.find((f) => {
+      const t = normalizeText(f.title);
+      return t.includes("ultima") && t.includes("operac");
+    });
+    return loose?.id ?? null;
+  }, [allFields]);
+  const manualValid = allFields.some((f) => f.id === manualFieldId);
+  const operationFieldId = autoFieldId ?? (manualValid ? manualFieldId : null);
+  const operationFieldTitle = allFields.find((f) => f.id === operationFieldId)?.title ?? FIELD_TITLE;
+  const dateLikeFields = useMemo(() => {
+    const dates = allFields.filter((f) => /date/i.test(f.type));
+    return (dates.length > 0 ? dates : allFields).slice().sort((a, b) => a.title.localeCompare(b.title, "pt-BR"));
+  }, [allFields]);
 
   const [resultsTab, setResultsTab] = useState<"operaram" | "nao_operaram">("operaram");
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>("");
@@ -215,22 +246,37 @@ function InfluenciaPage() {
   const fieldNotFound = contactFieldsQ.isFetched && !operationFieldId;
 
   return (
-    <div className="min-h-screen bg-background pl-[220px]">
-      <AppHeader />
-      <main className="mx-auto max-w-[1400px] px-6 py-8">
-        <div className="mb-8 flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ backgroundColor: "#0660FE20" }}>
-            <Zap className="h-5 w-5" style={{ color: "#0660FE" }} />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">Análise de Influência</h1>
-            <p className="text-sm text-muted-foreground">Quem abriu o e-mail e operou logo em seguida?</p>
-          </div>
-        </div>
+    <PageShell wide>
+        <PageHeader icon={Zap} title="Análise de Influência" description="Quem abriu o e-mail e operou logo em seguida?" />
 
         {fieldNotFound && (
-          <div className="mb-4 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            Campo <strong>"{FIELD_TITLE}"</strong> não encontrado nos campos de contato do ActiveCampaign.
+          <div className="mb-4 rounded-xl border border-warning/40 bg-warning/10 px-4 py-4 text-sm">
+            <p className="font-medium text-foreground">
+              Não encontrei o campo <strong>"{FIELD_TITLE}"</strong> entre os {allFields.length} campos de contato do
+              ActiveCampaign.
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Escolha abaixo qual campo guarda a data da última operação. A escolha fica salva neste navegador.
+            </p>
+            <select
+              value={manualFieldId}
+              onChange={(e) => {
+                setManualFieldId(e.target.value);
+                try {
+                  localStorage.setItem(FIELD_STORAGE_KEY, e.target.value);
+                } catch {
+                  /* storage unavailable: choice only lasts for this visit */
+                }
+              }}
+              className="mt-3 w-full max-w-md rounded-lg border border-border bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+            >
+              <option value="">Selecionar campo…</option>
+              {dateLikeFields.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.title}
+                </option>
+              ))}
+            </select>
           </div>
         )}
 
@@ -241,7 +287,7 @@ function InfluenciaPage() {
         )}
 
         {/* Config */}
-        <div className="rounded-xl border border-border bg-card p-6">
+        <div className="rounded-xl border border-border bg-card p-6 shadow-card">
           <h2 className="mb-4 text-sm font-semibold">Configuração</h2>
           <div>
             <label className="mb-1.5 block text-xs font-medium text-muted-foreground">E-mail enviado</label>
@@ -285,7 +331,7 @@ function InfluenciaPage() {
               </div>
             </div>
             <div className="mt-2 flex items-center gap-4 text-[11px] text-muted-foreground">
-              <span>Campo fixo: <span className="font-medium text-foreground">{FIELD_TITLE}</span>
+              <span>Campo: <span className="font-medium text-foreground">{operationFieldTitle}</span>
                 {operationFieldId && <span className="ml-1 text-success">✓</span>}
                 {contactFieldsQ.isLoading && <span className="ml-1 animate-pulse">…</span>}
               </span>
@@ -303,11 +349,18 @@ function InfluenciaPage() {
         {loaded && selectedCampaign && (
           <>
             <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <KpiCard icon={<Users className="h-4 w-4 text-primary" />} label="Abriram o e-mail" value={totalContacts.toLocaleString("pt-BR")} sub="contatos únicos" />
-              <KpiCard icon={<Zap className="h-4 w-4 text-primary" />} label={`Operaram em até ${windowHours}h`} value={influenced.length.toLocaleString("pt-BR")} sub={`de ${totalContacts.toLocaleString("pt-BR")} que abriram`} good={influenced.length > 0} />
-              <KpiCard icon={<TrendingUp className="h-4 w-4 text-primary" />} label="Taxa de influência" value={totalContacts > 0 ? `${influenceRate.toFixed(1)}%` : "—"} sub={`abriram e operaram em ${windowHours}h`} good={totalContacts > 0 ? influenceRate >= 5 : undefined} />
-              <KpiCard
-                icon={<Clock className="h-4 w-4 text-primary" />}
+              <Stat icon={Users} label="Abriram o e-mail" value={totalContacts.toLocaleString("pt-BR")} sub="contatos únicos" />
+              <Stat icon={Zap} label={`Operaram em até ${windowHours}h`} value={influenced.length.toLocaleString("pt-BR")} sub={`de ${totalContacts.toLocaleString("pt-BR")} que abriram`} />
+              <Stat
+                icon={TrendingUp}
+                label="Taxa de influência"
+                value={totalContacts > 0 ? `${influenceRate.toFixed(1)}%` : "—"}
+                sub={`abriram e operaram em ${windowHours}h`}
+                delta={totalContacts > 0 ? (influenceRate >= 5 ? "acima de 5%" : "abaixo de 5%") : undefined}
+                tone={influenceRate >= 5 ? "good" : "warn"}
+              />
+              <Stat
+                icon={Clock}
                 label="Tempo médio"
                 value={fmtDelta(avgDeltaMinutes !== null ? Math.round(avgDeltaMinutes) : null)}
                 sub="até operar após o e-mail"
@@ -338,7 +391,7 @@ function InfluenciaPage() {
                       : "bg-muted text-muted-foreground hover:text-foreground"
                   )}
                 >
-                  ✓ Operaram <span className="ml-1 font-mono text-xs">({influenced.length})</span>
+                  ✓ Operaram <span className="ml-1 text-xs">({influenced.length})</span>
                 </button>
                 <button
                   onClick={() => setResultsTab("nao_operaram")}
@@ -349,18 +402,18 @@ function InfluenciaPage() {
                       : "bg-muted text-muted-foreground hover:text-foreground"
                   )}
                 >
-                  Não operaram <span className="ml-1 font-mono text-xs">({notOperated.length})</span>
+                  Não operaram <span className="ml-1 text-xs">({notOperated.length})</span>
                 </button>
               </div>
 
-              <div className="overflow-hidden rounded-xl border border-border bg-card">
+              <div className="overflow-hidden rounded-xl border border-border bg-card shadow-card">
                 <table className="w-full text-sm">
-                  <thead className="bg-surface text-[11px] uppercase tracking-wider text-muted-foreground">
+                  <thead className="bg-surface text-xs text-muted-foreground">
                     <tr>
                       <th className="px-5 py-3 text-left font-medium">Contato</th>
-                      <th className="px-3 py-3 text-left font-medium text-blue-400">📨 Abriu o e-mail</th>
+                      <th className="px-3 py-3 text-left font-medium text-foreground">Abriu o e-mail</th>
                       {resultsTab === "operaram" && <>
-                        <th className="px-3 py-3 text-left font-medium text-green-400">💼 Última Operação</th>
+                        <th className="px-3 py-3 text-left font-medium text-foreground">Última operação</th>
                         <th className="px-3 py-3 text-right font-medium">Δ tempo</th>
                       </>}
                     </tr>
@@ -397,8 +450,7 @@ function InfluenciaPage() {
             </p>
           </div>
         )}
-      </main>
-    </div>
+    </PageShell>
   );
 }
 
@@ -410,14 +462,14 @@ function RowItem({ row, showOperation }: { row: AnalysisRow; showOperation: bool
     <tr className="border-t border-border transition-colors hover:bg-surface-2">
       <td className="px-5 py-3">
         <div className="font-medium">{name}</div>
-        <div className="text-[11px] text-muted-foreground font-mono">{contact.email}</div>
+        <div className="text-[11px] text-muted-foreground">{contact.email}</div>
       </td>
-      <td className="px-3 py-3 font-mono text-xs">{fmtDate(emailReceivedAt, true)}</td>
+      <td className="px-3 py-3 text-xs">{fmtDate(emailReceivedAt, true)}</td>
       {showOperation && <>
-        <td className="px-3 py-3 font-mono text-xs">
+        <td className="px-3 py-3 text-xs">
           <span className="text-success font-semibold">{fmtDate(operationDate, true)}</span>
         </td>
-        <td className="px-3 py-3 text-right font-mono text-xs">
+        <td className="px-3 py-3 text-right text-xs">
           <span className="font-semibold text-success">{fmtDelta(deltaMinutes)}</span>
         </td>
       </>}
@@ -431,19 +483,4 @@ function StatusBadge({ status }: { status: InfluenceStatus }) {
   if (status === "not_influenced")
     return <span className="inline-flex items-center rounded-full bg-muted px-2.5 py-0.5 text-[10px] font-medium text-muted-foreground">Não influenciado</span>;
   return <span className="inline-flex items-center rounded-full bg-surface px-2.5 py-0.5 text-[10px] font-medium text-muted-foreground">Sem operação</span>;
-}
-
-function KpiCard({ icon, label, value, sub, good }: { icon: React.ReactNode; label: string; value: string; sub: string; good?: boolean }) {
-  const borderColor = good === true ? "#22c55e" : good === false ? "#ef4444" : "#0660FE";
-  const valueColor  = good === true ? "text-success" : good === false ? "text-destructive" : "text-foreground";
-  return (
-    <div className="relative overflow-hidden rounded border border-border bg-card px-5 py-4" style={{ borderTopColor: borderColor, borderTopWidth: "3px" }}>
-      <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-        <span style={{ color: borderColor }}>{icon}</span>
-        {label}
-      </div>
-      <div className={cn("mt-3 font-mono text-3xl font-bold tabular-nums leading-none", valueColor)}>{value}</div>
-      <div className="mt-1 text-[11px] text-muted-foreground">{sub}</div>
-    </div>
-  );
 }
