@@ -6,6 +6,8 @@ import { listCampaigns, listAutomations, type Campaign, type Automation } from "
 import { getSettings } from "@/lib/settings.functions";
 import { AuthGate } from "@/components/app/AuthGate";
 import { PageHeader, PageShell, TabBar } from "@/components/app/ui-kit";
+import { isRealSend, summarize } from "@/lib/analysis/overview";
+import { useCampaignHistory } from "@/hooks/use-sent-campaigns";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -171,10 +173,12 @@ function CampaignListPage() {
   const isLoading = campaignsQ.isLoading;
   const isError = campaignsQ.isError;
 
-  const sent = allCampaigns.filter((c) => c.send_amt > 0);
-  const avgOR  = sent.length ? sent.reduce((s, c) => s + c.open_rate, 0) / sent.length : 0;
-  const avgCTR = sent.length ? sent.reduce((s, c) => s + c.ctr, 0) / sent.length : 0;
-  const topScore = sent.length ? Math.max(...sent.map((c) => c.score)) : 0;
+  // Same data and rule as the Dashboard: every campaign, weighted by volume sent.
+  const history = useCampaignHistory();
+  const sent = (history.campaigns ?? []).filter(isRealSend);
+  const summary = summarize(sent);
+  const avgOR = summary.open_rate;
+  const avgCTR = summary.ctr;
 
   return (
     <div>
@@ -204,7 +208,7 @@ function CampaignListPage() {
                   icon={<Mail className="h-4 w-4" />}
                   label="Campanhas enviadas"
                   value={sent.length.toLocaleString("pt-BR")}
-                  sub={`de ${allCampaigns.length} no total`}
+                  sub={`${summary.sent.toLocaleString("pt-BR")} e-mails · rascunhos e testes ignorados`}
                   accent="#0660FE"
                 />
                 <KpiCard
