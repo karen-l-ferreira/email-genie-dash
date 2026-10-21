@@ -9,18 +9,17 @@ import {
   getListSize,
   getOpenHistory,
   listAccountContactLinks,
-  listLists,
   listSnapshots,
   saveSnapshot,
   type Campaign,
 } from "@/lib/ac.functions";
 import { Button } from "@/components/ui/button";
-import { Advice, EmptyState, Explainer, Notice, Panel, selectClass, Stat, Tag } from "@/components/app/ui-kit";
+import { Advice, EmptyState, Explainer, Notice, Panel, Stat, Tag } from "@/components/app/ui-kit";
 import { cn } from "@/lib/utils";
 import { buildSeries } from "@/lib/analysis/series";
 import { buildCompanyEngagement, dormancyRows, type CompanyRow, type DormancyRow } from "@/lib/analysis/audience";
 
-const WINDOWS = [3, 5, 8];
+const WINDOW = 5; // how many of the most recent e-mails define "did not open anything"
 
 type Result = {
   seriesLabel: string;
@@ -36,7 +35,6 @@ type Result = {
 };
 
 export function AudienceTab({ campaigns }: { campaigns: Campaign[] }) {
-  const fetchLists = useServerFn(listLists);
   const fetchSize = useServerFn(getListSize);
   const fetchHistory = useServerFn(getOpenHistory);
   const fetchLinks = useServerFn(listAccountContactLinks);
@@ -45,25 +43,21 @@ export function AudienceTab({ campaigns }: { campaigns: Campaign[] }) {
 
   // Only recurring sends with enough editions make a meaningful window
   const series = useMemo(() => buildSeries(campaigns, 3), [campaigns]);
-  const listsQ = useQuery({ queryKey: ["ac-lists"], queryFn: () => fetchLists(), staleTime: 30 * 60 * 1000 });
 
-  // Default: the most recent recurring send that reaches a real audience
-  const defaultKey = useMemo(
+  // Always the most recent recurring send that reaches a real audience
+  const seriesKey = useMemo(
     () => (series.find((s) => s.sends[0].sent >= 500) ?? series[0])?.key ?? "",
     [series],
   );
-  const [pickedKey, setPickedKey] = useState("");
-  const seriesKey = pickedKey || defaultKey;
-  const [listOverride, setListOverride] = useState("");
-  const [n, setN] = useState(5);
+  const n = WINDOW;
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const selected = series.find((s) => s.key === seriesKey) ?? null;
-  const detectedListId = selected?.sends[0].listId ?? "";
-  const listId = listOverride || detectedListId;
+  // The campaign's own list when AC reports it, otherwise every active contact.
+  const listId = selected?.sends[0].listId ?? "";
 
   // Runs by itself when the screen opens and whenever an option changes.
   useEffect(() => {
@@ -83,9 +77,7 @@ export function AudienceTab({ campaigns }: { campaigns: Campaign[] }) {
         setResult({
           seriesLabel: selected.label,
           listId,
-          listName: listId
-            ? (listsQ.data?.lists.find((l) => l.id === listId)?.name ?? `Lista ${listId}`)
-            : "Todos os contatos ativos",
+          listName: listId ? `Lista ${listId}` : "Todos os contatos ativos",
           listSize: size,
           n: ids.length,
           dormancy: dormancyRows(size, history.opened, ids.length),
@@ -156,42 +148,12 @@ export function AudienceTab({ campaigns }: { campaigns: Campaign[] }) {
         />
       ) : (
         <div className="space-y-6">
-          <div className="flex flex-wrap items-end gap-4 rounded-xl border border-border bg-card px-5 py-4 shadow-card">
-            <Field label="Analisando o disparo">
-              <select value={seriesKey} onChange={(e) => { setPickedKey(e.target.value); setListOverride(""); }} className={cn(selectClass, "min-w-[280px]")}>
-                {series.map((s) => (
-                  <option key={s.key} value={s.key}>
-                    {s.label} ({s.sends.length} edições)
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Considerando os últimos">
-              <div className="inline-flex gap-0.5 rounded-lg bg-muted p-1">
-                {WINDOWS.map((w) => (
-                  <button
-                    key={w}
-                    type="button"
-                    onClick={() => setN(w)}
-                    className={cn("rounded-md px-3 py-1 text-sm font-medium transition-all", n === w ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}
-                  >
-                    {w} e-mails
-                  </button>
-                ))}
-              </div>
-            </Field>
-            <Field label="Lista de contatos">
-              <select value={listOverride} onChange={(e) => setListOverride(e.target.value)} className={cn(selectClass, "min-w-[220px]")}>
-                <option value="">{detectedListId ? "A lista deste disparo" : "Todos os contatos ativos"}</option>
-                {(listsQ.data?.lists ?? []).map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-5 py-4 shadow-card">
+            <p className="text-sm text-foreground">
+              Analisando <strong className="font-semibold">{selected?.label}</strong>, considerando os últimos {n} e-mails.
+            </p>
             {running && (
-              <span className="flex items-center gap-2 pb-2 text-xs text-muted-foreground">
+              <span className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Buscando as aberturas no ActiveCampaign. Em listas grandes leva alguns segundos.
               </span>
@@ -209,15 +171,6 @@ export function AudienceTab({ campaigns }: { campaigns: Campaign[] }) {
         </div>
       )}
     </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="mb-1.5 block text-xs font-medium text-muted-foreground">{label}</span>
-      {children}
-    </label>
   );
 }
 

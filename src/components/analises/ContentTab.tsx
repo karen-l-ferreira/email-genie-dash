@@ -1,9 +1,9 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Loader2, Microscope } from "lucide-react";
 import { getEmailFeatures, type Campaign } from "@/lib/ac.functions";
-import { Advice, EmptyState, Explainer, Notice, Panel, selectClass, Tag, type Tone } from "@/components/app/ui-kit";
+import { Advice, EmptyState, Explainer, Notice, Panel, Tag, type Tone } from "@/components/app/ui-kit";
 import { cn } from "@/lib/utils";
 import { toSendMetrics, fmtPct, fmtRel, type SendMetrics } from "@/lib/analysis/series";
 import {
@@ -16,10 +16,6 @@ import {
 
 const MAX_CAMPAIGNS = 60;
 const MIN_SENT = 200; // tiny sends make rates too noisy to compare
-
-function categoryOf(name: string): string {
-  return name.match(/^\s*\[([^\]]+)\]/)?.[1]?.trim() ?? "Sem categoria";
-}
 
 const CONFIDENCE: Record<DimensionResult["confidence"], { label: string; tone: Tone }> = {
   boa: { label: "Dá para confiar", tone: "good" },
@@ -38,23 +34,11 @@ export function ContentTab({ campaigns }: { campaigns: Campaign[] }) {
         .sort((a, b) => b.date.localeCompare(a.date)),
     [campaigns],
   );
-  const categories = useMemo(() => {
-    const m = new Map<string, number>();
-    sends.forEach((s) => m.set(categoryOf(s.name), (m.get(categoryOf(s.name)) ?? 0) + 1));
-    return [...m.entries()].filter(([, n]) => n >= 8).sort((a, b) => b[1] - a[1]);
-  }, [sends]);
-
-  // Default to the biggest category so different audiences don't get mixed together.
-  const [picked, setPicked] = useState<string | null>(null);
-  const category = picked ?? categories[0]?.[0] ?? "";
-  const pool = useMemo(
-    () => (category ? sends.filter((s) => categoryOf(s.name) === category) : sends).slice(0, MAX_CAMPAIGNS),
-    [sends, category],
-  );
+  const pool = useMemo(() => sends.slice(0, MAX_CAMPAIGNS), [sends]);
 
   // Runs by itself and is cached, so coming back to the tab is instant.
   const q = useQuery({
-    queryKey: ["content-analysis", category, pool.map((s) => s.id).join(",")],
+    queryKey: ["content-analysis", pool.map((s) => s.id).join(",")],
     enabled: pool.length >= 10,
     retry: false,
     staleTime: 30 * 60 * 1000,
@@ -82,28 +66,12 @@ export function ContentTab({ campaigns }: { campaigns: Campaign[] }) {
         />
       ) : (
         <div className="space-y-6">
-          <div className="flex flex-wrap items-end gap-4 rounded-xl border border-border bg-card px-5 py-4 shadow-card">
-            <label className="block">
-              <span className="mb-1.5 block text-xs font-medium text-muted-foreground">Comparar e-mails do tipo</span>
-              <select value={category} onChange={(e) => setPicked(e.target.value)} className={cn(selectClass, "min-w-[260px]")}>
-                <option value="">Todos ({sends.length} envios)</option>
-                {categories.map(([c, n]) => (
-                  <option key={c} value={c}>
-                    {c} ({n} envios)
-                  </option>
-                ))}
-              </select>
-            </label>
-            <p className="max-w-md pb-2 text-xs leading-relaxed text-muted-foreground">
-              Comparar só e-mails do mesmo tipo evita misturar públicos diferentes (por exemplo, newsletter com prospecção).
-            </p>
-            {q.isFetching && (
-              <span className="flex items-center gap-2 pb-2 text-xs text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Lendo {pool.length} e-mails no ActiveCampaign…
-              </span>
-            )}
-          </div>
+          {q.isFetching && (
+            <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-5 py-4 text-sm text-muted-foreground shadow-card">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Lendo {pool.length} e-mails no ActiveCampaign…
+            </div>
+          )}
 
           {q.isError && <Notice tone="bad">{(q.error as Error).message}</Notice>}
 
@@ -133,7 +101,7 @@ export function ContentTab({ campaigns }: { campaigns: Campaign[] }) {
 
                   <Panel
                     title="Todas as características"
-                    description={`${q.data.used} e-mails analisados${category ? ` · tipo ${category}` : ""}. Só comparo grupos com ${MIN_PER_BUCKET} ou mais envios. A barra verde é a que mais teve cliques.`}
+                    description={`${q.data.used} e-mails analisados (os mais recentes, de todos os tipos). Só comparo grupos com ${MIN_PER_BUCKET} ou mais envios. A barra verde é a que mais teve cliques.`}
                     flush
                   >
                     <div className="divide-y divide-border">
