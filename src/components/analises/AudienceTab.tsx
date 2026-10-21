@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Building2, Loader2, MoonStar, Play, Save, Snowflake, Users } from "lucide-react";
+import { Building2, Loader2, MoonStar, Save, Snowflake, Users } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -15,7 +15,7 @@ import {
   type Campaign,
 } from "@/lib/ac.functions";
 import { Button } from "@/components/ui/button";
-import { EmptyState, Notice, Panel, selectClass, Stat, Tag } from "@/components/app/ui-kit";
+import { Advice, EmptyState, Explainer, Notice, Panel, selectClass, Stat, Tag } from "@/components/app/ui-kit";
 import { cn } from "@/lib/utils";
 import { buildSeries } from "@/lib/analysis/series";
 import { buildCompanyEngagement, dormancyRows, type CompanyRow, type DormancyRow } from "@/lib/analysis/audience";
@@ -43,11 +43,17 @@ export function AudienceTab({ campaigns }: { campaigns: Campaign[] }) {
   const fetchSave = useServerFn(saveSnapshot);
   const fetchSnaps = useServerFn(listSnapshots);
 
-  // Only series with enough sends make a meaningful window
+  // Only recurring sends with enough editions make a meaningful window
   const series = useMemo(() => buildSeries(campaigns, 3), [campaigns]);
   const listsQ = useQuery({ queryKey: ["ac-lists"], queryFn: () => fetchLists(), staleTime: 30 * 60 * 1000 });
 
-  const [seriesKey, setSeriesKey] = useState("");
+  // Default: the most recent recurring send that reaches a real audience
+  const defaultKey = useMemo(
+    () => (series.find((s) => s.sends[0].sent >= 500) ?? series[0])?.key ?? "",
+    [series],
+  );
+  const [pickedKey, setPickedKey] = useState("");
+  const seriesKey = pickedKey || defaultKey;
   const [listOverride, setListOverride] = useState("");
   const [n, setN] = useState(5);
   const [running, setRunning] = useState(false);
@@ -59,44 +65,53 @@ export function AudienceTab({ campaigns }: { campaigns: Campaign[] }) {
   const detectedListId = selected?.sends[0].listId ?? "";
   const listId = listOverride || detectedListId;
 
-  const snapEntity = result ? `base-muda:${result.listId}` : "";
+  // Runs by itself when the screen opens and whenever an option changes.
+  useEffect(() => {
+    if (!selected) return;
+    let cancelled = false;
+    (async () => {
+      setRunning(true);
+      setError(null);
+      try {
+        const ids = selected.sends.slice(0, n).map((s) => s.id);
+        const [{ size }, history, links] = await Promise.all([
+          fetchSize({ data: listId ? { listId } : {} }),
+          fetchHistory({ data: { ids } }),
+          fetchLinks(),
+        ]);
+        if (cancelled) return;
+        setResult({
+          seriesLabel: selected.label,
+          listId,
+          listName: listId
+            ? (listsQ.data?.lists.find((l) => l.id === listId)?.name ?? `Lista ${listId}`)
+            : "Todos os contatos ativos",
+          listSize: size,
+          n: ids.length,
+          dormancy: dormancyRows(size, history.opened, ids.length),
+          companies: buildCompanyEngagement(history.opened, links.links, links.names),
+          contactsWithOpens: Object.keys(history.opened).length,
+          failed: history.failed,
+          truncatedLinks: links.truncated,
+        });
+      } catch (e: any) {
+        if (!cancelled) setError(e?.message ?? "Não consegui concluir a análise.");
+      } finally {
+        if (!cancelled) setRunning(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seriesKey, listId, n]);
+
+  const snapEntity = result ? `base-muda:${result.listId || "todos"}` : "";
   const snapsQ = useQuery({
     queryKey: ["base-muda-history", snapEntity],
     queryFn: () => fetchSnaps({ data: { entity_id: snapEntity } }),
     enabled: !!snapEntity,
   });
-
-  async function run() {
-    if (!selected || !listId) return;
-    setRunning(true);
-    setError(null);
-    setResult(null);
-    try {
-      const sends = selected.sends.slice(0, n);
-      const ids = sends.map((s) => s.id);
-      const [{ size }, history, links] = await Promise.all([
-        fetchSize({ data: { listId } }),
-        fetchHistory({ data: { ids } }),
-        fetchLinks(),
-      ]);
-      setResult({
-        seriesLabel: selected.label,
-        listId,
-        listName: listsQ.data?.lists.find((l) => l.id === listId)?.name ?? `Lista ${listId}`,
-        listSize: size,
-        n: ids.length,
-        dormancy: dormancyRows(size, history.opened, ids.length),
-        companies: buildCompanyEngagement(history.opened, links.links, links.names),
-        contactsWithOpens: Object.keys(history.opened).length,
-        failed: history.failed,
-        truncatedLinks: links.truncated,
-      });
-    } catch (e: any) {
-      setError(e?.message ?? "Não consegui concluir a análise.");
-    } finally {
-      setRunning(false);
-    }
-  }
 
   async function saveBaseSnapshot() {
     if (!result) return;
@@ -108,7 +123,7 @@ export function AudienceTab({ campaigns }: { campaigns: Campaign[] }) {
           label: format(new Date(), "dd/MM/yyyy HH:mm"),
           entity_type: "campaign",
           entity_id: snapEntity,
-          entity_name: `Base muda · ${result.listName}`,
+          entity_name: `Contatos que não abrem · ${result.listName}`,
           metrics: {
             list_size: result.listSize,
             window: result.n,
@@ -118,7 +133,7 @@ export function AudienceTab({ campaigns }: { campaigns: Campaign[] }) {
         },
       });
       await snapsQ.refetch();
-      toast.success("Foto da base salva");
+      toast.success("Foto salva");
     } catch (e: any) {
       toast.error(e?.message ?? "Não consegui salvar");
     } finally {
@@ -126,85 +141,72 @@ export function AudienceTab({ campaigns }: { campaigns: Campaign[] }) {
     }
   }
 
-  if (series.length === 0) {
-    return (
-      <EmptyState
-        icon={Users}
-        title="Preciso de uma série com pelo menos 3 envios"
-        description="A análise da base olha os últimos envios de um disparo recorrente. Ainda não encontrei nenhum."
-      />
-    );
-  }
-
   return (
-    <div className="space-y-6">
-      <Panel
-        title="Qual disparo analisar?"
-        description="A análise olha quem abriu os últimos envios da série. Contatos que não abriram nenhum deles formam a base muda."
-      >
-        <div className="flex flex-wrap items-end gap-4">
-          <Field label="Série">
-            <select value={seriesKey} onChange={(e) => { setSeriesKey(e.target.value); setListOverride(""); setResult(null); }} className={cn(selectClass, "min-w-[300px]")}>
-              <option value="">Selecionar…</option>
-              {series.map((s) => (
-                <option key={s.key} value={s.key}>
-                  {s.label} ({s.sends.length} envios)
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label={detectedListId ? "Lista (detectada)" : "Lista"}>
-            <select value={listId} onChange={(e) => setListOverride(e.target.value)} className={cn(selectClass, "min-w-[240px]")} disabled={!selected}>
-              <option value="">Selecionar…</option>
-              {(listsQ.data?.lists ?? []).map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.name}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Últimos envios">
-            <div className="inline-flex gap-0.5 rounded-lg bg-muted p-1">
-              {WINDOWS.map((w) => (
-                <button
-                  key={w}
-                  type="button"
-                  onClick={() => setN(w)}
-                  className={cn("rounded-md px-3 py-1 text-sm font-medium transition-all", n === w ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}
-                >
-                  {w}
-                </button>
-              ))}
-            </div>
-          </Field>
-          <Button onClick={run} disabled={!selected || !listId || running} className="h-9">
-            {running ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
-            {running ? "Analisando…" : "Rodar análise"}
-          </Button>
-        </div>
-        {selected && !detectedListId && (
-          <p className="mt-3 text-xs text-muted-foreground">O ActiveCampaign não informou a lista deste disparo. Escolha a lista que recebe esta série.</p>
-        )}
-        {running && (
-          <p className="mt-3 text-xs text-muted-foreground">Buscando as aberturas de cada envio no ActiveCampaign. Em listas grandes isso leva alguns segundos.</p>
-        )}
-      </Panel>
+    <div>
+      <Explainer>
+        Mostra quantos contatos da sua lista <strong>não abriram nenhum dos últimos e-mails</strong> e quais empresas pararam de abrir. É a parte da base que provavelmente
+        não está vendo o que você manda. A análise começa sozinha com o disparo recorrente mais recente.
+      </Explainer>
 
-      {error && <Notice tone="bad">{error}</Notice>}
-
-      {!result && !running && !error && (
+      {series.length === 0 ? (
         <EmptyState
-          icon={MoonStar}
-          title="Escolha a série e rode a análise"
-          description="Vou mostrar quanto da sua base nunca abriu os últimos envios e quais empresas estão engajadas, esfriando ou sumindo."
+          icon={Users}
+          title="Preciso de um disparo com pelo menos 3 edições"
+          description="A análise olha os últimos e-mails de um disparo recorrente. Ainda não encontrei nenhum."
         />
-      )}
+      ) : (
+        <div className="space-y-6">
+          <div className="flex flex-wrap items-end gap-4 rounded-xl border border-border bg-card px-5 py-4 shadow-card">
+            <Field label="Analisando o disparo">
+              <select value={seriesKey} onChange={(e) => { setPickedKey(e.target.value); setListOverride(""); }} className={cn(selectClass, "min-w-[280px]")}>
+                {series.map((s) => (
+                  <option key={s.key} value={s.key}>
+                    {s.label} ({s.sends.length} edições)
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Considerando os últimos">
+              <div className="inline-flex gap-0.5 rounded-lg bg-muted p-1">
+                {WINDOWS.map((w) => (
+                  <button
+                    key={w}
+                    type="button"
+                    onClick={() => setN(w)}
+                    className={cn("rounded-md px-3 py-1 text-sm font-medium transition-all", n === w ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}
+                  >
+                    {w} e-mails
+                  </button>
+                ))}
+              </div>
+            </Field>
+            <Field label="Lista de contatos">
+              <select value={listOverride} onChange={(e) => setListOverride(e.target.value)} className={cn(selectClass, "min-w-[220px]")}>
+                <option value="">{detectedListId ? "A lista deste disparo" : "Todos os contatos ativos"}</option>
+                {(listsQ.data?.lists ?? []).map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            {running && (
+              <span className="flex items-center gap-2 pb-2 text-xs text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Buscando as aberturas no ActiveCampaign. Em listas grandes leva alguns segundos.
+              </span>
+            )}
+          </div>
 
-      {result && (
-        <>
-          <DormancyBlock result={result} onSave={saveBaseSnapshot} saving={saving} snaps={snapsQ.data?.snapshots ?? []} />
-          <CompaniesBlock result={result} />
-        </>
+          {error && <Notice tone="bad">{error}</Notice>}
+
+          {result && (
+            <>
+              <DormancyBlock result={result} onSave={saveBaseSnapshot} saving={saving} snaps={snapsQ.data?.snapshots ?? []} />
+              <CompaniesBlock result={result} />
+            </>
+          )}
+        </div>
       )}
     </div>
   );
@@ -219,6 +221,10 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+function pct(v: number) {
+  return `${v.toFixed(0)}%`;
+}
+
 function DormancyBlock({
   result,
   onSave,
@@ -231,57 +237,74 @@ function DormancyBlock({
   snaps: { id: string; label: string; created_at: string; metrics: Record<string, number | string> }[];
 }) {
   const last = result.dormancy[result.dormancy.length - 1];
-  const tone = last.dormantPct >= 60 ? "bad" : last.dormantPct >= 40 ? "warn" : "good";
+  const tone = last.dormantPct >= 50 ? "bad" : last.dormantPct >= 30 ? "warn" : "good";
   const history = [...snaps]
     .reverse()
-    .map((s) => ({ date: format(new Date(s.created_at), "dd/MM"), "Base muda": Number(s.metrics.dormant_pct ?? 0) }));
+    .map((s) => ({ date: format(new Date(s.created_at), "dd/MM"), "Contatos que não abrem": Number(s.metrics.dormant_pct ?? 0) }));
 
   return (
     <section className="space-y-4">
       <div>
-        <h2 className="text-base font-semibold tracking-tight">Base muda</h2>
+        <h2 className="text-base font-semibold tracking-tight">Contatos que não abrem</h2>
         <p className="text-xs text-muted-foreground">
-          {result.listName} · últimos {result.n} envios de {result.seriesLabel}
+          {result.listName} · últimos {result.n} e-mails de {result.seriesLabel}
         </p>
       </div>
+
+      <Panel>
+        <p className="text-base leading-relaxed text-foreground">
+          De cada 100 contatos, <strong className="font-semibold">{pct(last.dormantPct)}</strong> não abriram nenhum dos últimos {result.n} e-mails.
+        </p>
+        <div className="mt-3">
+          <Advice tone={tone}>
+            {last.dormantPct >= 50
+              ? "Mais da metade da base não está vendo seus e-mails. Vale uma campanha para reativar esses contatos e, se não responderem, tirá-los da lista para melhorar a reputação de envio."
+              : last.dormantPct >= 30
+                ? "Uma parte relevante da base está parada. Acompanhe mês a mês (botão abaixo) e, se crescer, faça uma campanha de reativação."
+                : "Boa saúde: a maior parte da base continua abrindo. Só acompanhe para ver se isso se mantém."}
+          </Advice>
+        </div>
+      </Panel>
+
       <div className="grid gap-4 sm:grid-cols-3">
-        <Stat icon={Users} label="Contatos ativos na lista" value={result.listSize.toLocaleString("pt-BR")} sub="status ativo no ActiveCampaign" />
-        <Stat label={`Abriram ao menos 1 dos ${result.n} envios`} value={last.active.toLocaleString("pt-BR")} sub={`${(100 - last.dormantPct).toFixed(1).replace(".", ",")}% da base`} />
+        <Stat icon={Users} label="Contatos ativos na lista" value={result.listSize.toLocaleString("pt-BR")} sub="pessoas que podem receber seus e-mails" />
+        <Stat label="Abriram pelo menos 1 e-mail" value={last.active.toLocaleString("pt-BR")} sub={`${pct(100 - last.dormantPct)} da lista`} />
         <Stat
           icon={MoonStar}
-          label={`Não abriram nenhum dos ${result.n} envios`}
-          value={`${last.dormantPct.toFixed(1).replace(".", ",")}%`}
-          delta={`${last.dormant.toLocaleString("pt-BR")} contatos`}
+          label="Não abriram nenhum"
+          value={last.dormant.toLocaleString("pt-BR")}
+          delta={pct(last.dormantPct)}
           tone={tone}
-          sub="base muda"
+          sub={`nos últimos ${result.n} e-mails`}
         />
       </div>
 
-      <Panel title="Quanto da base fica de fora conforme a janela cresce" description="Quanto mais envios você considera, menos contatos ficam de fora. Se ainda sobra muita gente depois de vários envios, essa parte da base provavelmente não vai responder.">
+      <Panel
+        title="E se eu olhar mais e-mails para trás?"
+        description="Quanto mais e-mails você considera, mais gente aparece como ativa. Se ainda sobra muita gente depois de vários e-mails, essa parte da lista dificilmente vai responder."
+      >
         <div className="space-y-3">
           {result.dormancy.map((r) => (
             <div key={r.window} className="flex items-center gap-4">
-              <span className="w-28 shrink-0 text-xs text-muted-foreground">
-                {r.window === 1 ? "Último envio" : `Últimos ${r.window} envios`}
-              </span>
+              <span className="w-32 shrink-0 text-xs text-muted-foreground">{r.window === 1 ? "Só o último e-mail" : `Últimos ${r.window} e-mails`}</span>
               <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-muted">
                 <div className="h-full rounded-full bg-primary/70" style={{ width: `${Math.min(r.dormantPct, 100)}%` }} />
               </div>
-              <span className="w-16 text-right text-sm font-medium tabular-nums">{r.dormantPct.toFixed(1).replace(".", ",")}%</span>
+              <span className="w-12 text-right text-sm font-medium tabular-nums">{pct(r.dormantPct)}</span>
               <span className="hidden w-28 text-right text-xs tabular-nums text-muted-foreground sm:block">{r.dormant.toLocaleString("pt-BR")} contatos</span>
             </div>
           ))}
         </div>
         <div className="mt-5">
           <Notice tone="info">
-            Leia como um piso: aberturas automáticas de proteção de privacidade (como o Apple Mail) contam como abertura, então a base realmente muda é igual ou maior que a mostrada.
+            Leia como um mínimo: algumas ferramentas de e-mail (como o Apple Mail) abrem a mensagem sozinhas, e isso conta como abertura. A parte realmente parada da lista é igual ou maior.
           </Notice>
         </div>
       </Panel>
 
       <Panel
-        title="Evolução da base muda"
-        description="O ActiveCampaign não guarda esse histórico. Salve uma foto de tempos em tempos (por exemplo, todo mês) para mostrar se a base está esquentando ou esfriando."
+        title="Está melhorando ou piorando?"
+        description="O ActiveCampaign não guarda esse histórico. Salve uma foto de tempos em tempos (por exemplo, todo mês) e o gráfico passa a mostrar a evolução."
         actions={
           <Button size="sm" variant="outline" onClick={onSave} disabled={saving}>
             <Save className="mr-2 h-4 w-4" />
@@ -301,7 +324,7 @@ function DormancyBlock({
                 <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#5f6f8a" }} tickLine={false} axisLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: "#5f6f8a" }} tickLine={false} axisLine={false} unit="%" />
                 <Tooltip contentStyle={{ borderRadius: 10, border: "1px solid #e1e7f1", fontSize: 12 }} />
-                <Line type="monotone" dataKey="Base muda" stroke="#0660FE" strokeWidth={2.5} dot={{ r: 3 }} />
+                <Line type="monotone" dataKey="Contatos que não abrem" stroke="#0660FE" strokeWidth={2.5} dot={{ r: 3 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -312,7 +335,7 @@ function DormancyBlock({
 }
 
 function CompaniesBlock({ result }: { result: Result }) {
-  const [filter, setFilter] = useState<"all" | "cooling" | "active">("all");
+  const [filter, setFilter] = useState<"all" | "cooling" | "active">("cooling");
   const real = result.companies.filter((c) => c.key !== "__none__");
   const active = real.filter((c) => c.status === "active");
   const cooling = real.filter((c) => c.status === "cooling");
@@ -321,26 +344,39 @@ function CompaniesBlock({ result }: { result: Result }) {
   return (
     <section className="space-y-4">
       <div>
-        <h2 className="text-base font-semibold tracking-tight">Engajamento por empresa</h2>
-        <p className="text-xs text-muted-foreground">
-          Empresas com pelo menos um contato que abriu algum dos últimos {result.n} envios. Esfriando = abriram antes, mas nenhum contato abriu os 2 envios mais recentes.
-        </p>
-      </div>
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Stat icon={Building2} label="Empresas com abertura" value={real.length.toLocaleString("pt-BR")} sub={`${result.contactsWithOpens.toLocaleString("pt-BR")} contatos abriram`} />
-        <Stat label="Ativas" value={active.length.toLocaleString("pt-BR")} tone="good" sub="abriram nos 2 envios mais recentes" />
-        <Stat icon={Snowflake} label="Esfriando" value={cooling.length.toLocaleString("pt-BR")} tone={cooling.length > 0 ? "warn" : "neutral"} sub="abriram antes e sumiram" />
+        <h2 className="text-base font-semibold tracking-tight">Empresas que pararam de abrir</h2>
+        <p className="text-xs text-muted-foreground">Cada empresa é o conjunto de contatos ligados a ela no ActiveCampaign.</p>
       </div>
 
-      {result.truncatedLinks && <Notice>A base tem mais vínculos contato-empresa do que consigo ler de uma vez. Parte das empresas pode aparecer como "Sem empresa".</Notice>}
-      {result.failed > 0 && <Notice>{result.failed} envio(s) não puderam ser lidos no ActiveCampaign. Os números acima podem estar subestimados.</Notice>}
+      <Panel>
+        <p className="text-base leading-relaxed text-foreground">
+          <strong className="font-semibold">{active.length}</strong> empresas abriram os 2 e-mails mais recentes e{" "}
+          <strong className="font-semibold">{cooling.length}</strong> abriram antes, mas pararam.
+        </p>
+        {cooling.length > 0 && (
+          <div className="mt-3">
+            <Advice tone="warn">
+              Estas são as empresas que mostravam interesse e esfriaram. São as melhores candidatas para um contato direto (ligação ou mensagem do comercial).
+            </Advice>
+          </div>
+        )}
+      </Panel>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Stat icon={Building2} label="Empresas que abriram algo" value={real.length.toLocaleString("pt-BR")} sub={`${result.contactsWithOpens.toLocaleString("pt-BR")} contatos`} />
+        <Stat label="Ativas" value={active.length.toLocaleString("pt-BR")} sub="abriram nos 2 e-mails mais recentes" />
+        <Stat icon={Snowflake} label="Esfriando" value={cooling.length.toLocaleString("pt-BR")} sub="abriram antes e sumiram" />
+      </div>
+
+      {result.truncatedLinks && <Notice>A base tem mais vínculos entre contato e empresa do que consigo ler de uma vez. Parte das empresas pode aparecer como "Sem empresa".</Notice>}
+      {result.failed > 0 && <Notice>{result.failed} e-mail(s) não puderam ser lidos no ActiveCampaign. Os números podem estar abaixo do real.</Notice>}
 
       <Panel
-        title="Empresas"
+        title="Lista de empresas"
         flush
         actions={
           <div className="inline-flex gap-0.5 rounded-lg bg-muted p-1">
-            {([["all", "Todas"], ["cooling", "Esfriando"], ["active", "Ativas"]] as const).map(([k, label]) => (
+            {([["cooling", "Esfriando"], ["active", "Ativas"], ["all", "Todas"]] as const).map(([k, label]) => (
               <button
                 key={k}
                 type="button"
@@ -362,7 +398,7 @@ function CompaniesBlock({ result }: { result: Result }) {
                 <tr>
                   <th className="px-6 py-3 text-left font-medium">Empresa</th>
                   <th className="px-3 py-3 text-left font-medium">Situação</th>
-                  <th className="px-3 py-3 text-right font-medium">Contatos que abriram</th>
+                  <th className="px-3 py-3 text-right font-medium">Pessoas que abriram</th>
                   <th className="px-3 py-3 text-right font-medium">Aberturas</th>
                   <th className="px-6 py-3 text-right font-medium">Última abertura</th>
                 </tr>
@@ -371,13 +407,11 @@ function CompaniesBlock({ result }: { result: Result }) {
                 {rows.slice(0, 200).map((c) => (
                   <tr key={c.key} className="border-t border-border hover:bg-surface/60">
                     <td className="px-6 py-3 text-[13px] font-medium">{c.name}</td>
-                    <td className="px-3 py-3">
-                      {c.status === "active" ? <Tag tone="good">Ativa</Tag> : <Tag tone="warn">Esfriando</Tag>}
-                    </td>
+                    <td className="px-3 py-3">{c.status === "active" ? <Tag tone="good">Ativa</Tag> : <Tag tone="warn">Esfriando</Tag>}</td>
                     <td className="px-3 py-3 text-right tabular-nums">{c.engagedContacts}</td>
                     <td className="px-3 py-3 text-right tabular-nums">{c.opens}</td>
                     <td className="px-6 py-3 text-right text-xs text-muted-foreground">
-                      {c.lastOpenedIdx === 0 ? "No último envio" : `${c.lastOpenedIdx} envios atrás`}
+                      {c.lastOpenedIdx === 0 ? "No último e-mail" : `${c.lastOpenedIdx} e-mails atrás`}
                     </td>
                   </tr>
                 ))}
@@ -387,7 +421,7 @@ function CompaniesBlock({ result }: { result: Result }) {
         )}
       </Panel>
       <p className="text-xs text-muted-foreground">
-        Empresas que nunca abriram nenhum envio não aparecem: o ActiveCampaign não informa a lista de destinatários de cada campanha, só quem abriu.
+        Empresas que nunca abriram nada não aparecem: o ActiveCampaign informa só quem abriu, não quem recebeu.
       </p>
     </section>
   );

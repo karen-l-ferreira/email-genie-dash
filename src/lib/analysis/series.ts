@@ -64,7 +64,7 @@ export function buildSeries(campaigns: Campaign[], minSends = 2): Series[] {
   const map = new Map<string, SendMetrics[]>();
   for (const c of campaigns) {
     const m = toSendMetrics(c);
-    if (!m) continue;
+    if (!m || isNoise(m)) continue;
     const k = groupKey(c.name);
     if (!k) continue;
     map.set(k, [...(map.get(k) ?? []), m]);
@@ -91,19 +91,19 @@ export function seriesByKeyword(campaigns: Campaign[], keyword: string): SendMet
 export type MetricKey = "open_rate" | "ctr" | "ctor" | "bounce_rate" | "unsub_rate";
 
 export const METRIC_LABEL: Record<MetricKey, string> = {
-  open_rate: "Abertura",
-  ctr: "CTR",
-  ctor: "CTOR",
-  bounce_rate: "Bounce",
-  unsub_rate: "Descadastro",
+  open_rate: "Abriram o e-mail",
+  ctr: "Clicaram",
+  ctor: "Clicaram entre quem abriu",
+  bounce_rate: "Não chegaram",
+  unsub_rate: "Descadastros",
 };
 
 export const METRIC_HELP: Record<MetricKey, string> = {
-  open_rate: "Aberturas únicas ÷ envios",
-  ctr: "Cliques únicos ÷ envios",
-  ctor: "Cliques únicos ÷ aberturas únicas: o quanto o e-mail converte quem abriu",
-  bounce_rate: "E-mails que não chegaram ÷ envios",
-  unsub_rate: "Descadastros ÷ envios",
+  open_rate: "De cada 100 e-mails enviados, quantas pessoas abriram",
+  ctr: "De cada 100 e-mails enviados, quantas pessoas clicaram em algum link",
+  ctor: "Das pessoas que abriram, quantas clicaram. Mostra se o conteúdo convence",
+  bounce_rate: "E-mails que nem chegaram ao destinatário",
+  unsub_rate: "Pessoas que pediram para sair da lista",
 };
 
 // For bounce/unsub, going up is bad.
@@ -172,18 +172,18 @@ function diagnose(delta: Record<MetricKey, { abs: number; rel: number }>): strin
 
   if (openDown && !ctorDown) {
     out.push(
-      "A abertura caiu, mas quem abriu clicou na mesma proporção: o conteúdo continua funcionando e o problema está em chegar e ser aberto. Revise assunto, remetente, horário de envio e entregabilidade (spam).",
+      "Abriram menos, mas quem abriu clicou na mesma proporção: o conteúdo continua bom e o problema está em fazer a pessoa abrir. Teste outro assunto, outro remetente ou outro horário, e confira se o e-mail não está caindo no spam.",
     );
   } else if (!openDown && ctorDown) {
     out.push(
-      "A abertura ficou estável, mas o CTOR caiu: o assunto atraiu e o corpo do e-mail não converteu. Revise CTA, oferta, posição do link e se o link está funcionando.",
+      "A abertura ficou estável, mas menos gente clicou entre quem abriu: o assunto chamou atenção e o corpo do e-mail não convenceu. Revise o botão, a oferta, a posição do link e se o link está funcionando.",
     );
   } else if (openDown && ctorDown) {
     out.push(
-      "Abertura e CTOR caíram juntos: suspeite da audiência (segmento diferente, lista envelhecida, base menos engajada) antes de mexer no criativo.",
+      "Abriram menos e, entre quem abriu, clicaram menos: suspeite do público (segmento diferente, lista envelhecida, base menos engajada) antes de mexer no conteúdo.",
     );
   } else if (openUp && ctorUp) {
-    out.push("Abertura e CTOR subiram: vale registrar o que mudou neste disparo para repetir.");
+    out.push("Abriram mais e clicaram mais: vale registrar o que mudou neste disparo para repetir.");
   } else if (openUp && !ctorUp) {
     out.push("A abertura subiu sem ganho de cliques: o assunto atrai mais, mas o corpo do e-mail não acompanha.");
   }
@@ -277,6 +277,29 @@ export function parseSendDate(s: string): Date {
   return new Date(s.replace(" ", "T"));
 }
 
+// ── Plain-language layer ─────────────────────────────────────────────────────
+
+export const VERDICT: Record<Severity, { label: string; tone: "bad" | "warn" | "good" | "neutral" }> = {
+  critical: { label: "Piorou bastante", tone: "bad" },
+  warning: { label: "Piorou um pouco", tone: "warn" },
+  positive: { label: "Melhorou", tone: "good" },
+  ok: { label: "Normal", tone: "neutral" },
+  insufficient: { label: "Poucos dados", tone: "neutral" },
+};
+
+// Test sends and tiny sends say nothing about a series' real behavior.
+export function isNoise(s: SendMetrics): boolean {
+  return s.sent < 100 || /^\s*(new campaign|teste?\b|test\b)/i.test(s.name);
+}
+
+export function sentenceFor(c: Comparison): string {
+  const l = c.latest;
+  return (
+    `Foi aberto por ${fmtPct(l.open_rate)} dos contatos (o normal dele é ${fmtPct(c.baseline.open_rate)}). ` +
+    `Os cliques ficaram em ${fmtPct(l.ctr, 2)} (o normal é ${fmtPct(c.baseline.ctr, 2)}).`
+  );
+}
+
 // Plain-text summary to paste into a message or slide for the meeting.
 export function buildMeetingSummary(title: string, c: Comparison): string {
   const l = c.latest;
@@ -285,7 +308,7 @@ export function buildMeetingSummary(title: string, c: Comparison): string {
     `${title}: disparo de ${date} (${l.sent.toLocaleString("pt-BR")} envios)`,
     `• Abertura: ${fmtPct(l.open_rate)} (média anterior ${fmtPct(c.baseline.open_rate)}, ${fmtDeltaPp(c.delta.open_rate.abs)})`,
     `• CTR: ${fmtPct(l.ctr, 2)} (média anterior ${fmtPct(c.baseline.ctr, 2)}, ${fmtDeltaPp(c.delta.ctr.abs, 2)})`,
-    `• CTOR: ${fmtPct(l.ctor)} (média anterior ${fmtPct(c.baseline.ctor)}, ${fmtDeltaPp(c.delta.ctor.abs)})`,
+    `• Clicaram entre quem abriu: ${fmtPct(l.ctor)} (média anterior ${fmtPct(c.baseline.ctor)}, ${fmtDeltaPp(c.delta.ctor.abs)})`,
     `• Bounce: ${fmtPct(l.bounce_rate, 2)} | Descadastro: ${fmtPct(l.unsub_rate, 2)}`,
     `Leitura: ${c.diagnosis.join(" ")}`,
     `Base de comparação: ${c.baselineCount} disparo(s) anterior(es), média ponderada por volume.`,

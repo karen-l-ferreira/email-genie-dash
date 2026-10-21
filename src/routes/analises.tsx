@@ -20,10 +20,10 @@ export const Route = createFileRoute("/analises")({
 });
 
 const TABS = [
-  { value: "series", label: "Séries e desvios" },
-  { value: "base", label: "Base e empresas" },
-  { value: "conteudo", label: "Conteúdo" },
-  { value: "horarios", label: "Dia e horário" },
+  { value: "series", label: "O que mudou" },
+  { value: "base", label: "Contatos que não abrem" },
+  { value: "conteudo", label: "O que dá resultado" },
+  { value: "horarios", label: "Melhor dia e hora" },
 ] as const;
 type TabKey = (typeof TABS)[number]["value"];
 
@@ -36,7 +36,7 @@ function AnalisesPage() {
       <PageHeader
         icon={Activity}
         title="Análises"
-        description="O que o ActiveCampaign não mostra sozinho: como cada disparo se compara ao seu histórico e por que o resultado muda."
+        description="O que o ActiveCampaign não mostra sozinho: como cada disparo se compara ao normal dele e o que fazer com isso."
       />
       <div className="mb-6">
         <TabBar tabs={[...TABS]} value={tab} onChange={setTab} />

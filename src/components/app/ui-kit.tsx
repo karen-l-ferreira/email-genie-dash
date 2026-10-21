@@ -1,4 +1,5 @@
 import type { ComponentType, ReactNode } from "react";
+import { Info, Lightbulb } from "lucide-react";
 import { AppHeader } from "@/components/app/Header";
 import { cn } from "@/lib/utils";
 
@@ -232,6 +233,32 @@ export function Notice({ tone = "warn", children }: { tone?: "warn" | "bad" | "i
         ? "border-primary/20 bg-primary/5 text-foreground"
         : "border-warning/30 bg-warning/10 text-foreground";
   return <div className={cn("rounded-lg border px-4 py-3 text-sm leading-relaxed", cls)}>{children}</div>;
+}
+
+// Opens every analysis tab: what it is, in plain words, before any number appears.
+export function Explainer({ title = "O que é esta tela", children }: { title?: string; children: ReactNode }) {
+  return (
+    <div className="mb-6 flex gap-3 rounded-xl border border-primary/15 bg-primary/5 px-5 py-4">
+      <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+      <div>
+        <p className="text-sm font-semibold text-primary">{title}</p>
+        <div className="mt-1 text-sm leading-relaxed text-foreground/85">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+// "O que fazer": the sentence you can repeat in a meeting.
+export function Advice({ tone = "neutral", children }: { tone?: Tone; children: ReactNode }) {
+  return (
+    <div className="flex gap-2.5 text-sm leading-relaxed text-muted-foreground">
+      <Lightbulb className={cn("mt-0.5 h-4 w-4 shrink-0", TONE_TEXT[tone === "neutral" ? "warn" : tone])} />
+      <span>
+        <span className="font-medium text-foreground">O que fazer: </span>
+        {children}
+      </span>
+    </div>
+  );
 }
 
 export function Loading({ rows = 4 }: { rows?: number }) {

@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Loader2, Microscope, Play } from "lucide-react";
+import { Loader2, Microscope } from "lucide-react";
 import { getEmailFeatures, type Campaign } from "@/lib/ac.functions";
-import { Button } from "@/components/ui/button";
-import { EmptyState, Notice, Panel, selectClass, Tag, type Tone } from "@/components/app/ui-kit";
+import { Advice, EmptyState, Explainer, Notice, Panel, selectClass, Tag, type Tone } from "@/components/app/ui-kit";
 import { cn } from "@/lib/utils";
 import { toSendMetrics, fmtPct, fmtRel, type SendMetrics } from "@/lib/analysis/series";
 import {
@@ -22,9 +22,9 @@ function categoryOf(name: string): string {
 }
 
 const CONFIDENCE: Record<DimensionResult["confidence"], { label: string; tone: Tone }> = {
-  boa: { label: "Confiança boa", tone: "good" },
-  moderada: { label: "Confiança moderada", tone: "warn" },
-  baixa: { label: "Poucos dados", tone: "neutral" },
+  boa: { label: "Dá para confiar", tone: "good" },
+  moderada: { label: "Confiança média", tone: "warn" },
+  baixa: { label: "Pode ser coincidência", tone: "neutral" },
 };
 
 export function ContentTab({ campaigns }: { campaigns: Campaign[] }) {
@@ -44,102 +44,109 @@ export function ContentTab({ campaigns }: { campaigns: Campaign[] }) {
     return [...m.entries()].filter(([, n]) => n >= 8).sort((a, b) => b[1] - a[1]);
   }, [sends]);
 
-  const [category, setCategory] = useState("");
-  const [running, setRunning] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [results, setResults] = useState<{ dims: DimensionResult[]; used: number; failed: number; category: string } | null>(null);
+  // Default to the biggest category so different audiences don't get mixed together.
+  const [picked, setPicked] = useState<string | null>(null);
+  const category = picked ?? categories[0]?.[0] ?? "";
+  const pool = useMemo(
+    () => (category ? sends.filter((s) => categoryOf(s.name) === category) : sends).slice(0, MAX_CAMPAIGNS),
+    [sends, category],
+  );
 
-  const pool = category ? sends.filter((s) => categoryOf(s.name) === category) : sends;
+  // Runs by itself and is cached, so coming back to the tab is instant.
+  const q = useQuery({
+    queryKey: ["content-analysis", category, pool.map((s) => s.id).join(",")],
+    enabled: pool.length >= 10,
+    retry: false,
+    staleTime: 30 * 60 * 1000,
+    queryFn: async () => {
+      const { features, failed } = await fetchFeatures({ data: { ids: pool.map((s) => s.id) } });
+      const joined = joinFeatures(pool, features);
+      return { dims: analyzeDimensions(joined), used: joined.length, failed };
+    },
+  });
 
-  async function run() {
-    setRunning(true);
-    setError(null);
-    setResults(null);
-    try {
-      const picked = pool.slice(0, MAX_CAMPAIGNS);
-      const { features, failed } = await fetchFeatures({ data: { ids: picked.map((s) => s.id) } });
-      const joined = joinFeatures(picked, features);
-      setResults({ dims: analyzeDimensions(joined), used: joined.length, failed, category });
-    } catch (e: any) {
-      setError(e?.message ?? "Não consegui ler os e-mails no ActiveCampaign.");
-    } finally {
-      setRunning(false);
-    }
-  }
-
-  if (sends.length < 10) {
-    return (
-      <EmptyState
-        icon={Microscope}
-        title="Ainda há poucos envios para achar padrões"
-        description={`Preciso de pelo menos 10 envios com ${MIN_SENT}+ destinatários. Encontrei ${sends.length}.`}
-      />
-    );
-  }
-
-  const ranked = results ? rankDimensions(results.dims) : [];
+  const ranked = q.data ? rankDimensions(q.data.dims) : [];
 
   return (
-    <div className="space-y-6">
-      <Panel
-        title="O que no e-mail explica o resultado?"
-        description="Leio o assunto e o HTML de cada envio e comparo o desempenho de quem tem cada característica. Isso mostra correlação, não prova causa: públicos diferentes também mudam o resultado."
-      >
-        <div className="flex flex-wrap items-end gap-4">
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-medium text-muted-foreground">Tipo de disparo</span>
-            <select value={category} onChange={(e) => { setCategory(e.target.value); setResults(null); }} className={cn(selectClass, "min-w-[260px]")}>
-              <option value="">Todos ({sends.length} envios)</option>
-              {categories.map(([c, n]) => (
-                <option key={c} value={c}>
-                  {c} ({n} envios)
-                </option>
-              ))}
-            </select>
-          </label>
-          <Button onClick={run} disabled={running || pool.length < 10} className="h-9">
-            {running ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
-            {running ? "Lendo e-mails…" : `Analisar ${Math.min(pool.length, MAX_CAMPAIGNS)} envios`}
-          </Button>
-        </div>
-        <p className="mt-3 text-xs text-muted-foreground">
-          Comparar só envios do mesmo tipo evita misturar públicos diferentes (por exemplo, newsletter com prospecção). Leva cerca de 1 minuto.
-        </p>
-      </Panel>
+    <div>
+      <Explainer>
+        Leio o assunto e o conteúdo dos seus e-mails e comparo <strong>quanta gente clicou</strong> em quem tem cada característica (assunto curto ou longo, quantidade de links,
+        onde fica o botão...). Serve para descobrir o que repetir nos próximos envios. A análise começa sozinha e leva cerca de 1 minuto na primeira vez.
+      </Explainer>
 
-      {error && <Notice tone="bad">{error}</Notice>}
+      {sends.length < 10 ? (
+        <EmptyState
+          icon={Microscope}
+          title="Ainda há poucos envios para achar padrões"
+          description={`Preciso de pelo menos 10 envios com ${MIN_SENT} ou mais destinatários. Encontrei ${sends.length}.`}
+        />
+      ) : (
+        <div className="space-y-6">
+          <div className="flex flex-wrap items-end gap-4 rounded-xl border border-border bg-card px-5 py-4 shadow-card">
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-medium text-muted-foreground">Comparar e-mails do tipo</span>
+              <select value={category} onChange={(e) => setPicked(e.target.value)} className={cn(selectClass, "min-w-[260px]")}>
+                <option value="">Todos ({sends.length} envios)</option>
+                {categories.map(([c, n]) => (
+                  <option key={c} value={c}>
+                    {c} ({n} envios)
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="max-w-md pb-2 text-xs leading-relaxed text-muted-foreground">
+              Comparar só e-mails do mesmo tipo evita misturar públicos diferentes (por exemplo, newsletter com prospecção).
+            </p>
+            {q.isFetching && (
+              <span className="flex items-center gap-2 pb-2 text-xs text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Lendo {pool.length} e-mails no ActiveCampaign…
+              </span>
+            )}
+          </div>
 
-      {results && (
-        <>
-          {results.failed > 0 && <Notice>{results.failed} e-mail(s) não puderam ser lidos e ficaram de fora.</Notice>}
+          {q.isError && <Notice tone="bad">{(q.error as Error).message}</Notice>}
 
-          {ranked.length === 0 ? (
-            <EmptyState
-              icon={Microscope}
-              title="Ainda não dá para separar padrões"
-              description={`Com ${results.used} envios analisados, nenhuma característica tem pelo menos ${MIN_PER_BUCKET} envios em cada lado da comparação.`}
-            />
-          ) : (
+          {q.data && (
             <>
-              <section>
-                <h2 className="mb-3 text-base font-semibold tracking-tight">Maiores diferenças de CTR</h2>
-                <div className="grid gap-4 lg:grid-cols-3">
-                  {ranked.slice(0, 3).map((d) => (
-                    <Finding key={d.key} d={d} />
-                  ))}
-                </div>
-              </section>
+              {q.data.failed > 0 && <Notice>{q.data.failed} e-mail(s) não puderam ser lidos e ficaram de fora.</Notice>}
 
-              <Panel title="Todas as características" description={`${results.used} envios analisados${results.category ? ` · ${results.category}` : ""}. Só entram na comparação grupos com ${MIN_PER_BUCKET}+ envios.`} flush>
-                <div className="divide-y divide-border">
-                  {results.dims.map((d) => (
-                    <DimensionTable key={d.key} d={d} />
-                  ))}
-                </div>
-              </Panel>
+              {ranked.length === 0 ? (
+                <EmptyState
+                  icon={Microscope}
+                  title="Ainda não dá para separar padrões"
+                  description={`Com ${q.data.used} e-mails analisados, nenhuma característica aparece em pelo menos ${MIN_PER_BUCKET} envios dos dois lados da comparação.`}
+                />
+              ) : (
+                <>
+                  <section>
+                    <h2 className="text-base font-semibold tracking-tight">O que mais separa os e-mails que funcionam dos que não funcionam</h2>
+                    <p className="mb-3 mt-0.5 text-xs text-muted-foreground">
+                      Em ordem de diferença. Isso mostra uma relação, não prova que foi aquilo que causou o resultado: o público de cada envio também pesa.
+                    </p>
+                    <div className="grid gap-4 lg:grid-cols-3">
+                      {ranked.slice(0, 3).map((d) => (
+                        <Finding key={d.key} d={d} />
+                      ))}
+                    </div>
+                  </section>
+
+                  <Panel
+                    title="Todas as características"
+                    description={`${q.data.used} e-mails analisados${category ? ` · tipo ${category}` : ""}. Só comparo grupos com ${MIN_PER_BUCKET} ou mais envios. A barra verde é a que mais teve cliques.`}
+                    flush
+                  >
+                    <div className="divide-y divide-border">
+                      {q.data.dims.map((d) => (
+                        <DimensionTable key={d.key} d={d} />
+                      ))}
+                    </div>
+                  </Panel>
+                </>
+              )}
             </>
           )}
-        </>
+        </div>
       )}
     </div>
   );
@@ -155,12 +162,15 @@ function Finding({ d }: { d: DimensionResult }) {
         <Tag tone={c.tone}>{c.label}</Tag>
       </div>
       <p className="mt-3 text-sm leading-relaxed text-foreground">
-        <strong className="font-semibold">{d.best.bucket}</strong> teve CTR{" "}
+        E-mails <strong className="font-semibold">{d.best.bucket.toLowerCase()}</strong> tiveram clique de{" "}
         <strong className="font-semibold text-success">{fmtPct(d.best.ctr, 2)}</strong>, contra{" "}
-        <strong className="font-semibold">{fmtPct(d.worst.ctr, 2)}</strong> de {d.worst.bucket.toLowerCase()}.
+        <strong className="font-semibold">{fmtPct(d.worst.ctr, 2)}</strong> dos e-mails {d.worst.bucket.toLowerCase()}.
       </p>
-      <div className="mt-3 text-xs text-muted-foreground">
-        {fmtRel(d.gapRel)} de diferença · {d.best.n} contra {d.worst.n} envios
+      <p className="mt-2 text-xs text-muted-foreground">
+        {fmtRel(d.gapRel)} de diferença, em {d.best.n} contra {d.worst.n} envios.
+      </p>
+      <div className="mt-3 border-t border-border pt-3">
+        <Advice tone="good">{d.confidence === "baixa" ? `teste "${d.best.bucket.toLowerCase()}" mais vezes antes de tirar conclusão.` : `use "${d.best.bucket.toLowerCase()}" nos próximos envios.`}</Advice>
       </div>
     </div>
   );
@@ -175,6 +185,13 @@ function DimensionTable({ d }: { d: DimensionResult }) {
         {d.best && d.worst && <Tag tone={CONFIDENCE[d.confidence].tone}>{CONFIDENCE[d.confidence].label}</Tag>}
       </div>
       <div className="space-y-2">
+        <div className="grid grid-cols-[170px_1fr_64px_64px_56px] gap-3 text-[11px] text-muted-foreground/80">
+          <span />
+          <span />
+          <span className="text-right">Abriram</span>
+          <span className="text-right">Clicaram</span>
+          <span />
+        </div>
         {d.buckets.map((b) => {
           const usable = b.n >= MIN_PER_BUCKET;
           return (
@@ -192,13 +209,6 @@ function DimensionTable({ d }: { d: DimensionResult }) {
             </div>
           );
         })}
-        <div className="grid grid-cols-[170px_1fr_64px_64px_56px] gap-3 text-[11px] text-muted-foreground/80">
-          <span />
-          <span />
-          <span className="text-right">Abertura</span>
-          <span className="text-right">CTR</span>
-          <span />
-        </div>
       </div>
     </div>
   );
