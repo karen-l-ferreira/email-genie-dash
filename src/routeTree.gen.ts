@@ -9,57 +9,22 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as InfluenciaRouteImport } from './routes/influencia'
-import { Route as DashboardRouteImport } from './routes/dashboard'
-import { Route as CampanhasRouteImport } from './routes/campanhas'
-import { Route as AutomationsRouteImport } from './routes/automations'
-import { Route as AnalisesRouteImport } from './routes/analises'
-import { Route as AnalisarRouteImport } from './routes/analisar'
-import { Route as AlertasRouteImport } from './routes/alertas'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as CampaignsIdRouteImport } from './routes/campaigns.$id'
+import { Route as AlertasRouteImport } from './routes/alertas'
+import { Route as AnalisarRouteImport } from './routes/analisar'
+import { Route as AnalisesRouteImport } from './routes/analises'
+import { Route as AutomationsRouteImport } from './routes/automations'
+import { Route as CampanhasRouteImport } from './routes/campanhas'
+import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as InfluenciaRouteImport } from './routes/influencia'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as AutomationIdRouteImport } from './routes/automation.$id'
+import { Route as CampaignsIdRouteImport } from './routes/campaigns.$id'
 
-const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const InfluenciaRoute = InfluenciaRouteImport.update({
-  id: '/influencia',
-  path: '/influencia',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DashboardRoute = DashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CampanhasRoute = CampanhasRouteImport.update({
-  id: '/campanhas',
-  path: '/campanhas',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AutomationsRoute = AutomationsRouteImport.update({
-  id: '/automations',
-  path: '/automations',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AnalisesRoute = AnalisesRouteImport.update({
-  id: '/analises',
-  path: '/analises',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AnalisarRoute = AnalisarRouteImport.update({
-  id: '/analisar',
-  path: '/analisar',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AlertasRoute = AlertasRouteImport.update({
@@ -67,19 +32,54 @@ const AlertasRoute = AlertasRouteImport.update({
   path: '/alertas',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const AnalisarRoute = AnalisarRouteImport.update({
+  id: '/analisar',
+  path: '/analisar',
   getParentRoute: () => rootRouteImport,
 } as any)
-const CampaignsIdRoute = CampaignsIdRouteImport.update({
-  id: '/campaigns/$id',
-  path: '/campaigns/$id',
+const AnalisesRoute = AnalisesRouteImport.update({
+  id: '/analises',
+  path: '/analises',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AutomationsRoute = AutomationsRouteImport.update({
+  id: '/automations',
+  path: '/automations',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CampanhasRoute = CampanhasRouteImport.update({
+  id: '/campanhas',
+  path: '/campanhas',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InfluenciaRoute = InfluenciaRouteImport.update({
+  id: '/influencia',
+  path: '/influencia',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AutomationIdRoute = AutomationIdRouteImport.update({
   id: '/automation/$id',
   path: '/automation/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CampaignsIdRoute = CampaignsIdRouteImport.update({
+  id: '/campaigns/$id',
+  path: '/campaigns/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -188,60 +188,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/influencia': {
-      id: '/influencia'
-      path: '/influencia'
-      fullPath: '/influencia'
-      preLoaderRoute: typeof InfluenciaRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/dashboard': {
-      id: '/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof DashboardRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/campanhas': {
-      id: '/campanhas'
-      path: '/campanhas'
-      fullPath: '/campanhas'
-      preLoaderRoute: typeof CampanhasRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/automations': {
-      id: '/automations'
-      path: '/automations'
-      fullPath: '/automations'
-      preLoaderRoute: typeof AutomationsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/analises': {
-      id: '/analises'
-      path: '/analises'
-      fullPath: '/analises'
-      preLoaderRoute: typeof AnalisesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/analisar': {
-      id: '/analisar'
-      path: '/analisar'
-      fullPath: '/analisar'
-      preLoaderRoute: typeof AnalisarRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/alertas': {
@@ -251,18 +202,60 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AlertasRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/analisar': {
+      id: '/analisar'
+      path: '/analisar'
+      fullPath: '/analisar'
+      preLoaderRoute: typeof AnalisarRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/campaigns/$id': {
-      id: '/campaigns/$id'
-      path: '/campaigns/$id'
-      fullPath: '/campaigns/$id'
-      preLoaderRoute: typeof CampaignsIdRouteImport
+    '/analises': {
+      id: '/analises'
+      path: '/analises'
+      fullPath: '/analises'
+      preLoaderRoute: typeof AnalisesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/automations': {
+      id: '/automations'
+      path: '/automations'
+      fullPath: '/automations'
+      preLoaderRoute: typeof AutomationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/campanhas': {
+      id: '/campanhas'
+      path: '/campanhas'
+      fullPath: '/campanhas'
+      preLoaderRoute: typeof CampanhasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/influencia': {
+      id: '/influencia'
+      path: '/influencia'
+      fullPath: '/influencia'
+      preLoaderRoute: typeof InfluenciaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/automation/$id': {
@@ -270,6 +263,13 @@ declare module '@tanstack/react-router' {
       path: '/automation/$id'
       fullPath: '/automation/$id'
       preLoaderRoute: typeof AutomationIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/campaigns/$id': {
+      id: '/campaigns/$id'
+      path: '/campaigns/$id'
+      fullPath: '/campaigns/$id'
+      preLoaderRoute: typeof CampaignsIdRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -292,3 +292,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
