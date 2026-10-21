@@ -183,48 +183,6 @@ export const listCampaigns = createServerFn({ method: "GET" })
     return { campaigns, total: Number(json.meta?.total ?? campaigns.length) };
   });
 
-export const listCobrancaHoje = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const creds = await getCreds(context.supabase, context.userId);
-    const today = new Date().toISOString().slice(0, 10);
-
-    // 1. Acha campanhas de cobrança (ldate = hoje = rodaram hoje às 9h)
-    const allCampaigns: Campaign[] = [];
-    for (let page = 0; page < 5; page++) {
-      const json = await acFetch(creds, "campaigns", {
-        limit: "100",
-        offset: String(page * 100),
-        orders: "ldate",
-        "orders[ldate]": "DESC",
-      });
-      const batch: Campaign[] = (json.campaigns ?? []).map(mapCampaign);
-      if (batch.length === 0) break;
-      const deHoje = batch.filter((c) => (c.ldate ?? "").startsWith(today));
-      allCampaigns.push(...deHoje);
-      if ((batch[batch.length - 1]?.ldate ?? "").slice(0, 10) < today) break;
-    }
-
-    const billing = allCampaigns.filter((c) => {
-      const n = c.name.toLowerCase();
-      return n.includes("vencimento") || n.includes("vencido") || /^d[+-]\d+$/i.test(c.name.trim());
-    });
-
-    // 2. Testa campaignreports v3 (auth diferente da legacy)
-    let debugRaw: any = null;
-    if (billing.length > 0) {
-      const sample = billing[0];
-      try {
-        const report = await acFetch(creds, `campaignreports/${sample.id}`);
-        debugRaw = { endpoint: `campaignreports/${sample.id}`, name: sample.name, keys: Object.keys(report).slice(0, 20), data: report };
-      } catch (e) {
-        debugRaw = { error: String(e) };
-      }
-    }
-
-    return { campaigns: billing, today, debugRaw };
-  });
-
 export const getCampaign = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ id: z.string().min(1).max(64) }).parse(d))
@@ -350,6 +308,7 @@ export type ContactField = {
   id: string;
   title: string;
   type: string;
+  perstag?: string;
 };
 
 export type ContactSummary = {
@@ -365,12 +324,21 @@ export const listContactFields = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const creds = await getCreds(context.supabase, context.userId);
-    const json = await acFetch(creds, "fields", { limit: "100" });
-    const fields: ContactField[] = (json.fields ?? []).map((f: any) => ({
-      id: String(f.id),
-      title: f.title ?? f.perstag ?? `Campo ${f.id}`,
-      type: f.type ?? "text",
-    }));
+    // Paginate: accounts with many custom fields push some past the first 100.
+    const fields: ContactField[] = [];
+    for (let offset = 0; offset < 2000; offset += 100) {
+      const json = await acFetch(creds, "fields", { limit: "100", offset: String(offset) });
+      const batch: any[] = json.fields ?? [];
+      fields.push(
+        ...batch.map((f: any) => ({
+          id: String(f.id),
+          title: f.title ?? f.perstag ?? `Campo ${f.id}`,
+          type: f.type ?? "text",
+          perstag: f.perstag ? String(f.perstag) : undefined,
+        })),
+      );
+      if (batch.length < 100) break;
+    }
     return { fields };
   });
 
@@ -380,11 +348,8 @@ export const listContactFields = createServerFn({ method: "GET" })
 // the send actually went to — confirmed against this account's automation-triggered
 // campaigns). The open-tracking pixel (the link literally named "open") is the only
 // per-contact, per-campaign timestamp the API exposes, so it's used as the "received at".
-export const getCampaignOpens = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ id: z.string().min(1).max(64) }).parse(d))
-  .handler(async ({ data, context }) => {
-    const creds = await getCreds(context.supabase, context.userId);
+async function fetchOpenedAt(creds: Settings, campaignId: string): Promise<Record<string, string>> {
+    const data = { id: campaignId };
     const openedAt: Record<string, string> = {}; // contactId → earliest open timestamp
 
     // Primary: legacy API returns the same opens AC shows in its own reports
@@ -402,7 +367,7 @@ export const getCampaignOpens = createServerFn({ method: "GET" })
           if (!cid || !ts) continue;
           if (!openedAt[cid] || ts < openedAt[cid]) openedAt[cid] = ts;
         }
-        return { openedAt };
+        return openedAt;
       }
     } catch {
       // fall through to v3 fallback
@@ -428,7 +393,15 @@ export const getCampaignOpens = createServerFn({ method: "GET" })
         offset += 100;
       }
     }
-    return { openedAt };
+    return openedAt;
+}
+
+export const getCampaignOpens = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ id: z.string().min(1).max(64) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const creds = await getCreds(context.supabase, context.userId);
+    return { openedAt: await fetchOpenedAt(creds, data.id) };
   });
 
 export const getContactsByIds = createServerFn({ method: "GET" })
@@ -635,183 +608,182 @@ export const listAccountsForAnalysis = createServerFn({ method: "GET" })
     return { accounts, total: Number(json.meta?.total ?? accounts.length) };
   });
 
-// ─── Cobrança comparison ──────────────────────────────────────────────────────
 
-// Exact automation names from ActiveCampaign + which account field day they correspond to
-// fieldDay: the number parsed from the account field label (D-7→-7, D0→0, D1→1, D7→7…)
-// IDs diretos do AC — evita lookup por nome que pode falhar por diferença de caracteres
-const REGUA_DEFS: { id: string; name: string; type: "cedente" | "sacado"; label: string; fieldDay: number; fieldTag: string }[] = [
-  // Cedente
-  { id: "41",  name: "[Cobrança - Cedente] 7 Dias Vencimento",        type: "cedente", label: "D-7",  fieldDay: -7, fieldTag: "ACCT_COBRANA_CEDENTE_D7_QTD"  },
-  { id: "49",  name: "[Cobrança - Cedente] Padrão Amanhã Vencimento", type: "cedente", label: "D-1",  fieldDay: -1, fieldTag: "ACCT_COBRANA_CEDENTE_D1_QTD"  },
-  { id: "50",  name: "[Cobrança - Cedente] Padrão Hoje Vencimento",   type: "cedente", label: "D0",   fieldDay:  0, fieldTag: "ACCT_COBRANA_CEDENTE_D0_QTD"  },
-  { id: "19",  name: "[Cobrança - Cedente] Ontem Vencimento",         type: "cedente", label: "D+1",  fieldDay:  1, fieldTag: "ACCT_COBRANA_CEDENTE_D1P_QTD" },
-  { id: "44",  name: "[Cobrança - Cedente] D+3 Vencimento",           type: "cedente", label: "D+3",  fieldDay:  3, fieldTag: "ACCT_COBRANA_CEDENTE_D3_QTD"  },
-  { id: "140", name: "[Cobrança - Cedente] D+5 Vencimento",           type: "cedente", label: "D+5",  fieldDay:  5, fieldTag: "ACCT_COBRANA_CEDENTE_D5_QTD"  },
-  { id: "141", name: "[Cobrança - Cedente] D+9 Vencimento",           type: "cedente", label: "D+9",  fieldDay:  9, fieldTag: "ACCT_COBRANA_CEDENTE_D9_QTD"  },
-  { id: "142", name: "[Cobrança - Cedente] D+10 Vencimento",          type: "cedente", label: "D+10", fieldDay: 10, fieldTag: "ACCT_COBRANA_CEDENTE_D10_QTD" },
-  { id: "143", name: "[Cobrança - Cedente] D+12 Vencimento",          type: "cedente", label: "D+12", fieldDay: 12, fieldTag: "ACCT_COBRANA_CEDENTE_D12_QTD" },
-  { id: "144", name: "[Cobrança - Cedente] D+15 Vencimento",          type: "cedente", label: "D+15", fieldDay: 15, fieldTag: "ACCT_COBRANA_CEDENTE_D15_QTD" },
-  { id: "145", name: "[Cobrança - Cedente] D+31",                     type: "cedente", label: "D+31", fieldDay: 31, fieldTag: "ACCT_COBRANA_CEDENTE_D31_QTD" },
-  // Sacado
-  { id: "67",  name: "[Cobrança - Sacado] Padrão Amanhã Vencimento",  type: "sacado",  label: "D-1",  fieldDay: -1, fieldTag: "ACCT_COBRANA_SACADO_D1_QTD"  },
-  { id: "70",  name: "[Cobrança - Sacado] Padrão Hoje Vencimento",    type: "sacado",  label: "D0",   fieldDay:  0, fieldTag: "ACCT_COBRANA_SACADO_D0_QTD"  },
-  { id: "155", name: "[Cobrança - Sacado] Ontem Vencimento",          type: "sacado",  label: "D+1",  fieldDay:  1, fieldTag: "ACCT_COBRANA_SACADO_D1P_QTD" },
-  { id: "154", name: "[Cobrança - Sacado] D+3 Vencimento",            type: "sacado",  label: "D+3",  fieldDay:  3, fieldTag: "ACCT_COBRANA_SACADO_D3_QTD"  },
-  { id: "156", name: "[Cobrança - Sacado] D+4 Vencimento",            type: "sacado",  label: "D+4",  fieldDay:  4, fieldTag: "ACCT_COBRANA_SACADO_D4_QTD"  },
-  { id: "157", name: "[Cobrança - Sacado] D+5 Vencimento",            type: "sacado",  label: "D+5",  fieldDay:  5, fieldTag: "ACCT_COBRANA_SACADO_D5_QTD"  },
-  { id: "158", name: "[Cobrança - Sacado] D+9 Vencimento",            type: "sacado",  label: "D+9",  fieldDay:  9, fieldTag: "ACCT_COBRANA_SACADO_D9_QTD"  },
-  { id: "159", name: "[Cobrança - Sacado] D+12 Vencimento",           type: "sacado",  label: "D+12", fieldDay: 12, fieldTag: "ACCT_COBRANA_SACADO_D12_QTD" },
-  { id: "160", name: "[Cobrança - Sacado] D+15 Vencimento",           type: "sacado",  label: "D+15", fieldDay: 15, fieldTag: "ACCT_COBRANA_SACADO_D15_QTD" },
-];
+// ─── Análises: dados que o ActiveCampaign não consolida sozinho ──────────────
 
-export type CobrancaRow = {
-  label: string;
-  fieldDay: number;
-  type: "cedente" | "sacado";
-  automation_name: string;
-  automation_id: string | null;
-  enviados: number;
-  elegiveis: number;
-};
-
-function dayLabel(d: number) {
-  if (d < 0) return `D${d}`;
-  if (d === 0) return "D0";
-  return `D+${d}`;
-}
-
-export const debugCobrancaNames = createServerFn({ method: "GET" })
+export const listLists = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const creds = await getCreds(context.supabase, context.userId);
-
-    // All automation names
-    let allAutos: any[] = [];
-    for (let page = 0; page < 5; page++) {
-      const j = await acFetch(creds, "automations", { limit: "100", offset: String(page * 100) });
-      const batch = j.automations ?? [];
-      allAutos = allAutos.concat(batch);
+    const lists: { id: string; name: string }[] = [];
+    for (let offset = 0; offset < 1000; offset += 100) {
+      const json = await acFetch(creds, "lists", { limit: "100", offset: String(offset) });
+      const batch: any[] = json.lists ?? [];
+      lists.push(...batch.map((l) => ({ id: String(l.id), name: String(l.name ?? `Lista ${l.id}`) })));
       if (batch.length < 100) break;
     }
-    const autoNames = allAutos.map((a: any) => ({ id: String(a.id), name: String(a.name ?? "") }));
-
-    // All account custom field labels
-    const fieldsJson = await acFetch(creds, "accountCustomFieldMeta", { limit: "200" });
-    const fieldLabels = (fieldsJson.accountCustomFieldMeta ?? []).map((f: any) => ({
-      id: String(f.id),
-      label: String(f.fieldLabel ?? ""),
-    }));
-
-    return { autoNames, fieldLabels };
+    return { lists };
   });
 
-export const getCobrancaComparison = createServerFn({ method: "GET" })
+// Runs `fn` over `items` with at most `limit` in flight (AC rate-limits aggressively).
+async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, async () => {
+      while (next < items.length) {
+        const i = next++;
+        out[i] = await fn(items[i]);
+      }
+    }),
+  );
+  return out;
+}
+
+// Active contacts on a list. Together with the opener history this gives the "dormant base":
+// contacts on the list that did not open any of the last N sends. AC has no recipient list
+// per campaign, so openers are the only provable signal; Apple Mail Privacy Protection
+// auto-opens inflate them, so the real dormant share is at least what is computed here.
+export const getListSize = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ listId: z.string().min(1).max(32) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const creds = await getCreds(context.supabase, context.userId);
+    const json = await acFetch(creds, "contacts", { listid: data.listId, status: "1", limit: "1" });
+    return { size: Number(json.meta?.total ?? 0) };
+  });
+
+// When the audience actually opens: hour of day and weekday of every first open.
+// Hours/weekdays are read straight from the timestamp text (the account's local time),
+// so no timezone conversion is applied.
+export const getOpenTiming = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ ids: z.array(z.string().min(1).max(64)).min(1).max(12) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const creds = await getCreds(context.supabase, context.userId);
+    const hours = new Array<number>(24).fill(0);
+    const weekdays = new Array<number>(7).fill(0);
+    let total = 0;
+    let failed = 0;
+    await mapLimit(data.ids, 3, async (id) => {
+      try {
+        const openedAt = await fetchOpenedAt(creds, id);
+        for (const ts of Object.values(openedAt)) {
+          const m = String(ts).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2})/);
+          if (!m) continue;
+          hours[+m[4]]++;
+          weekdays[new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])).getUTCDay()]++;
+          total++;
+        }
+      } catch {
+        failed++;
+      }
+    });
+    return { hours, weekdays, total, failed };
+  });
+
+export type AccountContactLink = { contactId: string; accountId: string };
+
+export const listAccountContactLinks = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const creds = await getCreds(context.supabase, context.userId);
-    const today = new Date().toISOString().slice(0, 10);
+    const links: AccountContactLink[] = [];
+    let truncated = false;
+    for (let offset = 0; ; offset += 100) {
+      if (offset >= 10000) {
+        truncated = true;
+        break;
+      }
+      const json = await acFetch(creds, "accountContacts", { limit: "100", offset: String(offset) });
+      const batch: any[] = json.accountContacts ?? [];
+      for (const l of batch) {
+        if (l.contact && l.account) links.push({ contactId: String(l.contact), accountId: String(l.account) });
+      }
+      if (batch.length < 100) break;
+    }
+    const names: Record<string, string> = {};
+    for (let offset = 0; offset < 10000; offset += 100) {
+      const json = await acFetch(creds, "accounts", { limit: "100", offset: String(offset) });
+      const batch: any[] = json.accounts ?? [];
+      for (const a of batch) names[String(a.id)] = String(a.name ?? `Empresa ${a.id}`);
+      if (batch.length < 100) break;
+    }
+    return { links, names, truncated };
+  });
 
-    // ── 1. Busca envios de hoje por automação (ID hardcoded) ─────────────────
-    const sendsMap: Record<string, number> = {};
-
-    await Promise.all(REGUA_DEFS.map(async (def) => {
+// Per-contact open history over several campaigns, newest first.
+// Returns for every contact the indexes (0 = newest) of the campaigns they opened.
+export const getOpenHistory = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ ids: z.array(z.string().min(1).max(64)).min(2).max(10) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const creds = await getCreds(context.supabase, context.userId);
+    const opened: Record<string, number[]> = {};
+    let failed = 0;
+    await mapLimit(data.ids, 3, async (id) => {
+      const idx = data.ids.indexOf(id);
       try {
-        const j = await acFetch(creds, "campaigns", {
-          "filters[seriesid]": def.id,
-          limit: "100",
-        });
-        const camps: any[] = j.campaigns ?? [];
-        const enviados = camps
-          .filter((c: any) => (c.ldate ?? "").startsWith(today))
-          .reduce((sum: number, c: any) => sum + parseInt(c.send_amt ?? "0", 10), 0);
-        sendsMap[def.id] = enviados;
-      } catch { sendsMap[def.id] = 0; }
-    }));
-
-    // ── 2. Busca campos de conta e mapeia perstag → fieldId ─────────────────
-    const fieldsJson = await acFetch(creds, "accountCustomFieldMeta", { limit: "200" });
-    // Monta lookup: perstag (ex: "ACCT_COBRANA_CEDENTE_D7_QTD") → customFieldId
-    const tagToFieldId: Record<string, string> = {};
-    for (const f of (fieldsJson.accountCustomFieldMeta ?? []) as any[]) {
-      if (f.fieldType !== undefined && f.perstag) {
-        tagToFieldId[String(f.perstag)] = String(f.id);
+        for (const cid of Object.keys(await fetchOpenedAt(creds, id))) (opened[cid] ??= []).push(idx);
+      } catch {
+        failed++;
       }
-      // Alguns campos expõem o perstag no próprio objeto, outros no fieldLabel
-      if (f.fieldLabel) {
-        // Fallback: tenta pelo label também via regex
-        const lbl: string = f.fieldLabel ?? "";
-        const m = lbl.match(/Cobran[çc]a\s+(Sacado|Cedente)\s+D([+-]?\d+)\s*[-–]\s*Qtd/i);
-        if (m) {
-          const tipo = m[1].toLowerCase();
-          const dia = parseInt(m[2]);
-          // Marca no mapa por tipo+dia
-          const key = `${tipo}_${dia}`;
-          tagToFieldId[`__label__${key}`] = String(f.id);
-        }
+    });
+    return { opened, failed };
+  });
+
+// Structural features of each e-mail (computed server-side so no HTML is shipped to the browser).
+export type EmailFeatures = {
+  campaignId: string;
+  subject: string;
+  subjectLen: number;
+  subjectHasEmoji: boolean;
+  subjectHasNumber: boolean;
+  subjectHasQuestion: boolean;
+  subjectPersonalized: boolean;
+  words: number;
+  links: number;
+  images: number;
+  firstLinkPos: number; // 0 = top of the e-mail, 1 = bottom
+};
+
+function extractFeatures(campaignId: string, subject: string, html: string): EmailFeatures {
+  const body = html.replace(/<(style|script)[\s\S]*?<\/\1>/gi, " ");
+  const text = body.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+  const anchors = [...body.matchAll(/<a\b[^>]*href=["']([^"']+)["'][^>]*>/gi)].filter(
+    (m) => !/unsubscribe|descadastr|optout|opt-out|mailto:|^#/i.test(m[1]),
+  );
+  return {
+    campaignId,
+    subject,
+    subjectLen: subject.length,
+    subjectHasEmoji: /\p{Extended_Pictographic}/u.test(subject),
+    subjectHasNumber: /\d/.test(subject),
+    subjectHasQuestion: subject.includes("?"),
+    subjectPersonalized: /%[A-Z_]+%|\{\{|\{%/.test(subject),
+    words: text ? text.split(" ").length : 0,
+    links: anchors.length,
+    images: (body.match(/<img\b/gi) ?? []).length,
+    firstLinkPos: anchors.length > 0 && body.length > 0 ? (anchors[0].index ?? 0) / body.length : 1,
+  };
+}
+
+export const getEmailFeatures = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ ids: z.array(z.string().min(1).max(64)).min(1).max(60) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const creds = await getCreds(context.supabase, context.userId);
+    const results = await mapLimit(data.ids, 4, async (id): Promise<EmailFeatures | null> => {
+      try {
+        const cj = await acFetch(creds, `campaigns/${id}`);
+        const mid = mapCampaign(cj.campaign).message_ids[0];
+        if (!mid) return null;
+        const m = await acFetch(creds, `messages/${mid}`);
+        return extractFeatures(id, String(m.message?.subject ?? ""), String(m.message?.html ?? ""));
+      } catch {
+        return null;
       }
-    }
-
-    // Resolve fieldId para cada régua (perstag direto ou fallback por label)
-    function resolveFieldId(def: typeof REGUA_DEFS[0]): string | null {
-      // Tenta perstag direto
-      if (tagToFieldId[def.fieldTag]) return tagToFieldId[def.fieldTag];
-      // Fallback por label
-      const key = `${def.type}_${def.fieldDay}`;
-      return tagToFieldId[`__label__${key}`] ?? null;
-    }
-
-    // ── 3. Pagina todas as contas e conta elegíveis ──────────────────────────
-    const eligible: Record<string, number> = {}; // defId → count
-
-    let offset = 0;
-    let totalAccounts = Infinity;
-    while (offset < totalAccounts) {
-      const json = await acFetch(creds, "accounts", {
-        limit: "100",
-        offset: String(offset),
-        include: "accountCustomFieldData",
-      });
-      totalAccounts = Number(json.meta?.total ?? 0);
-      const accounts: any[] = json.accounts ?? [];
-      if (accounts.length === 0) break;
-
-      // Monta fvMap: accountId → { fieldId → value }
-      const fvMap: Record<string, Record<string, number>> = {};
-      for (const fv of (json.accountCustomFieldData ?? []) as any[]) {
-        if (!fv.accountId || !fv.customFieldId || !fv.fieldValue) continue;
-        const val = parseFloat(fv.fieldValue);
-        if (!val || val <= 0) continue;
-        const aid = String(fv.accountId);
-        if (!fvMap[aid]) fvMap[aid] = {};
-        fvMap[aid][String(fv.customFieldId)] = val;
-      }
-
-      for (const acct of accounts) {
-        const fvs = fvMap[String(acct.id)] ?? {};
-        for (const def of REGUA_DEFS) {
-          const fieldId = resolveFieldId(def);
-          if (!fieldId) continue;
-          if ((fvs[fieldId] ?? 0) > 0) {
-            eligible[def.id] = (eligible[def.id] ?? 0) + 1;
-          }
-        }
-      }
-
-      offset += accounts.length;
-      if (offset >= totalAccounts) break;
-    }
-
-    // ── 4. Monta rows ────────────────────────────────────────────────────────
-    const rows: CobrancaRow[] = REGUA_DEFS.map((def) => ({
-      label: def.label,
-      fieldDay: def.fieldDay,
-      type: def.type,
-      automation_name: def.name,
-      automation_id: def.id,
-      enviados: sendsMap[def.id] ?? 0,
-      elegiveis: eligible[def.id] ?? 0,
-    }));
-
-    return { rows, today, fetchedAt: new Date().toISOString() };
+    });
+    const features = results.filter((r): r is EmailFeatures => r !== null);
+    return { features, failed: data.ids.length - features.length };
   });

@@ -1,6 +1,6 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
-import { LogOut, Settings as SettingsIcon, Sun, Moon, BarChart3, Bell, TrendingUp, LayoutDashboard } from "lucide-react";
+import { LogOut, Settings as SettingsIcon, Sun, Moon, BarChart3, Bell, TrendingUp, LayoutDashboard, Activity } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/hooks/use-theme";
 
@@ -8,7 +8,8 @@ type Props = { campaignCount?: number };
 
 const NAV = [
   { label: "Dashboard",  to: "/dashboard",  icon: LayoutDashboard, match: (p: string) => p === "/dashboard" },
-  { label: "Fluxos",     to: "/campanhas",  icon: BarChart3,        match: (p: string) => p.startsWith("/campanhas") || p.startsWith("/campaigns") || p.startsWith("/automations") || p.startsWith("/automation") },
+  { label: "Análises",   to: "/analises",   icon: Activity,         match: (p: string) => p.startsWith("/analises") },
+  { label: "Fluxos",     to: "/campanhas",  icon: BarChart3,       match: (p: string) => p.startsWith("/campanhas") || p.startsWith("/campaigns") || p.startsWith("/automations") || p.startsWith("/automation") },
   { label: "Influência", to: "/influencia", icon: TrendingUp,       match: (p: string) => p.startsWith("/influencia") },
   { label: "Alertas",    to: "/alertas",    icon: Bell,             match: (p: string) => p.startsWith("/alertas") },
 ];
@@ -49,10 +50,10 @@ export function AppHeader({ campaignCount }: Props) {
               key={item.to}
               to={item.to}
               className={cn(
-                "flex items-center gap-3 rounded px-3 py-2.5 text-[13px] font-medium transition-all mb-0.5",
+                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-all mb-0.5",
                 active
-                  ? "bg-white/10 text-white"
-                  : "text-white/55 hover:bg-white/5 hover:text-white/85",
+                  ? "bg-white/12 text-white shadow-[inset_2px_0_0_#0660FE]"
+                  : "text-white/60 hover:bg-white/5 hover:text-white/90",
               )}
             >
               <Icon className="h-4 w-4 shrink-0" />
