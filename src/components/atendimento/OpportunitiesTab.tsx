@@ -86,8 +86,8 @@ export function OpportunitiesTab() {
                   <tr key={r.name} className="border-b border-border last:border-0">
                     <td className="py-3 pr-3 font-medium text-foreground">{r.name}</td>
                     <td className="px-3 py-3 text-right tabular-nums">{fmtInt(r.n)}</td>
-                    <td className="px-3 py-3 text-right tabular-nums">{fmtInt(r.transferred)}</td>
-                    <td className="pl-3 py-3 text-right tabular-nums">{r.dudaTouched >= 10 ? fmtPct(r.transferRate) : "Amostra pequena"}</td>
+                    <td className="px-3 py-3 text-right tabular-nums">{hasMapping ? fmtInt(r.transferred) : "—"}</td>
+                    <td className="pl-3 py-3 text-right tabular-nums">{!hasMapping ? "—" : r.dudaTouched >= 10 ? fmtPct(r.transferRate) : "Amostra pequena"}</td>
                   </tr>
                 ))}
               </tbody>
