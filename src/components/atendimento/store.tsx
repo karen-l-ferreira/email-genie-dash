@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { fetchHyperflowPage, getHyperflowStatus } from "@/lib/hyperflow.functions";
+import type { AuditBaseline } from "@/lib/hyperflow/audit-reconcile";
 import { EMPTY_DATASET, ingest, parseFileText, type Completeness, type Dataset } from "@/lib/hyperflow/normalize";
 import {
   DEFAULT_CONFIG,
@@ -44,6 +45,8 @@ export type DeptOption = { name: string; inDefault: boolean; comercial: boolean 
 
 type Store = {
   dataset: Dataset;
+  auditBaseline: AuditBaseline | null;
+  setAuditBaseline: (next: AuditBaseline | null) => void;
   clear: () => void;
   config: Config;
   setConfig: (p: Partial<Config>) => void;
@@ -115,6 +118,7 @@ export function AtendimentoProvider({ children }: { children: ReactNode }) {
   const statusQ = useQuery({ queryKey: ["hyperflow-status"], queryFn: () => fetchStatus(), staleTime: 10 * 60 * 1000 });
 
   const [dataset, setDataset] = useState<Dataset>(EMPTY_DATASET);
+  const [auditBaseline, setAuditBaseline] = useState<AuditBaseline | null>(null);
   const [config, setConfigState] = useState<Config>(() => readConfig());
   const [sync, setSync] = useState<SyncState>({ running: false, pages: 0, docs: 0, message: null, failed: false });
   const [importLog, setImportLog] = useState<ImportLog[]>([]);
@@ -328,7 +332,7 @@ export function AtendimentoProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value: Store = {
-    dataset, clear, config, setConfig, rows, filters, setFilters, preset, setPreset, dataMin, dataMax,
+    dataset, auditBaseline, setAuditBaseline, clear, config, setConfig, rows, filters, setFilters, preset, setPreset, dataMin, dataMax,
     deptOptions, agentOptions, classificationOptions, scoped, prev, kpis, granularity,
     hasKey: statusQ.data?.configured, sync, startSync, importLog, importFiles, timeUnitSuggestion,
   };
