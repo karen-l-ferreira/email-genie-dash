@@ -19,6 +19,7 @@ function fmtPp(v: number | null): string | undefined {
 export function ExecutiveTab() {
   const { kpis, prev, filters, scoped } = useAtendimento();
   const d = useDerived();
+  const iaIdentificada = kpis.duda + kpis.transferred > 0;
   const base = prev.covered && prev.kpis.chats > 0 ? prev.kpis : null;
 
   const vol = base ? pctChange(kpis.chats, base.chats) : null;
@@ -39,6 +40,9 @@ export function ExecutiveTab() {
 
   return (
     <div className="space-y-8">
+      {!iaIdentificada && (
+        <Notice tone="warn">Nenhuma IA cadastrada foi identificada no histórico. Configure os nomes de todos os assistentes em “Assistentes de IA” antes de interpretar os indicadores de automação e intervenção humana.</Notice>
+      )}
       {!base && (
         <Notice>
           {prev.covered
@@ -75,14 +79,14 @@ export function ExecutiveTab() {
           <KpiTile
             label="Com intervenção humana"
             hint="Atendimentos com um agente não cadastrado como IA. Confira todos os nomes de IA antes de interpretar como intervenção humana."
-            value={fmtInt(kpis.human)}
+            value={iaIdentificada ? fmtInt(kpis.human) : "—"}
             deltaText={fmtPp(hum)}
             sub={kpis.humanShare != null ? `${fmtPct(kpis.humanShare)} dos identificáveis` : "sem histórico de agentes"}
           />
           <KpiTile
             label="Taxa de automação validada"
             hint="Atendimentos exclusivamente de IAs cadastradas ÷ atendimentos com agente identificável. Confira os nomes de IA na configuração. Não representa resolução."
-            value={fmtPct(kpis.automationRate)}
+            value={iaIdentificada ? fmtPct(kpis.automationRate) : "—"}
             deltaText={fmtPp(auto)}
             tone={auto == null ? "neutral" : auto >= 0 ? "good" : "bad"}
             sub={`base: ${fmtPct(kpis.coverage, 0)} dos atendimentos identificáveis`}
@@ -126,7 +130,7 @@ export function ExecutiveTab() {
         </Panel>
       </section>
 
-      <section>
+      {iaIdentificada && <section>
         <SectionTitle title="Quem atendeu" hint="Somente IA, IA e humano, humano direto ou não identificado, de acordo com os nomes de assistentes cadastrados." />
         <Panel>
           <div className="flex h-4 overflow-hidden rounded-full bg-muted">
@@ -147,7 +151,7 @@ export function ExecutiveTab() {
             ))}
           </div>
         </Panel>
-      </section>
+      </section>}
 
       <section>
         <SectionTitle title="Principais movimentos" hint="Só fatos que os números sustentam. Hipóteses e recomendações estão na aba Inteligência." />
