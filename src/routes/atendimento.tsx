@@ -1,17 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { Headset, Database, LayoutDashboard, Bot, ListFilter, Timer, Lightbulb, RefreshCcw } from "lucide-react";
+import { Headset, Database, LayoutDashboard, Target, RefreshCcw } from "lucide-react";
 import { AuthGate } from "@/components/app/AuthGate";
 import { PageShell, Tag } from "@/components/app/ui-kit";
 import { AtendimentoProvider, useAtendimento } from "@/components/atendimento/store";
 import { CompletenessBanner, DataStrip } from "@/components/atendimento/shared";
 import { Filters } from "@/components/atendimento/Filters";
 import { SourcePanel } from "@/components/atendimento/SourcePanel";
-import { ExecutiveTab } from "@/components/atendimento/ExecutiveTab";
-import { BotTab } from "@/components/atendimento/BotTab";
-import { ReasonsTab } from "@/components/atendimento/ReasonsTab";
-import { EfficiencyTab } from "@/components/atendimento/EfficiencyTab";
-import { InsightsTab } from "@/components/atendimento/InsightsTab";
+import { ResultsTab } from "@/components/atendimento/ResultsTab";
+import { OpportunitiesTab } from "@/components/atendimento/OpportunitiesTab";
 import { cn } from "@/lib/utils";
 import { fmtInt } from "@/lib/hyperflow/metrics";
 
@@ -21,18 +18,15 @@ export const Route = createFileRoute("/atendimento")({
 });
 
 const TABS = [
-  { value: "exec", label: "Visão geral", icon: LayoutDashboard },
-  { value: "bot", label: "Assistentes de IA", icon: Bot },
-  { value: "motivos", label: "Motivos", icon: ListFilter },
-  { value: "eficiencia", label: "Eficiência", icon: Timer },
-  { value: "inteligencia", label: "Análise gerencial", icon: Lightbulb },
-  { value: "dados", label: "Dados e integrações", icon: Database },
+  { value: "resultados", label: "Resultados", icon: LayoutDashboard },
+  { value: "oportunidades", label: "Oportunidades", icon: Target },
+  { value: "dados", label: "Dados e auditoria", icon: Database },
 ] as const;
 type TabKey = (typeof TABS)[number]["value"];
 
 function AtendimentoPage() {
   const { dataset, scoped, filters } = useAtendimento();
-  const [tab, setTab] = useState<TabKey>("exec");
+  const [tab, setTab] = useState<TabKey>("resultados");
   const [showFilters, setShowFilters] = useState(false);
   const hasData = dataset.chats.length > 0;
   const active: TabKey = hasData ? tab : "dados";
@@ -45,7 +39,7 @@ function AtendimentoPage() {
           <div>
             <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-primary">Inteligência operacional</p>
             <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Atendimento</h1>
-            <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground">Visão do volume, participação dos assistentes de IA e oportunidades de melhoria na operação.</p>
+            <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground">Resultados do atendimento humano, atuação das IAs e oportunidades para reduzir esforço operacional.</p>
           </div>
         </div>
         {hasData && <button type="button" onClick={() => setTab("dados")} className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-card px-4 text-sm font-medium text-foreground hover:bg-muted"><RefreshCcw className="h-4 w-4" />Atualizar dados</button>}
@@ -72,11 +66,8 @@ function AtendimentoPage() {
         })}
       </nav>
       {!hasData && <div className="mb-5 rounded-xl border border-primary/20 bg-primary/5 px-5 py-5"><h2 className="text-base font-semibold text-foreground">Conecte os dados para começar</h2><p className="mt-1 text-sm text-muted-foreground">Sincronize os atendimentos da Hyperflow ou importe um arquivo JSON/CSV. Os indicadores só serão exibidos após o carregamento; não usamos números simulados.</p></div>}
-      {active === "exec" && <ExecutiveTab />}
-      {active === "bot" && <BotTab />}
-      {active === "motivos" && <ReasonsTab />}
-      {active === "eficiencia" && <EfficiencyTab />}
-      {active === "inteligencia" && <InsightsTab />}
+      {active === "resultados" && <ResultsTab />}
+      {active === "oportunidades" && <OpportunitiesTab />}
       {active === "dados" && <SourcePanel />}
     </PageShell>
   );
