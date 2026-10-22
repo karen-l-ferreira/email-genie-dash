@@ -28,6 +28,7 @@ type WindowTotals = {
   noMessageEvidence: number;
   absent: number;
   stillOpen: number;
+  statusUnknown: number;
   originalPending: number;
   originalPendingClosed: number;
   newHumanSinceSnapshot: number;
@@ -92,7 +93,7 @@ const stillOpen = new Set(["active", "overdue", "hold", "queued"]);
 const empty = (): WindowTotals => ({
   eligible: 0, humanAtSnapshot: 0, matched: 0, humanNow: 0,
   withoutHumanNow: 0, noMessageEvidence: 0, absent: 0, stillOpen: 0,
-  originalPending: 0, originalPendingClosed: 0, newHumanSinceSnapshot: 0,
+  statusUnknown: 0, originalPending: 0, originalPendingClosed: 0, newHumanSinceSnapshot: 0,
 });
 
 export function reconcileAudit(
@@ -102,14 +103,14 @@ export function reconcileAudit(
   extractionComplete: boolean,
 ): AuditReconciliation {
   const current = new Map<string, Chat>();
+  const auditIds = new Set(baseline.records.map((r) => r.protocol));
   let duplicateProtocols = 0;
   for (const chat of chats) {
     if (!chat.protocol) continue;
-    if (current.has(chat.protocol)) duplicateProtocols++;
+    if (current.has(chat.protocol) && auditIds.has(chat.protocol)) duplicateProtocols++;
     else current.set(chat.protocol, chat);
   }
   const before = empty(), after = empty();
-  const auditIds = new Set(baseline.records.map((r) => r.protocol));
   for (const r of baseline.records) {
     if (!r.eligible) continue;
     const totals = r.period === "before" ? before : after;
@@ -121,6 +122,7 @@ export function reconcileAudit(
     totals.matched++;
     const open = stillOpen.has((chat.status ?? "").toLowerCase());
     if (open) totals.stillOpen++;
+    if (!chat.status) totals.statusUnknown++;
     if (r.pending && !open && chat.status) totals.originalPendingClosed++;
 
     // Once a message was observed in the original audit, it is established
@@ -142,7 +144,8 @@ export function reconcileAudit(
   // A result becomes definitive only when every eligible protocol is classified
   // from actual message evidence AND no conversation remains pending.
   const final = complete && before.noMessageEvidence === 0 && after.noMessageEvidence === 0 &&
-    before.stillOpen === 0 && after.stillOpen === 0 && before.humanNow > 0;
+    before.stillOpen === 0 && after.stillOpen === 0 &&
+    before.statusUnknown === 0 && after.statusUnknown === 0 && before.humanNow > 0;
   const rateBefore = final ? before.humanNow / before.eligible : null;
   const rateAfter = final ? after.humanNow / after.eligible : null;
   return {
