@@ -1,6 +1,6 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
-import { LogOut, Settings as SettingsIcon, Sun, Moon, BarChart3, Bell, TrendingUp, LayoutDashboard, Activity } from "lucide-react";
+import { LogOut, Settings as SettingsIcon, Sun, Moon, BarChart3, Bell, TrendingUp, LayoutDashboard, Activity, Headset } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/hooks/use-theme";
 
@@ -9,6 +9,7 @@ type Props = { campaignCount?: number };
 const NAV = [
   { label: "Dashboard",  to: "/dashboard",  icon: LayoutDashboard, match: (p: string) => p === "/dashboard" },
   { label: "Análises",   to: "/analises",   icon: Activity,         match: (p: string) => p.startsWith("/analises") },
+  { label: "Atendimento", to: "/atendimento", icon: Headset,       match: (p: string) => p.startsWith("/atendimento") },
   { label: "Fluxos",     to: "/campanhas",  icon: BarChart3,       match: (p: string) => p.startsWith("/campanhas") || p.startsWith("/campaigns") || p.startsWith("/automations") || p.startsWith("/automation") },
   { label: "Influência", to: "/influencia", icon: TrendingUp,       match: (p: string) => p.startsWith("/influencia") },
   { label: "Alertas",    to: "/alertas",    icon: Bell,             match: (p: string) => p.startsWith("/alertas") },
