@@ -27,7 +27,8 @@ export function BotTab() {
   }, [scoped.operational]);
 
   const reasons = d.reasons.stats.filter((r) => r.transferred > 0).sort((a, b) => b.transferred - a.transferred).slice(0, 10);
-  const touched = kpis.duda + kpis.transferred;
+  const touched = scoped.operational.filter((r) => r.botTouched).length;
+  const classifiableIA = kpis.duda + kpis.transferred;
   const res = d.resolution;
   const chart = d.series.map((p) => ({
     label: p.label,
@@ -48,16 +49,16 @@ export function BotTab() {
       )}
       {touched === 0 && (
         <Notice tone="bad">
-          Nenhuma IA reconhecida automaticamente (Duda ou Ada) foi encontrada nesse período. IDs sem identificação não são tratados como humanos.
+          Nenhuma IA ficou identificável pelos metadados deste filtro. Essa ausência de identificação não demonstra que as automações não participaram.
         </Notice>
       )}
 
       <section>
         <SectionTitle title="Desempenho das IAs" hint="Considera só atendimentos em que o histórico permite saber quem atendeu." />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <KpiTile label="Somente IA" hint="Histórico com apenas agentes cadastrados como IA. Não é o mesmo que resolvido: o cliente pode ter desistido." value={fmtInt(kpis.duda)} sub={kpis.automationRate != null ? `${fmtPct(kpis.automationRate)} dos identificáveis` : undefined} />
-          <KpiTile label="Transferidos para humano" hint="Uma IA participou e um agente humano assumiu o atendimento." value={fmtInt(kpis.transferred)} sub={`de ${fmtInt(touched)} em que uma IA participou`} />
-          <KpiTile label="Taxa de transferência" hint="Transferidos ÷ atendimentos em que uma IA participou (somente IA + transferidos)." value={fmtPct(kpis.transferRate)} />
+          <KpiTile label="Com participação de IA" hint="Conversa com Duda ou Ada identificada em algum momento, mesmo se outros agentes só aparecem como IDs." value={fmtInt(touched)} sub={`${fmtInt(classifiableIA)} com todos os agentes identificáveis`} />
+          <KpiTile label="IA e humano identificados" hint="IA e agente humano identificados na mesma conversa; não comprova que o humano enviou uma mensagem." value={fmtInt(kpis.transferred)} sub={`de ${fmtInt(touched)} com IA identificada`} />
+          <KpiTile label="IA e humano entre identificáveis" hint="Proporção apenas nas conversas de IA em que todos os agentes estão identificados. IDs desconhecidos ficam fora do denominador." value={fmtPct(kpis.transferRate)} sub={`${fmtInt(classifiableIA)} protocolos classificáveis`} />
           {config.resolvedMarkers.length > 0 ? (
             <KpiTile
               label="Resolução automatizada comprovada"
