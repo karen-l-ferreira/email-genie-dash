@@ -65,7 +65,7 @@ export function ExecutiveTab() {
             sub={base ? `${fmtInt(base.chats)} no período anterior` : undefined}
           />
           <KpiTile
-            label="Mensagens"
+            label="Mensagens (total)"
             hint="Soma de messagesCount dos atendimentos acima. Mensagens são outra unidade: um atendimento tem várias."
             value={kpis.messagesMissing === kpis.chats ? "—" : fmtInt(kpis.messages)}
             sub={kpis.messagesMissing > 0 ? `${fmtInt(kpis.messagesMissing)} atendimentos sem esse campo` : `${(kpis.messages / kpis.chats).toFixed(1).replace(".", ",")} por atendimento`}
@@ -77,14 +77,14 @@ export function ExecutiveTab() {
             sub={`${fmtInt(kpis.transfers)} encaminhamentos registrados`}
           />
           <KpiTile
-            label="Com intervenção humana"
-            hint="Atendimentos com um agente não cadastrado como IA. Confira todos os nomes de IA antes de interpretar como intervenção humana."
+            label="Com agente humano associado"
+            hint="Contagem de atendimentos com agentes não cadastrados como IA. Isso é atribuição/participação no histórico, NÃO necessariamente envio de mensagens humanas."
             value={iaIdentificada ? fmtInt(kpis.human) : "—"}
             deltaText={iaIdentificada ? fmtPp(hum) : undefined}
             sub={!iaIdentificada ? "Configure os agentes de IA" : kpis.humanShare != null ? `${fmtPct(kpis.humanShare)} dos identificáveis` : "sem histórico de agentes"}
           />
           <KpiTile
-            label="Participação exclusiva de IA"
+            label="Somente IA registrada como agente"
             hint="Atendimentos exclusivamente de IAs cadastradas ÷ atendimentos com agente identificável. Confira os nomes de IA em Oportunidades. Não representa resolução."
             value={iaIdentificada ? fmtPct(kpis.automationRate) : "—"}
             deltaText={iaIdentificada ? fmtPp(auto) : undefined}
@@ -92,7 +92,7 @@ export function ExecutiveTab() {
             sub={`base: ${fmtPct(kpis.coverage, 0)} dos atendimentos identificáveis`}
           />
           <KpiTile
-            label="Taxa de transferência das IAs"
+            label="IA e humano no histórico"
             hint="Atendimentos com IA e humano ÷ todos em que as IAs cadastradas participaram."
             value={fmtPct(kpis.transferRate)}
             deltaText={fmtPp(trf)}
