@@ -31,9 +31,9 @@ export function ExecutiveTab() {
   }
 
   const handlingBar = [
-    { key: "duda", label: "Somente a Duda", n: kpis.duda, color: "#0B3A8C", hint: "Histórico só com a Duda como agente. Não significa resolvido." },
-    { key: "trf", label: "Duda e depois humano", n: kpis.transferred, color: "#2F6BE0", hint: "A Duda participou e um humano assumiu." },
-    { key: "hum", label: "Humano direto", n: kpis.humanDirect, color: "#8DB4F0", hint: "Há agente humano e nenhuma participação da Duda no histórico." },
+    { key: "duda", label: "Somente IA", n: kpis.duda, color: "#0B3A8C", hint: "Apenas assistentes de IA cadastrados aparecem como agentes. Isso não comprova resolução." },
+    { key: "trf", label: "IA e humano", n: kpis.transferred, color: "#2F6BE0", hint: "Assistente de IA identificado junto com agente humano." },
+    { key: "hum", label: "Humano direto", n: kpis.humanDirect, color: "#8DB4F0", hint: "Agentes não cadastrados como IA foram tratados como humanos; confira a lista de assistentes na aba de IA." },
     { key: "ind", label: "Não identificado", n: kpis.indeterminate, color: "#CBD5E1", hint: "O histórico não traz nenhum agente, então não dá para saber." },
   ];
 
@@ -63,7 +63,7 @@ export function ExecutiveTab() {
           <KpiTile
             label="Mensagens"
             hint="Soma de messagesCount dos atendimentos acima. Mensagens são outra unidade: um atendimento tem várias."
-            value={fmtInt(kpis.messages)}
+            value={kpis.messagesMissing === kpis.chats ? "—" : fmtInt(kpis.messages)}
             sub={kpis.messagesMissing > 0 ? `${fmtInt(kpis.messagesMissing)} atendimentos sem esse campo` : `${(kpis.messages / kpis.chats).toFixed(1).replace(".", ",")} por atendimento`}
           />
           <KpiTile
@@ -74,22 +74,22 @@ export function ExecutiveTab() {
           />
           <KpiTile
             label="Com intervenção humana"
-            hint="Atendimentos em que consta pelo menos um agente humano (qualquer agente que não seja a Duda). Só conta quando o histórico nomeia os agentes."
+            hint="Atendimentos com um agente não cadastrado como IA. Confira todos os nomes de IA antes de interpretar como intervenção humana."
             value={fmtInt(kpis.human)}
             deltaText={fmtPp(hum)}
             sub={kpis.humanShare != null ? `${fmtPct(kpis.humanShare)} dos identificáveis` : "sem histórico de agentes"}
           />
           <KpiTile
             label="Taxa de automação validada"
-            hint="Atendimentos só com a Duda ÷ atendimentos em que o histórico permite identificar quem atendeu. Atendimentos não identificados ficam fora da conta e aparecem separados. Não é taxa de resolução."
+            hint="Atendimentos exclusivamente de IAs cadastradas ÷ atendimentos com agente identificável. Confira os nomes de IA na configuração. Não representa resolução."
             value={fmtPct(kpis.automationRate)}
             deltaText={fmtPp(auto)}
             tone={auto == null ? "neutral" : auto >= 0 ? "good" : "bad"}
             sub={`base: ${fmtPct(kpis.coverage, 0)} dos atendimentos identificáveis`}
           />
           <KpiTile
-            label="Taxa de transferência da Duda"
-            hint="Atendimentos em que a Duda participou e um humano assumiu ÷ todos em que a Duda participou."
+            label="Taxa de transferência das IAs"
+            hint="Atendimentos com IA e humano ÷ todos em que as IAs cadastradas participaram."
             value={fmtPct(kpis.transferRate)}
             deltaText={fmtPp(trf)}
             tone={trf == null ? "neutral" : trf <= 0 ? "good" : "bad"}
@@ -127,7 +127,7 @@ export function ExecutiveTab() {
       </section>
 
       <section>
-        <SectionTitle title="Quem atendeu" hint="Só a Duda, Duda e depois humano, humano direto, ou não identificado. Cada atendimento cai em um único grupo." />
+        <SectionTitle title="Quem atendeu" hint="Somente IA, IA e humano, humano direto ou não identificado, de acordo com os nomes de assistentes cadastrados." />
         <Panel>
           <div className="flex h-4 overflow-hidden rounded-full bg-muted">
             {handlingBar.filter((b) => b.n > 0).map((b) => (
