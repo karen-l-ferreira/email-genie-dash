@@ -39,38 +39,20 @@ export function ExecutiveTab() {
 
   return (
     <div className="space-y-8">
-      {!base && (
-        <Notice>
-          {prev.covered
-            ? "Não há atendimentos no período anterior para comparar."
-            : "Os dados carregados não cobrem todo o período anterior, então as variações ficam ocultas. Sincronize ou importe um intervalo maior."}
-        </Notice>
-      )}
+
 
       <section>
         <SectionTitle
           title="Indicadores do período"
           hint={`${filters.start.toLocaleDateString("pt-BR")} a ${filters.end.toLocaleDateString("pt-BR")}${base ? ` · variação frente a ${prev.range.start.toLocaleDateString("pt-BR")} a ${prev.range.end.toLocaleDateString("pt-BR")}` : ""}`}
         />
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <KpiTile
             label="Atendimentos únicos"
             hint="Conversas distintas pelo _id, no período e nos departamentos selecionados. Uma conversa conta uma vez, não importa quantas mensagens ou transferências teve."
             value={fmtInt(kpis.chats)}
             deltaText={vol != null ? fmtDelta(vol) : undefined}
             sub={base ? `${fmtInt(base.chats)} no período anterior` : undefined}
-          />
-          <KpiTile
-            label="Mensagens"
-            hint="Soma de messagesCount dos atendimentos acima. Mensagens são outra unidade: um atendimento tem várias."
-            value={fmtInt(kpis.messages)}
-            sub={kpis.messagesMissing > 0 ? `${fmtInt(kpis.messagesMissing)} atendimentos sem esse campo` : `${(kpis.messages / kpis.chats).toFixed(1).replace(".", ",")} por atendimento`}
-          />
-          <KpiTile
-            label="Interações"
-            hint="Quantidade de passagens registradas no histórico (interactions) dos atendimentos: cada vez que o atendimento passou por um agente ou departamento. Não são mensagens."
-            value={fmtInt(kpis.interactions)}
-            sub={`${fmtInt(kpis.transfers)} encaminhamentos registrados`}
           />
           <KpiTile
             label="Com intervenção humana"
@@ -97,6 +79,14 @@ export function ExecutiveTab() {
           />
         </div>
       </section>
+
+      {!base && (
+        <Notice>
+          {prev.covered
+            ? "Não há atendimentos no período anterior para comparar."
+            : "Os dados carregados não cobrem todo o período anterior, então as variações ficam ocultas. Sincronize ou importe um intervalo maior."}
+        </Notice>
+      )}
 
       <section className="grid gap-6 xl:grid-cols-[2fr_1fr]">
         <Panel title="Evolução do volume">
@@ -150,6 +140,24 @@ export function ExecutiveTab() {
       </section>
 
       <section>
+        <SectionTitle title="Volume de atividade" hint="Mensagens e passagens entre agentes complementam o volume de atendimentos." />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <KpiTile
+            label="Mensagens"
+            hint="Soma de messagesCount dos atendimentos acima. Mensagens são outra unidade: um atendimento tem várias."
+            value={fmtInt(kpis.messages)}
+            sub={kpis.messagesMissing > 0 ? `${fmtInt(kpis.messagesMissing)} atendimentos sem esse campo` : `${(kpis.messages / kpis.chats).toFixed(1).replace(".", ",")} por atendimento`}
+          />
+          <KpiTile
+            label="Interações"
+            hint="Quantidade de passagens registradas no histórico (interactions) dos atendimentos: cada vez que o atendimento passou por um agente ou departamento. Não são mensagens."
+            value={fmtInt(kpis.interactions)}
+            sub={`${fmtInt(kpis.transfers)} encaminhamentos registrados`}
+          />
+        </div>
+      </section>
+
+      <section>
         <SectionTitle title="Principais movimentos" hint="Só fatos que os números sustentam. Hipóteses e recomendações estão na aba Inteligência." />
         <Panel>
           <ul className="space-y-3">
@@ -190,7 +198,7 @@ function VolumeChart() {
             <Tooltip contentStyle={TIP} />
             <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
             {filters.departments.map((name, i) => (
-              <Area key={name} type="monotone" dataKey={name} stackId="1" stroke={DEPT_COLORS[i % DEPT_COLORS.length]} fill={DEPT_COLORS[i % DEPT_COLORS.length]} fillOpacity={0.85} />
+              <Area key={name} type="monotone" dataKey={name} stackId="1" stroke={DEPT_COLORS[i % DEPT_COLORS.length]} fill={DEPT_COLORS[i % DEPT_COLORS.length]} fillOpacity={0.18} strokeWidth={2} />
             ))}
           </AreaChart>
         </ResponsiveContainer>

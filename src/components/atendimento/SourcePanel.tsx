@@ -32,7 +32,7 @@ export function SourcePanel({ compact }: { compact?: boolean }) {
   return (
     <div className="space-y-4">
       <div className="grid gap-4 lg:grid-cols-2">
-        <Panel title="Sincronizar com a API da Hyperflow" description="Busca os atendimentos direto da API, página por página, com novas tentativas em caso de limite (429) ou indisponibilidade (502).">
+        <Panel title="Conectar à Hyperflow" description="Carregue os atendimentos do período para atualizar sua análise.">
           {hasKey === false ? (
             <Notice>
               <p className="flex items-center gap-2 font-medium text-foreground">
@@ -56,7 +56,7 @@ export function SourcePanel({ compact }: { compact?: boolean }) {
                   <input type="date" value={to} min={from} onChange={(e) => setTo(e.target.value)} className={selectClass} />
                 </label>
                 <Button
-                  disabled={sync.running || hasKey === undefined || !from || !to}
+                  disabled={sync.running || hasKey === undefined || !from || !to || from > to}
                   onClick={() => void startSync(startOfDay(fromYmd(from)), endOfDay(fromYmd(to)))}
                   className="h-9"
                 >
@@ -75,7 +75,7 @@ export function SourcePanel({ compact }: { compact?: boolean }) {
           )}
         </Panel>
 
-        <Panel title="Importar arquivo" description="Aceita JSON (lista de atendimentos ou a resposta da API com a chave docs) e CSV. Pode importar vários arquivos; atendimentos repetidos são unidos pelo _id.">
+        <Panel title="Importar arquivo" description="Já tem uma exportação? Importe arquivos JSON ou CSV. Registros repetidos são unidos automaticamente.">
           <div
             onDragOver={(e) => {
               e.preventDefault();

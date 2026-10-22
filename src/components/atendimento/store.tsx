@@ -199,13 +199,15 @@ export function AtendimentoProvider({ children }: { children: ReactNode }) {
     return { range, rows: r, kpis: computeKpis(r), covered };
   }, [rows, filters, dataMin]);
 
+  // Keep options independent from their own selection so users can switch filters.
+  const optionRows = useMemo(() => applyFilters(rows, { ...filters, agent: null, classification: null }).operational, [rows, filters]);
   const agentOptions = useMemo(
-    () => [...new Set(scoped.operational.flatMap((r) => r.agentsAll))].sort((a, b) => a.localeCompare(b, "pt-BR")),
-    [scoped.operational],
+    () => [...new Set([...optionRows.flatMap((r) => r.agentsAll), ...(filters.agent ? [filters.agent] : [])])].sort((a, b) => a.localeCompare(b, "pt-BR")),
+    [optionRows, filters.agent],
   );
   const classificationOptions = useMemo(
-    () => [...new Set(scoped.operational.flatMap((r) => r.classifications))].sort((a, b) => a.localeCompare(b, "pt-BR")),
-    [scoped.operational],
+    () => [...new Set([...optionRows.flatMap((r) => r.classifications), ...(filters.classification ? [filters.classification] : [])])].sort((a, b) => a.localeCompare(b, "pt-BR")),
+    [optionRows, filters.classification],
   );
 
   const timeUnitSuggestion = useMemo(() => detectTimeUnit(dataset.chats), [dataset.chats]);

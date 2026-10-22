@@ -42,7 +42,7 @@ export function KpiTile({
   const { dataset } = useAtendimento();
   const partial = dataset.completeness !== "complete";
   return (
-    <div className="rounded-xl border border-border bg-card p-5 shadow-card">
+    <div className="min-w-0 rounded-xl border border-border bg-card p-5 shadow-card">
       <div className="flex items-center justify-between gap-2">
         <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
           {label}
@@ -50,7 +50,7 @@ export function KpiTile({
         </span>
         {partial && <Tag tone="warn" className="px-2 py-0 text-[10px]">{dataset.completeness === "incomplete" ? "parcial" : "não verificado"}</Tag>}
       </div>
-      <div className="mt-2 text-[28px] font-semibold leading-none tracking-tight tabular-nums text-foreground">{value}</div>
+      <div className="mt-2 break-words text-[clamp(1.4rem,2.5vw,2rem)] font-semibold leading-none tracking-tight tabular-nums text-foreground">{value}</div>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {deltaText && <span className={cn("rounded-md px-1.5 py-0.5 text-xs font-medium tabular-nums", TONE_PILL[tone])}>{deltaText}</span>}
         {sub && <span className="text-xs text-muted-foreground">{sub}</span>}
@@ -77,25 +77,26 @@ export function DataStrip() {
   if (dataset.sources.length === 0) return null;
   const origin = dataset.sources.map((s) => s.label).join(" + ");
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border border-border bg-card px-5 py-3 text-xs text-muted-foreground shadow-card">
-      <span className="flex items-center gap-1.5">
-        {dataset.completeness === "complete" ? (
-          <ShieldCheck className="h-4 w-4 text-success" />
-        ) : (
-          <AlertTriangle className="h-4 w-4 text-warning" />
-        )}
-        <strong className="font-medium text-foreground">
-          {dataset.completeness === "complete" ? "Extração completa" : dataset.completeness === "incomplete" ? "Extração incompleta" : "Completude não verificável"}
-        </strong>
-      </span>
-      <span>Origem: <strong className="font-medium text-foreground">{origin}</strong></span>
-      <span>Atualizado em: <strong className="font-medium text-foreground">{dataset.loadedAt?.toLocaleString("pt-BR")}</strong></span>
-      <span>Registros recebidos: <strong className="font-medium tabular-nums text-foreground">{fmtInt(dataset.rawCount)}</strong></span>
-      <span>Atendimentos únicos: <strong className="font-medium tabular-nums text-foreground">{fmtInt(dataset.chats.length)}</strong></span>
-      <span>Duplicados unidos: <strong className="font-medium tabular-nums text-foreground">{fmtInt(dataset.duplicates)}</strong></span>
-      <span>Sem _id: <strong className="font-medium tabular-nums text-foreground">{fmtInt(dataset.invalidNoId)}</strong></span>
-      <span>No filtro atual: <strong className="font-medium tabular-nums text-foreground">{fmtInt(scoped.operational.length)}</strong></span>
-    </div>
+    <details className="mb-3 rounded-xl border border-border bg-card text-xs text-muted-foreground">
+      <summary className="cursor-pointer rounded-xl px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+        <span className="ml-2 inline-flex flex-wrap items-center gap-x-4 gap-y-1 align-middle">
+          <span className="inline-flex items-center gap-2 font-medium text-foreground">
+            {dataset.completeness === "complete" ? <ShieldCheck className="h-4 w-4 text-success" /> : <AlertTriangle className="h-4 w-4 text-warning" />}
+            {dataset.completeness === "complete" ? "Base completa" : dataset.completeness === "incomplete" ? "Base parcial" : "Base não verificada"}
+          </span>
+          <span>{fmtInt(scoped.operational.length)} atendimentos no filtro</span>
+          <span>Atualização: {dataset.loadedAt?.toLocaleString("pt-BR")}</span>
+          <span className="text-primary">Detalhes da base</span>
+        </span>
+      </summary>
+      <div className="grid gap-3 border-t border-border px-5 py-4 sm:grid-cols-2 lg:grid-cols-4">
+        <p className="break-words sm:col-span-2 lg:col-span-4">Origem: <strong className="font-medium text-foreground">{origin}</strong></p>
+        <p>Registros recebidos: <strong>{fmtInt(dataset.rawCount)}</strong></p>
+        <p>Atendimentos únicos: <strong>{fmtInt(dataset.chats.length)}</strong></p>
+        <p>Duplicados unidos: <strong>{fmtInt(dataset.duplicates)}</strong></p>
+        <p>Sem identificador: <strong>{fmtInt(dataset.invalidNoId)}</strong></p>
+      </div>
+    </details>
   );
 }
 
@@ -110,11 +111,11 @@ export function CompletenessBanner() {
         <p className="font-medium text-foreground">
           {incomplete ? "Extração incompleta: nenhum indicador abaixo deve ser lido como total." : "A completude desta base não pode ser verificada."}
         </p>
-        <ul className="mt-1 list-disc space-y-0.5 pl-5 text-xs text-muted-foreground">
+        <details className="mt-1 text-xs text-muted-foreground"><summary className="cursor-pointer">Ver limitações da base</summary><ul className="mt-2 list-disc space-y-1 pl-5">
           {[...new Set(reasons)].slice(0, 6).map((r, i) => (
             <li key={i}>{r}</li>
           ))}
-        </ul>
+        </ul></details>
       </Notice>
     </div>
   );
