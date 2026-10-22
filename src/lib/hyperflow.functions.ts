@@ -11,6 +11,8 @@ const REQUESTED_FIELDS = [
   "_id", "protocol", "status", "createdAt", "finishedAt",
   "agent.name", "department.name", "departments.name",
   "interactions.agent.name", "interactions.department.name", "interactions.transferAt",
+  // Historical human-work audit requires confirmed messages, not merely an assigned agent.
+  "interactions.systemInteractions", "createdBy.name", "contact.name",
   "classifications.name", "labels.name",
   "queuedTime", "firstInteractionAt", "messagesCount", "userInteractionTime", "systemInteractionTime",
   "isBroadcast", "channel", "channelAlias",
