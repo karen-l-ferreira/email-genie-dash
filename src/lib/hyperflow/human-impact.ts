@@ -1,5 +1,6 @@
 import type { Chat } from "./normalize";
 import { norm } from "./metrics";
+import { classifyActor } from "./actor-classification";
 
 // Historical study: both windows include 19 calendar days.
 // Keep its audit snapshot separate from fresh API-derived measurements.
@@ -46,11 +47,8 @@ const INACTIVE_STATUSES = new Set(["queued", "active", "hold", "overdue", "inact
 
 // A human agent being assigned to a protocol is NOT proof they sent a message.
 // The study counted positive per-interaction systemInteractions from human agents.
-export function messageEvidence(chat: Chat, botNames: string[]): MessageEvidence {
+export function messageEvidence(chat: Chat, _botNames: string[]): MessageEvidence {
   if (chat.auditInteractions.length === 0) return "unknown";
-  const bots = [...new Set(["Duda", "Ada", ...botNames])].map(norm).filter(Boolean);
-  const isBot = (name: string) => bots.some((b) => norm(name) === b || (b.length >= 4 && norm(name).includes(b)));
-
   let unknown = false;
   for (const interaction of chat.auditInteractions) {
     if (interaction.systemInteractions == null) {
@@ -58,11 +56,10 @@ export function messageEvidence(chat: Chat, botNames: string[]): MessageEvidence
       continue;
     }
     if (interaction.systemInteractions <= 0) continue;
-    if (!interaction.agent) {
-      unknown = true;
-      continue;
-    }
-    if (!isBot(interaction.agent)) return "human";
+    // Um ID de agente ou uma conta de tipo desconhecido NÃO comprova humano.
+    const kind = classifyActor(interaction.agent, interaction.agentType ?? chat.actorTypes?.[interaction.agent ?? ""]);
+    if (kind === "human") return "human";
+    if (kind === "unknown") unknown = true;
   }
   return unknown ? "unknown" : "without-human";
 }

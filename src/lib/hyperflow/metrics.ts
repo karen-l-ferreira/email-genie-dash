@@ -1,4 +1,5 @@
 import type { Chat, Dataset } from "./normalize";
+import { classifyActor, KNOWN_ASSISTANTS } from "./actor-classification";
 
 // All indicators for the Atendimento dashboard. Pure functions, no I/O.
 // Rules (business): chats are counted once by _id; chats, messages and interactions are
@@ -8,12 +9,12 @@ export type TimeUnit = "s" | "ms" | "min";
 export type Handling = "duda_exclusiva" | "transferido" | "humano_direto" | "indeterminado";
 
 export type Config = {
-  botNames: string[]; // names of every configured AI agent, not just Duda
+  botNames: string[]; // automatically recognized assistants; no manual selection
   resolvedMarkers: string[]; // classification/label text that PROVES automated resolution
   timeUnit: TimeUnit | null; // unit of queuedTime / *InteractionTime, null until validated
 };
 
-export const DEFAULT_CONFIG: Config = { botNames: ["Duda"], resolvedMarkers: [], timeUnit: null };
+export const DEFAULT_CONFIG: Config = { botNames: [...KNOWN_ASSISTANTS], resolvedMarkers: [], timeUnit: null };
 
 export const DEFAULT_DEPARTMENTS = ["carteira", "cx", "aquisicao"]; // normalized names
 export const EXCLUDED_BY_DEFAULT = "comercial";
@@ -52,20 +53,18 @@ const MAX_WAIT_SEC = 30 * 86400;
 const MAX_DURATION_SEC = 90 * 86400;
 
 export function enrich(chats: Chat[], cfg: Config): Row[] {
-  const bots = cfg.botNames.map(norm).filter(Boolean);
-  const isBot = (name: string) => bots.some((b) => norm(name) === b || (b.length >= 4 && norm(name).includes(b)));
   const markers = cfg.resolvedMarkers.map(norm).filter(Boolean);
 
   return chats.map((c) => {
-    const botTouched = c.agentsAll.some(isBot);
-    const humanAgents = c.agentsAll.filter((a) => !isBot(a));
-    // Duda × human can only be told apart when the history names at least one agent.
+    const kind = (name: string) => classifyActor(name, c.actorTypes?.[name]);
+    const botTouched = c.agentsAll.some((name) => kind(name) === "bot");
+    const humanAgents = c.agentsAll.filter((name) => kind(name) === "human");
+    const uncertain = c.agentsAll.some((name) => kind(name) === "unknown");
+    // Identificadores opacos e agentes sem nome são desconhecidos, nunca humanos.
     let handling: Handling = "indeterminado";
-    if (c.agentsAll.length > 0) {
-      if (botTouched && humanAgents.length === 0) handling = "duda_exclusiva";
-      else if (botTouched) handling = "transferido";
-      else handling = "humano_direto";
-    }
+    if (botTouched && humanAgents.length > 0) handling = "transferido";
+    else if (botTouched && !uncertain) handling = "duda_exclusiva";
+    else if (!botTouched && humanAgents.length > 0 && !uncertain) handling = "humano_direto";
     const wait = c.createdAt && c.firstInteractionAt ? (c.firstInteractionAt.getTime() - c.createdAt.getTime()) / 1000 : null;
     const dur = c.createdAt && c.finishedAt ? (c.finishedAt.getTime() - c.createdAt.getTime()) / 1000 : null;
     return {
@@ -366,28 +365,36 @@ export function transferStats(rows: Row[]): TransferStats {
   };
 }
 
-export type AgentStat = { agent: string; participated: number; asFinal: number; messages: number; medianDurationSec: number | null };
+export type AgentStat = { agent: string; participated: number; asFinal: number; messages: number | null; medianDurationSec: number | null };
 
-export function agentWorkload(rows: Row[], cfg: Config): AgentStat[] {
-  const bots = cfg.botNames.map(norm).filter(Boolean);
-  const isBot = (n: string) => bots.some((b) => norm(n) === b || (b.length >= 4 && norm(n).includes(b)));
-  const m = new Map<string, { participated: number; asFinal: number; messages: number; durs: number[] }>();
+export function agentWorkload(rows: Row[], _cfg: Config): AgentStat[] {
+  const m = new Map<string, { participated: number; asFinal: number; messages: number; messageUnknown: boolean; durs: number[] }>();
   const get = (a: string) => {
     let x = m.get(a);
-    if (!x) m.set(a, (x = { participated: 0, asFinal: 0, messages: 0, durs: [] }));
+    if (!x) m.set(a, (x = { participated: 0, asFinal: 0, messages: 0, messageUnknown: false, durs: [] }));
     return x;
   };
   for (const r of rows) {
     for (const a of r.humanAgents) get(a).participated++;
-    if (r.agent && !isBot(r.agent)) {
+    if (r.agent && classifyActor(r.agent, r.actorTypes?.[r.agent]) === "human") {
       const x = get(r.agent);
       x.asFinal++;
-      x.messages += r.messagesCount ?? 0;
       if (r.durationSec != null) x.durs.push(r.durationSec);
+    }
+    for (const interaction of r.auditInteractions) {
+      const name = interaction.agent;
+      if (!name || classifyActor(name, interaction.agentType ?? r.actorTypes?.[name]) !== "human") continue;
+      const x = get(name);
+      if (interaction.systemInteractions == null) x.messageUnknown = true;
+      else x.messages += Math.max(0, interaction.systemInteractions);
     }
   }
   return [...m.entries()]
-    .map(([agent, x]) => ({ agent, participated: x.participated, asFinal: x.asFinal, messages: x.messages, medianDurationSec: dist(x.durs)?.median ?? null }))
+    .map(([agent, x]) => ({
+      agent, participated: x.participated, asFinal: x.asFinal,
+      messages: x.messageUnknown ? null : x.messages,
+      medianDurationSec: dist(x.durs)?.median ?? null,
+    }))
     .sort((a, b) => b.asFinal - a.asFinal || b.participated - a.participated);
 }
 
@@ -463,7 +470,7 @@ export function buildInsights(i: InsightInput): Insights {
   if (i.dataset.completeness === "unknown")
     pending.push({ text: "A completude da base importada não pode ser verificada.", evidence: "Importação manual: não há como confirmar que todos os atendimentos do período foram exportados." });
   if (cur.chats > 0 && cur.coverage < 0.8)
-    pending.push({ text: `Só ${fmtPct(cur.coverage, 0)} dos atendimentos permitem separar IA de humano (conforme os nomes de assistentes cadastrados).`, evidence: `${fmtInt(cur.indeterminate)} atendimentos sem nenhum agente no histórico.` });
+    pending.push({ text: `Só ${fmtPct(cur.coverage, 0)} dos atendimentos permitem separar IA de humano pela identificação automática.`, evidence: `${fmtInt(cur.indeterminate)} atendimentos sem agente identificável ou com IDs opacos.` });
   if (cur.chats > 0 && i.classifiedShare < 0.7)
     pending.push({ text: `Só ${fmtPct(i.classifiedShare, 0)} dos atendimentos têm classificação.`, evidence: "Os motivos de contato representam apenas a parte classificada." });
   if (i.config.timeUnit == null)
@@ -482,12 +489,12 @@ export function buildInsights(i: InsightInput): Insights {
     if (cur.transferRate != null && prev.transferRate != null) {
       const pp = (cur.transferRate - prev.transferRate) * 100;
       if (Math.abs(pp) >= 2)
-        facts.push({ text: `A taxa de transferência das IAs cadastradas ${pp > 0 ? "subiu" : "caiu"} ${Math.abs(pp).toFixed(1).replace(".", ",")} p.p.`, evidence: `${fmtPct(prev.transferRate)} → ${fmtPct(cur.transferRate)}.` });
+        facts.push({ text: `A taxa de transferência das IAs identificadas ${pp > 0 ? "subiu" : "caiu"} ${Math.abs(pp).toFixed(1).replace(".", ",")} p.p.`, evidence: `${fmtPct(prev.transferRate)} → ${fmtPct(cur.transferRate)}.` });
     }
     if (cur.automationRate != null && prev.automationRate != null) {
       const pp = (cur.automationRate - prev.automationRate) * 100;
       if (Math.abs(pp) >= 2)
-        facts.push({ text: `A taxa de automação validada ${pp > 0 ? "subiu" : "caiu"} ${Math.abs(pp).toFixed(1).replace(".", ",")} p.p.`, evidence: `${fmtPct(prev.automationRate)} → ${fmtPct(cur.automationRate)}.` });
+        facts.push({ text: `A participação exclusiva de IA no histórico ${pp > 0 ? "subiu" : "caiu"} ${Math.abs(pp).toFixed(1).replace(".", ",")} p.p.`, evidence: `${fmtPct(prev.automationRate)} → ${fmtPct(cur.automationRate)}.` });
     }
   }
   if (i.deptCur[0]) facts.push({ text: `${i.deptCur[0].dept} concentra a maior demanda.`, evidence: `${fmtInt(i.deptCur[0].n)} atendimentos (${fmtPct(i.deptCur[0].share)} do total).` });

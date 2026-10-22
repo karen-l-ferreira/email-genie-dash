@@ -178,7 +178,7 @@ export function EfficiencyTab() {
 
       <section>
         <SectionTitle
-          title="Carga dos agentes humanos"
+          title="Agentes humanos identificados"
           hint={`"Responsável" é o agente final do atendimento; "Participou" inclui quem atendeu em algum momento. ${totalFinal > 0 ? `Os 3 maiores concentram ${fmtPct(top3 / totalFinal, 0)} dos atendimentos com responsável.` : ""}`}
         />
         <Panel flush>
@@ -192,7 +192,7 @@ export function EfficiencyTab() {
                     <th className="px-6 py-3 text-left font-medium">Agente</th>
                     <th className="px-3 py-3 text-right font-medium">Responsável</th>
                     <th className="px-3 py-3 text-right font-medium">Participou</th>
-                    <th className="px-3 py-3 text-right font-medium">Mensagens</th>
+                    <th className="px-3 py-3 text-right font-medium">Mensagens comprovadas</th>
                     <th className="px-6 py-3 text-right font-medium">Duração (mediana)</th>
                   </tr>
                 </thead>
@@ -205,7 +205,7 @@ export function EfficiencyTab() {
                       </td>
                       <td className="px-3 py-3 text-right tabular-nums">{fmtInt(a.asFinal)}</td>
                       <td className="px-3 py-3 text-right tabular-nums text-muted-foreground">{fmtInt(a.participated)}</td>
-                      <td className="px-3 py-3 text-right tabular-nums">{fmtInt(a.messages)}</td>
+                      <td className="px-3 py-3 text-right tabular-nums">{a.messages == null ? "—" : fmtInt(a.messages)}</td>
                       <td className="px-6 py-3 text-right tabular-nums">{fmtDuration(a.medianDurationSec)}</td>
                     </tr>
                   ))}
