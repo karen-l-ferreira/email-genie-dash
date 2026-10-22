@@ -9,11 +9,15 @@ import { EfficiencyTab } from "./EfficiencyTab";
 import { InsightsTab } from "./InsightsTab";
 
 export function OpportunitiesTab() {
-  const { kpis } = useAtendimento();
+  const { kpis, scoped } = useAtendimento();
   const d = useDerived();
   const classified = d.reasons.classified;
   const top = [...d.reasons.stats].sort((a, b) => b.transferred - a.transferred || b.n - a.n).slice(0, 6);
-  const hasMapping = kpis.duda + kpis.transferred > 0;
+  // Uma IA pode estar identificada mesmo quando o outro agente é apenas um ID.
+  // Não deduza "IA ausente" das categorias de atendimento totalmente classificáveis.
+  const identifiedIA = scoped.operational.filter((r) => r.botTouched).length;
+  const ambiguousWithIA = scoped.operational.filter((r) => r.botTouched && r.handling === "indeterminado").length;
+  const hasMapping = identifiedIA > 0;
   if (kpis.chats === 0) return <Notice>Nenhum atendimento no filtro atual.</Notice>;
   return (
     <div className="space-y-6">
@@ -21,7 +25,12 @@ export function OpportunitiesTab() {
         <h2 className="text-lg font-semibold text-foreground">Onde podemos reduzir a necessidade de atendimento humano?</h2>
         <p className="mt-1 text-sm text-muted-foreground">Identifique motivos recorrentes e fluxos que merecem revisão. Os números por agente são sinais operacionais, não prova de mensagens enviadas.</p>
       </header>
-      {!hasMapping && <Notice tone="warn">A Hyperflow não retornou nomes ou tipos suficientes para reconhecer Duda ou Ada nesse período. Agentes sem identificação permanecem fora das estatísticas de IA e humano.</Notice>}
+      <p className="text-sm text-muted-foreground">
+        <strong className="font-semibold text-foreground">IA identificada em {fmtInt(identifiedIA)} de {fmtInt(kpis.chats)} atendimentos</strong>
+        {" "}({fmtPct(kpis.chats ? identifiedIA / kpis.chats : 0)}).
+        {ambiguousWithIA > 0 && ` Em ${fmtInt(ambiguousWithIA)} desses, há agente sem identificação suficiente para afirmar se houve participação humana.`}
+        {!hasMapping && " Este recorte não identifica a IA nos metadados; isso não invalida resultados históricos calculados por outra metodologia."}
+      </p>
       <Panel title="Assuntos prioritários para investigar" description={`Cobertura de classificação: ${fmtInt(classified)} de ${fmtInt(kpis.chats)} atendimentos. Ordenação por participação de IA e humano no histórico, não por resolução efetiva.`}>
         {classified === 0 ? (
           <p className="text-sm text-muted-foreground">Ainda não há classificações suficientes para apontar motivos. Confira o campo de classificação na Hyperflow.</p>
