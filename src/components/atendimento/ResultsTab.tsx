@@ -1,10 +1,10 @@
 import { useMemo } from "react";
-import { Notice, Panel } from "@/components/app/ui-kit";
+import { Notice } from "@/components/app/ui-kit";
 import { fmtDelta, fmtInt, fmtPct, pctChange } from "@/lib/hyperflow/metrics";
 import { messageEvidence } from "@/lib/hyperflow/human-impact";
 import { KpiTile } from "./shared";
 import { useAtendimento } from "./store";
-import { HumanImpactPanel } from "./HumanImpactPanel";
+import { LiveHumanTrendPanel } from "./LiveHumanTrendPanel";
 import { ExecutiveTab } from "./ExecutiveTab";
 
 export function ResultsTab() {
@@ -27,12 +27,12 @@ export function ResultsTab() {
 
   return (
     <div className="space-y-6">
-      <HumanImpactPanel />
+      <LiveHumanTrendPanel />
 
       <section>
         <h2 className="mb-1 text-base font-semibold text-foreground">Atendimento no período selecionado</h2>
         <p className="mb-4 text-xs text-muted-foreground">
-          {filters.start.toLocaleDateString("pt-BR")} a {filters.end.toLocaleDateString("pt-BR")} · os números abaixo não são a mesma base do estudo histórico.
+          {filters.start.toLocaleDateString("pt-BR")} a {filters.end.toLocaleDateString("pt-BR")} · visão operacional filtrada.
         </p>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <KpiTile
@@ -42,12 +42,14 @@ export function ResultsTab() {
             deltaText={volumeChange == null ? undefined : fmtDelta(volumeChange)}
             sub={volumeChange == null ? "Sem período anterior completo para comparação" : "Comparação com período anterior de igual duração"}
           />
-          <KpiTile
-            label="Mensagens humanas confirmadas"
-            hint="Somente contadores positivos de mensagens atribuídas a agente humano. Se faltar qualquer evidência, o total não é conclusivo."
-            value={observed.unknown > 0 || !complete ? "≥ " + fmtInt(observed.human) : fmtInt(observed.human)}
-            sub={observed.unknown > 0 ? `${fmtInt(observed.unknown)} protocolos sem evidência; número mínimo` : !complete ? "Extração parcial ou não verificada" : "Comprovado por contador de interação"}
-          />
+          {complete && observed.unknown === 0 && (
+            <KpiTile
+              label="Com mensagem humana"
+              hint="Atendimentos com mensagem enviada por agente humano comprovada nos contadores por interação. Sem supor que um agente atribuído enviou mensagem."
+              value={fmtInt(observed.human)}
+              sub="Todos os registros deste filtro têm evidência"
+            />
+          )}
           <KpiTile
             label="Com encaminhamento"
             hint="Protocolos com pelo menos um transferAt registrado; não significa que houve mensagem humana."
@@ -64,7 +66,7 @@ export function ResultsTab() {
       </section>
 
       <p className="text-xs text-muted-foreground">
-        A comparação usa uma data de corte. Os atendimentos abertos podem mudar em futuras extrações; campos sem evidência são tratados como desconhecidos, nunca como ausência de mensagem. Encaminhamento não comprova resolução por IA.
+        Os indicadores são recalculados com a base da última sincronização. Dados insuficientes para medir intervenção humana aparecem em Dados e auditoria, não como percentuais na visão principal.
       </p>
 
       <details className="rounded-xl border border-border bg-card px-5 py-4">
