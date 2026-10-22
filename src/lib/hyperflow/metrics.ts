@@ -365,14 +365,13 @@ export function transferStats(rows: Row[]): TransferStats {
   };
 }
 
-export type AgentStat = { agent: string; participated: number; asFinal: number; messages: number; medianDurationSec: number | null };
+export type AgentStat = { agent: string; participated: number; asFinal: number; messages: number | null; medianDurationSec: number | null };
 
-export function agentWorkload(rows: Row[], cfg: Config): AgentStat[] {
-  const isBot = (n: string) => classifyActor(n) === "bot";
-  const m = new Map<string, { participated: number; asFinal: number; messages: number; durs: number[] }>();
+export function agentWorkload(rows: Row[], _cfg: Config): AgentStat[] {
+  const m = new Map<string, { participated: number; asFinal: number; messages: number; messageUnknown: boolean; durs: number[] }>();
   const get = (a: string) => {
     let x = m.get(a);
-    if (!x) m.set(a, (x = { participated: 0, asFinal: 0, messages: 0, durs: [] }));
+    if (!x) m.set(a, (x = { participated: 0, asFinal: 0, messages: 0, messageUnknown: false, durs: [] }));
     return x;
   };
   for (const r of rows) {
@@ -380,12 +379,22 @@ export function agentWorkload(rows: Row[], cfg: Config): AgentStat[] {
     if (r.agent && classifyActor(r.agent, r.actorTypes?.[r.agent]) === "human") {
       const x = get(r.agent);
       x.asFinal++;
-      x.messages += r.messagesCount ?? 0;
       if (r.durationSec != null) x.durs.push(r.durationSec);
+    }
+    for (const interaction of r.auditInteractions) {
+      const name = interaction.agent;
+      if (!name || classifyActor(name, interaction.agentType ?? r.actorTypes?.[name]) !== "human") continue;
+      const x = get(name);
+      if (interaction.systemInteractions == null) x.messageUnknown = true;
+      else x.messages += Math.max(0, interaction.systemInteractions);
     }
   }
   return [...m.entries()]
-    .map(([agent, x]) => ({ agent, participated: x.participated, asFinal: x.asFinal, messages: x.messages, medianDurationSec: dist(x.durs)?.median ?? null }))
+    .map(([agent, x]) => ({
+      agent, participated: x.participated, asFinal: x.asFinal,
+      messages: x.messageUnknown ? null : x.messages,
+      medianDurationSec: dist(x.durs)?.median ?? null,
+    }))
     .sort((a, b) => b.asFinal - a.asFinal || b.participated - a.participated);
 }
 
