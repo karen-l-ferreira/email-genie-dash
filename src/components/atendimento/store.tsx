@@ -98,9 +98,14 @@ function ymd(d: Date): string {
 function friendly(msg: string): string {
   if (msg.includes("HYPERFLOW_AUTH")) return "chave recusada pela Hyperflow";
   if (msg.includes("HYPERFLOW_NOT_CONFIGURED")) return "chave não configurada no servidor";
-  if (msg.includes("HYPERFLOW_BAD_REQUEST")) return "requisição recusada pela Hyperflow";
-  const m = msg.match(/HYPERFLOW_FAILED_(\d+)/);
-  if (m) return m[1] === "0" ? "sem resposta da Hyperflow" : `erro ${m[1]} após novas tentativas`;
+  const [head, body = "", tried = ""] = msg.split("|");
+  const detail = body.trim() ? ` Resposta da Hyperflow: "${body.trim()}".` : "";
+  if (head.includes("HYPERFLOW_BAD_REQUEST")) return `requisição recusada pela Hyperflow.${detail}`;
+  const m = head.match(/HYPERFLOW_FAILED_(\d+)/);
+  if (m) {
+    if (m[1] === "0") return "sem resposta da Hyperflow após novas tentativas";
+    return `erro ${m[1]}${tried === "retried" ? " após novas tentativas" : ""}.${detail}`;
+  }
   return "erro inesperado";
 }
 
@@ -219,12 +224,23 @@ export function AtendimentoProvider({ children }: { children: ReactNode }) {
       let complete: Completeness = "complete";
       let page = 1;
       let pages = 0;
-      let useFields = true;
+      // The API's accepted request shape is not documented. If the very first page is refused
+      // (400/422/500), try progressively simpler requests before giving up.
+      const MODES = [
+        { useFields: true, dateFormat: "ymd", limit: 100, note: "" },
+        { useFields: false, dateFormat: "ymd", limit: 100, note: "sem seleção de campos" },
+        { useFields: false, dateFormat: "iso", limit: 100, note: "sem seleção de campos, datas em ISO" },
+        { useFields: false, dateFormat: "ymd", limit: 25, note: "sem seleção de campos, páginas de 25" },
+      ] as const;
+      let modeIdx = 0;
       // The API may treat endDate as exclusive: ask for one extra day and re-filter on createdAt later.
       const endPlus = new Date(end.getTime() + 86400000);
       for (;;) {
         try {
-          const res = await fetchPage({ data: { startDate: ymd(start), endDate: ymd(endPlus), page, limit: 100, useFields } });
+          const mode = MODES[modeIdx];
+          const res = await fetchPage({
+            data: { startDate: ymd(start), endDate: ymd(endPlus), page, limit: mode.limit, useFields: mode.useFields, dateFormat: mode.dateFormat },
+          });
           docs.push(...res.docs);
           pages++;
           setSync((s) => ({ ...s, pages, docs: docs.length }));
@@ -237,8 +253,8 @@ export function AtendimentoProvider({ children }: { children: ReactNode }) {
           }
         } catch (e: any) {
           const msg = String(e?.message ?? e);
-          if (useFields && page === 1 && msg.includes("HYPERFLOW_BAD_REQUEST")) {
-            useFields = false; // the API did not accept the field list: retry once without it
+          if (page === 1 && modeIdx < MODES.length - 1 && /HYPERFLOW_(BAD_REQUEST|FAILED_(400|422|500))/.test(msg)) {
+            modeIdx++;
             continue;
           }
           complete = "incomplete";
@@ -246,7 +262,12 @@ export function AtendimentoProvider({ children }: { children: ReactNode }) {
           break;
         }
       }
-      setDataset(ingest(EMPTY_DATASET, docs, { kind: "api", label: `API Hyperflow · ${ymd(start)} a ${ymd(end)}` }, { complete, reasons }));
+      // A total failure loads nothing: keep whatever was on screen instead of replacing it with an empty base.
+      const nothingLoaded = docs.length === 0 && complete === "incomplete";
+      if (!nothingLoaded) {
+        setDataset(ingest(EMPTY_DATASET, docs, { kind: "api", label: `API Hyperflow · ${ymd(start)} a ${ymd(end)}` }, { complete, reasons }));
+      }
+      const how = MODES[modeIdx].note ? ` (pedido ${MODES[modeIdx].note})` : "";
       setSync({
         running: false,
         pages,
@@ -254,8 +275,8 @@ export function AtendimentoProvider({ children }: { children: ReactNode }) {
         failed: complete === "incomplete",
         message:
           complete === "incomplete"
-            ? `Extração incompleta: ${docs.length.toLocaleString("pt-BR")} registros em ${pages} página(s). ${reasons.join(" ")}`
-            : `Extração completa: ${docs.length.toLocaleString("pt-BR")} registros em ${pages} página(s).`,
+            ? `${nothingLoaded ? "Nada foi carregado" : "Extração incompleta"}: ${docs.length.toLocaleString("pt-BR")} registros em ${pages} página(s). ${reasons.join(" ")}`
+            : `Extração completa: ${docs.length.toLocaleString("pt-BR")} registros em ${pages} página(s)${how}.`,
       });
     },
     [fetchPage],
