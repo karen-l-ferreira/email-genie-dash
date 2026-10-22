@@ -199,13 +199,19 @@ export function AtendimentoProvider({ children }: { children: ReactNode }) {
     return { range, rows: r, kpis: computeKpis(r), covered };
   }, [rows, filters, dataMin]);
 
+  // Keep available options stable while an agent or classification is selected.
+  // The period, departments and campaign choices still constrain the options.
+  const optionRows = useMemo(
+    () => applyFilters(rows, { ...filters, agent: null, classification: null }).operational,
+    [rows, filters],
+  );
   const agentOptions = useMemo(
-    () => [...new Set(scoped.operational.flatMap((r) => r.agentsAll))].sort((a, b) => a.localeCompare(b, "pt-BR")),
-    [scoped.operational],
+    () => [...new Set(optionRows.flatMap((r) => r.agentsAll))].sort((a, b) => a.localeCompare(b, "pt-BR")),
+    [optionRows],
   );
   const classificationOptions = useMemo(
-    () => [...new Set(scoped.operational.flatMap((r) => r.classifications))].sort((a, b) => a.localeCompare(b, "pt-BR")),
-    [scoped.operational],
+    () => [...new Set(optionRows.flatMap((r) => r.classifications))].sort((a, b) => a.localeCompare(b, "pt-BR")),
+    [optionRows],
   );
 
   const timeUnitSuggestion = useMemo(() => detectTimeUnit(dataset.chats), [dataset.chats]);
