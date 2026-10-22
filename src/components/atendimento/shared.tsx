@@ -77,24 +77,31 @@ export function DataStrip() {
   if (dataset.sources.length === 0) return null;
   const origin = dataset.sources.map((s) => s.label).join(" + ");
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border border-border bg-card px-5 py-3 text-xs text-muted-foreground shadow-card">
-      <span className="flex items-center gap-1.5">
-        {dataset.completeness === "complete" ? (
-          <ShieldCheck className="h-4 w-4 text-success" />
-        ) : (
-          <AlertTriangle className="h-4 w-4 text-warning" />
-        )}
-        <strong className="font-medium text-foreground">
-          {dataset.completeness === "complete" ? "Extração completa" : dataset.completeness === "incomplete" ? "Extração incompleta" : "Completude não verificável"}
-        </strong>
-      </span>
-      <span>Origem: <strong className="font-medium text-foreground">{origin}</strong></span>
-      <span>Atualizado em: <strong className="font-medium text-foreground">{dataset.loadedAt?.toLocaleString("pt-BR")}</strong></span>
-      <span>Registros recebidos: <strong className="font-medium tabular-nums text-foreground">{fmtInt(dataset.rawCount)}</strong></span>
-      <span>Atendimentos únicos: <strong className="font-medium tabular-nums text-foreground">{fmtInt(dataset.chats.length)}</strong></span>
-      <span>Duplicados unidos: <strong className="font-medium tabular-nums text-foreground">{fmtInt(dataset.duplicates)}</strong></span>
-      <span>Sem _id: <strong className="font-medium tabular-nums text-foreground">{fmtInt(dataset.invalidNoId)}</strong></span>
-      <span>No filtro atual: <strong className="font-medium tabular-nums text-foreground">{fmtInt(scoped.operational.length)}</strong></span>
+    <div className="mb-4 rounded-xl border border-border bg-card px-5 py-3 text-xs text-muted-foreground shadow-card">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+        <span className="flex items-center gap-1.5">
+          {dataset.completeness === "complete" ? (
+            <ShieldCheck className="h-4 w-4 text-success" />
+          ) : (
+            <AlertTriangle className="h-4 w-4 text-warning" />
+          )}
+          <strong className="font-medium text-foreground">
+            {dataset.completeness === "complete" ? "Extração completa" : dataset.completeness === "incomplete" ? "Extração incompleta" : "Completude não verificável"}
+          </strong>
+        </span>
+        <span><strong className="font-semibold tabular-nums text-foreground">{fmtInt(scoped.operational.length)}</strong> atendimentos no filtro</span>
+        <span>Base atualizada em <strong className="font-medium text-foreground">{dataset.loadedAt?.toLocaleString("pt-BR")}</strong></span>
+      </div>
+      <details className="mt-3 border-t border-border pt-2">
+        <summary className="cursor-pointer select-none text-xs font-medium text-primary">Ver origem e qualidade dos registros</summary>
+        <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2 leading-relaxed">
+          <span>Origem: <strong className="font-medium text-foreground">{origin}</strong></span>
+          <span>Registros recebidos: <strong className="font-medium tabular-nums text-foreground">{fmtInt(dataset.rawCount)}</strong></span>
+          <span>Atendimentos únicos: <strong className="font-medium tabular-nums text-foreground">{fmtInt(dataset.chats.length)}</strong></span>
+          <span>Duplicados unidos: <strong className="font-medium tabular-nums text-foreground">{fmtInt(dataset.duplicates)}</strong></span>
+          <span>Sem _id: <strong className="font-medium tabular-nums text-foreground">{fmtInt(dataset.invalidNoId)}</strong></span>
+        </div>
+      </details>
     </div>
   );
 }

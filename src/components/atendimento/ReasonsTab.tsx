@@ -77,7 +77,7 @@ export function ReasonsTab() {
       </Panel>
 
       <section>
-        <SectionTitle title="Por departamento e transferência" hint="Cada linha mostra quantos atendimentos do assunto vieram de cada departamento e quanto foi transferido da Duda para humano." />
+        <SectionTitle title="Por departamento e transferência" hint="Cada linha mostra quantos atendimentos do assunto vieram de cada departamento e quanto foi transferido de IA para humano." />
         <Panel flush>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

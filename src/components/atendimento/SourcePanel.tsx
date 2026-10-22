@@ -66,9 +66,10 @@ export function SourcePanel({ compact }: { compact?: boolean }) {
               </div>
               <p className="text-xs text-muted-foreground">Use pelo menos o dobro do período que pretende analisar: a comparação com o período anterior precisa dos dois.</p>
               {sync.running && (
-                <p className="text-xs tabular-nums text-muted-foreground">
-                  {fmtInt(sync.pages)} página(s) carregada(s) · {fmtInt(sync.docs)} registros
-                </p>
+                <div role="status" aria-live="polite" className="space-y-1 rounded-lg border border-border bg-surface px-3 py-2 text-xs text-muted-foreground">
+                  <p className="tabular-nums">{fmtInt(sync.pages)} página(s) carregada(s) · {fmtInt(sync.docs)} registros</p>
+                  <p>{sync.message ?? "A sincronização está em andamento. Mantenha esta aba aberta até finalizar."}</p>
+                </div>
               )}
               {sync.message && !sync.running && <Notice tone={sync.failed ? "bad" : "info"}>{sync.message}</Notice>}
             </div>

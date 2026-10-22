@@ -46,7 +46,7 @@ export function EfficiencyTab() {
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <KpiTile
             label="Espera até a 1ª interação (mediana)"
-            hint="Diferença entre createdAt e firstInteractionAt. Se a Duda responde na hora, esse tempo pode refletir a resposta automática, não a espera por um humano."
+            hint="Diferença entre createdAt e firstInteractionAt. Se uma IA responde na hora, esse tempo pode refletir a resposta automática, não a espera por um humano."
             value={fmtDuration(wait?.median ?? null)}
             sub={wait ? `P90 ${fmtDuration(wait.p90)} · média ${fmtDuration(wait.mean)} · ${fmtPct(waitCoverage, 0)} com o dado` : "sem datas suficientes"}
           />

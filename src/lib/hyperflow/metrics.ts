@@ -8,7 +8,7 @@ export type TimeUnit = "s" | "ms" | "min";
 export type Handling = "duda_exclusiva" | "transferido" | "humano_direto" | "indeterminado";
 
 export type Config = {
-  botNames: string[]; // agent names that identify the automation (Duda)
+  botNames: string[]; // names of every configured AI agent, not just Duda
   resolvedMarkers: string[]; // classification/label text that PROVES automated resolution
   timeUnit: TimeUnit | null; // unit of queuedTime / *InteractionTime, null until validated
 };
@@ -53,7 +53,7 @@ const MAX_DURATION_SEC = 90 * 86400;
 
 export function enrich(chats: Chat[], cfg: Config): Row[] {
   const bots = cfg.botNames.map(norm).filter(Boolean);
-  const isBot = (name: string) => bots.some((b) => norm(name).includes(b));
+  const isBot = (name: string) => bots.some((b) => norm(name) === b || (b.length >= 4 && norm(name).includes(b)));
   const markers = cfg.resolvedMarkers.map(norm).filter(Boolean);
 
   return chats.map((c) => {
@@ -370,7 +370,7 @@ export type AgentStat = { agent: string; participated: number; asFinal: number; 
 
 export function agentWorkload(rows: Row[], cfg: Config): AgentStat[] {
   const bots = cfg.botNames.map(norm).filter(Boolean);
-  const isBot = (n: string) => bots.some((b) => norm(n).includes(b));
+  const isBot = (n: string) => bots.some((b) => norm(n) === b || (b.length >= 4 && norm(n).includes(b)));
   const m = new Map<string, { participated: number; asFinal: number; messages: number; durs: number[] }>();
   const get = (a: string) => {
     let x = m.get(a);
@@ -463,13 +463,13 @@ export function buildInsights(i: InsightInput): Insights {
   if (i.dataset.completeness === "unknown")
     pending.push({ text: "A completude da base importada não pode ser verificada.", evidence: "Importação manual: não há como confirmar que todos os atendimentos do período foram exportados." });
   if (cur.chats > 0 && cur.coverage < 0.8)
-    pending.push({ text: `Só ${fmtPct(cur.coverage, 0)} dos atendimentos permitem separar Duda de humano.`, evidence: `${fmtInt(cur.indeterminate)} atendimentos sem nenhum agente no histórico.` });
+    pending.push({ text: `Só ${fmtPct(cur.coverage, 0)} dos atendimentos permitem separar IA de humano (conforme os nomes de assistentes cadastrados).`, evidence: `${fmtInt(cur.indeterminate)} atendimentos sem nenhum agente no histórico.` });
   if (cur.chats > 0 && i.classifiedShare < 0.7)
     pending.push({ text: `Só ${fmtPct(i.classifiedShare, 0)} dos atendimentos têm classificação.`, evidence: "Os motivos de contato representam apenas a parte classificada." });
   if (i.config.timeUnit == null)
     pending.push({ text: "A unidade dos campos de tempo (queuedTime e interações) ainda não foi confirmada.", evidence: "Médias desses campos ficam ocultas até a confirmação na aba Eficiência." });
   if (i.config.resolvedMarkers.length === 0)
-    pending.push({ text: "Não há um rótulo que comprove a resolução pela Duda.", evidence: "Sem ele, a resolução automatizada não é calculada; só o encerramento sem humano." });
+    pending.push({ text: "Não há um rótulo que comprove a resolução pelas IAs.", evidence: "Sem ele, a resolução automatizada não é calculada; só o encerramento sem humano." });
   if (i.stats.undated + i.stats.noDepartment > 0)
     pending.push({ text: "Há registros incompletos fora dos indicadores.", evidence: `${fmtInt(i.stats.undated)} sem data válida e ${fmtInt(i.stats.noDepartment)} sem departamento (dentro do período).` });
 
@@ -482,7 +482,7 @@ export function buildInsights(i: InsightInput): Insights {
     if (cur.transferRate != null && prev.transferRate != null) {
       const pp = (cur.transferRate - prev.transferRate) * 100;
       if (Math.abs(pp) >= 2)
-        facts.push({ text: `A taxa de transferência da Duda ${pp > 0 ? "subiu" : "caiu"} ${Math.abs(pp).toFixed(1).replace(".", ",")} p.p.`, evidence: `${fmtPct(prev.transferRate)} → ${fmtPct(cur.transferRate)}.` });
+        facts.push({ text: `A taxa de transferência das IAs cadastradas ${pp > 0 ? "subiu" : "caiu"} ${Math.abs(pp).toFixed(1).replace(".", ",")} p.p.`, evidence: `${fmtPct(prev.transferRate)} → ${fmtPct(cur.transferRate)}.` });
     }
     if (cur.automationRate != null && prev.automationRate != null) {
       const pp = (cur.automationRate - prev.automationRate) * 100;
@@ -512,10 +512,10 @@ export function buildInsights(i: InsightInput): Insights {
       .slice(0, 3);
     for (const r of risky) {
       hypotheses.push({
-        text: `A Duda pode não estar cobrindo bem o assunto "${r.name}".`,
-        evidence: `${fmtPct(r.transferRate)} dos atendimentos desse motivo que passaram pela Duda foram transferidos, contra ${fmtPct(cur.transferRate)} no geral (${fmtInt(r.dudaTouched)} atendimentos). Precisa de validação com a leitura de conversas reais.`,
+        text: `As IAs podem não estar cobrindo bem o assunto "${r.name}".`,
+        evidence: `${fmtPct(r.transferRate)} dos atendimentos desse motivo que passaram pelas IAs foram transferidos, contra ${fmtPct(cur.transferRate)} no geral (${fmtInt(r.dudaTouched)} atendimentos). Precisa de validação com a leitura de conversas reais.`,
       });
-      recs.push({ text: `Revisar o fluxo e a base de conhecimento da Duda para "${r.name}".`, evidence: `${fmtInt(r.transferred)} transferências associadas a esse motivo no período.` });
+      recs.push({ text: `Revisar o fluxo e a base de conhecimento das IAs para "${r.name}".`, evidence: `${fmtInt(r.transferred)} transferências associadas a esse motivo no período.` });
     }
   }
   if (prev && i.deptPrev) {
@@ -544,9 +544,9 @@ export function buildInsights(i: InsightInput): Insights {
   if (cur.chats > 0 && i.classifiedShare < 0.7)
     recs.push({ text: "Reforçar a classificação no encerramento do atendimento.", evidence: `Hoje só ${fmtPct(i.classifiedShare, 0)} dos atendimentos são classificados; sem isso os motivos de contato ficam incompletos.` });
   if (cur.chats > 0 && cur.coverage < 0.8)
-    recs.push({ text: "Garantir que o histórico de agentes venha na extração.", evidence: `${fmtPct(1 - cur.coverage, 0)} dos atendimentos não permitem separar Duda de humano.` });
+    recs.push({ text: "Garantir que o histórico de agentes venha na extração.", evidence: `${fmtPct(1 - cur.coverage, 0)} dos atendimentos não permitem separar IA de humano.` });
   if (i.config.resolvedMarkers.length === 0)
-    recs.push({ text: "Definir um rótulo ou classificação que comprove a resolução pela Duda.", evidence: "É o que permite medir resolução automatizada sem presumir que atendimento sem humano é atendimento resolvido." });
+    recs.push({ text: "Definir um rótulo ou classificação que comprove a resolução pelas IAs.", evidence: "É o que permite medir resolução automatizada sem presumir que atendimento sem humano é atendimento resolvido." });
 
   return { pending, facts, hypotheses, recommendations: recs };
 }
