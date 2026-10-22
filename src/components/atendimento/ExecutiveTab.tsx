@@ -32,16 +32,16 @@ export function ExecutiveTab() {
   }
 
   const handlingBar = [
-    { key: "duda", label: "Somente IA", n: kpis.duda, color: "#0B3A8C", hint: "Apenas assistentes de IA cadastrados aparecem como agentes. Isso não comprova resolução." },
+    { key: "duda", label: "Somente IA", n: kpis.duda, color: "#0B3A8C", hint: "Apenas Duda, Ada ou agentes tipados como automáticos aparecem no histórico. Isso não comprova resolução." },
     { key: "trf", label: "IA e humano", n: kpis.transferred, color: "#2F6BE0", hint: "Assistente de IA identificado junto com agente humano." },
-    { key: "hum", label: "Humano direto", n: kpis.humanDirect, color: "#8DB4F0", hint: "Agentes não cadastrados como IA foram tratados como humanos; confira a identificação das IAs em Oportunidades." },
-    { key: "ind", label: "Não identificado", n: kpis.indeterminate, color: "#CBD5E1", hint: "O histórico não traz nenhum agente, então não dá para saber." },
+    { key: "hum", label: "Humano direto", n: kpis.humanDirect, color: "#8DB4F0", hint: "Somente agentes humanos identificados com nome ou tipo; IDs opacos não são considerados humanos." },
+    { key: "ind", label: "Não identificado", n: kpis.indeterminate, color: "#CBD5E1", hint: "O histórico não traz nome ou tipo de agente confiável; IDs sozinhos não identificam humanos." },
   ];
 
   return (
     <div className="space-y-8">
       {!iaIdentificada && (
-        <Notice tone="warn">Nenhuma IA cadastrada foi identificada no histórico. Configure os nomes de todos os assistentes em “Assistentes de IA” antes de interpretar os indicadores de automação e intervenção humana.</Notice>
+        <Notice tone="warn">Nenhuma IA reconhecida automaticamente (Duda ou Ada) foi identificada no período. Registros sem identidade do agente não são classificados como humanos.</Notice>
       )}
       {!base && (
         <Notice>
@@ -78,14 +78,14 @@ export function ExecutiveTab() {
           />
           <KpiTile
             label="Com agente humano associado"
-            hint="Contagem de atendimentos com agentes não cadastrados como IA. Isso é atribuição/participação no histórico, NÃO necessariamente envio de mensagens humanas."
+            hint="Contagem de atendimentos com agentes humanos identificados no histórico. Não comprova envio de mensagens humanas."
             value={iaIdentificada ? fmtInt(kpis.human) : "—"}
             deltaText={iaIdentificada ? fmtPp(hum) : undefined}
-            sub={!iaIdentificada ? "Configure os agentes de IA" : kpis.humanShare != null ? `${fmtPct(kpis.humanShare)} dos identificáveis` : "sem histórico de agentes"}
+            sub={!iaIdentificada ? "Sem IA identificada" : kpis.humanShare != null ? `${fmtPct(kpis.humanShare)} dos identificáveis` : "sem histórico de agentes"}
           />
           <KpiTile
             label="Somente IA registrada como agente"
-            hint="Atendimentos exclusivamente de IAs cadastradas ÷ atendimentos com agente identificável. Confira os nomes de IA em Oportunidades. Não representa resolução."
+            hint="Atendimentos apenas com IAs identificadas automaticamente, sem agentes desconhecidos ÷ atendimentos classificáveis. Não comprova resolução."
             value={iaIdentificada ? fmtPct(kpis.automationRate) : "—"}
             deltaText={iaIdentificada ? fmtPp(auto) : undefined}
             tone={auto == null ? "neutral" : auto >= 0 ? "good" : "bad"}
@@ -93,7 +93,7 @@ export function ExecutiveTab() {
           />
           <KpiTile
             label="IA e humano no histórico"
-            hint="Atendimentos com IA e humano ÷ todos em que as IAs cadastradas participaram."
+            hint="Atendimentos com IA e humano identificados ÷ todos com participação de IA reconhecida."
             value={fmtPct(kpis.transferRate)}
             deltaText={fmtPp(trf)}
             tone={trf == null ? "neutral" : trf <= 0 ? "good" : "bad"}
@@ -131,7 +131,7 @@ export function ExecutiveTab() {
       </section>
 
       {iaIdentificada && <section>
-        <SectionTitle title="Quem atendeu" hint="Somente IA, IA e humano, humano direto ou não identificado, de acordo com os nomes de assistentes cadastrados." />
+        <SectionTitle title="Quem atendeu" hint="Somente IA, IA e humano, humano direto ou não identificado, segundo a identificação automática de agentes." />
         <Panel>
           <div className="flex h-4 overflow-hidden rounded-full bg-muted">
             {handlingBar.filter((b) => b.n > 0).map((b) => (
