@@ -49,6 +49,7 @@ export function HumanImpactPanel() {
   const open = analysis ? analysis.before.stillOpen + analysis.after.stillOpen : 0;
   const matches = analysis ? analysis.before.matched + analysis.after.matched : 0;
   const missing = analysis ? analysis.before.absent + analysis.after.absent : 0;
+  const unknownStatus = analysis ? analysis.before.statusUnknown + analysis.after.statusUnknown : 0;
   const final = analysis?.final ?? false;
 
   return (
@@ -117,6 +118,7 @@ export function HumanImpactPanel() {
               {!analysis.complete && <p className="text-warning">A extração atual precisa estar completa para esses períodos. Não é possível calcular uma redução definitiva com registros ausentes.</p>}
               {evidenceUnknown > 0 && <p className="text-warning">Os {fmtInt(evidenceUnknown)} protocolos sem confirmação precisam dos contadores de mensagens por interação da Hyperflow.</p>}
               {open > 0 && <p className="text-warning">Ainda há {fmtInt(open)} protocolos em andamento, que podem receber atendimento humano.</p>}
+              {unknownStatus > 0 && <p className="text-warning">{fmtInt(unknownStatus)} protocolos não têm status válido na API; precisam ser confirmados antes do resultado final.</p>}
               {analysis.duplicateProtocols > 0 && <p className="text-warning">Foram encontrados {fmtInt(analysis.duplicateProtocols)} protocolos duplicados na extração. É necessário revisar a base.</p>}
             </div>
           </>
