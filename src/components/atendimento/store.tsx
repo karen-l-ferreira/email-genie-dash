@@ -230,6 +230,9 @@ export function AtendimentoProvider({ children }: { children: ReactNode }) {
       let complete: Completeness = "complete";
       let page = 1;
       let pages = 0;
+      let rateLimitRetries = 0;
+      let pacingMs = 1000;
+      const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
       // The API's accepted request shape is not documented. If the very first page is refused
       // (400/422/500), try progressively simpler requests before giving up.
       const MODES = [
@@ -249,7 +252,8 @@ export function AtendimentoProvider({ children }: { children: ReactNode }) {
           });
           docs.push(...res.docs);
           pages++;
-          setSync((s) => ({ ...s, pages, docs: docs.length }));
+          rateLimitRetries = 0;
+          setSync((s) => ({ ...s, pages, docs: docs.length, message: null }));
           if (!res.hasNextPage) break;
           page = res.nextPage ?? page + 1;
           if (pages >= MAX_PAGES) {
@@ -257,14 +261,30 @@ export function AtendimentoProvider({ children }: { children: ReactNode }) {
             reasons.push(`Limite de ${MAX_PAGES} páginas atingido: há páginas não carregadas.`);
             break;
           }
+          // Sequential pacing reduces the likelihood of triggering the provider's rate limit.
+          await wait(pacingMs);
         } catch (e: any) {
           const msg = String(e?.message ?? e);
+          const rateLimit = msg.match(/HYPERFLOW_RATE_LIMIT\|(\d+)/);
+          if (rateLimit && rateLimitRetries < 8) {
+            rateLimitRetries++;
+            const seconds = Math.min(300, Math.max(1, Number(rateLimit[1]) || 60));
+            pacingMs = 16000;
+            setSync((s) => ({
+              ...s,
+              message: `Limite de requisições da Hyperflow. Aguardando ${seconds} segundos antes de tentar novamente a página ${page} (tentativa ${rateLimitRetries}/8). Não feche esta aba.`,
+            }));
+            await wait((seconds + 2) * 1000);
+            continue;
+          }
           if (page === 1 && modeIdx < MODES.length - 1 && /HYPERFLOW_(BAD_REQUEST|FAILED_(400|422|500))/.test(msg)) {
             modeIdx++;
             continue;
           }
           complete = "incomplete";
-          reasons.push(`A página ${page} não foi carregada (${friendly(msg)}). As páginas a partir dela ficaram de fora.`);
+          reasons.push(rateLimit
+            ? `A página ${page} atingiu repetidamente o limite de requisições da Hyperflow. Sincronize novamente mais tarde.`
+            : `A página ${page} não foi carregada (${friendly(msg)}). As páginas a partir dela ficaram de fora.`);
           break;
         }
       }
