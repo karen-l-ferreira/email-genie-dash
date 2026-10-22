@@ -1,4 +1,5 @@
 import type { Chat, Dataset } from "./normalize";
+import { classifyActor, KNOWN_ASSISTANTS } from "./actor-classification";
 
 // All indicators for the Atendimento dashboard. Pure functions, no I/O.
 // Rules (business): chats are counted once by _id; chats, messages and interactions are
@@ -13,7 +14,7 @@ export type Config = {
   timeUnit: TimeUnit | null; // unit of queuedTime / *InteractionTime, null until validated
 };
 
-export const DEFAULT_CONFIG: Config = { botNames: ["Duda"], resolvedMarkers: [], timeUnit: null };
+export const DEFAULT_CONFIG: Config = { botNames: [...KNOWN_ASSISTANTS], resolvedMarkers: [], timeUnit: null };
 
 export const DEFAULT_DEPARTMENTS = ["carteira", "cx", "aquisicao"]; // normalized names
 export const EXCLUDED_BY_DEFAULT = "comercial";
@@ -52,20 +53,18 @@ const MAX_WAIT_SEC = 30 * 86400;
 const MAX_DURATION_SEC = 90 * 86400;
 
 export function enrich(chats: Chat[], cfg: Config): Row[] {
-  const bots = cfg.botNames.map(norm).filter(Boolean);
-  const isBot = (name: string) => bots.some((b) => norm(name) === b || (b.length >= 4 && norm(name).includes(b)));
   const markers = cfg.resolvedMarkers.map(norm).filter(Boolean);
 
   return chats.map((c) => {
-    const botTouched = c.agentsAll.some(isBot);
-    const humanAgents = c.agentsAll.filter((a) => !isBot(a));
-    // Duda × human can only be told apart when the history names at least one agent.
+    const kind = (name: string) => classifyActor(name, c.actorTypes?.[name]);
+    const botTouched = c.agentsAll.some((name) => kind(name) === "bot");
+    const humanAgents = c.agentsAll.filter((name) => kind(name) === "human");
+    const uncertain = c.agentsAll.some((name) => kind(name) === "unknown");
+    // Identificadores opacos e agentes sem nome são desconhecidos, nunca humanos.
     let handling: Handling = "indeterminado";
-    if (c.agentsAll.length > 0) {
-      if (botTouched && humanAgents.length === 0) handling = "duda_exclusiva";
-      else if (botTouched) handling = "transferido";
-      else handling = "humano_direto";
-    }
+    if (botTouched && humanAgents.length > 0) handling = "transferido";
+    else if (botTouched && !uncertain) handling = "duda_exclusiva";
+    else if (!botTouched && humanAgents.length > 0 && !uncertain) handling = "humano_direto";
     const wait = c.createdAt && c.firstInteractionAt ? (c.firstInteractionAt.getTime() - c.createdAt.getTime()) / 1000 : null;
     const dur = c.createdAt && c.finishedAt ? (c.finishedAt.getTime() - c.createdAt.getTime()) / 1000 : null;
     return {
@@ -369,8 +368,7 @@ export function transferStats(rows: Row[]): TransferStats {
 export type AgentStat = { agent: string; participated: number; asFinal: number; messages: number; medianDurationSec: number | null };
 
 export function agentWorkload(rows: Row[], cfg: Config): AgentStat[] {
-  const bots = cfg.botNames.map(norm).filter(Boolean);
-  const isBot = (n: string) => bots.some((b) => norm(n) === b || (b.length >= 4 && norm(n).includes(b)));
+  const isBot = (n: string) => classifyActor(n) === "bot";
   const m = new Map<string, { participated: number; asFinal: number; messages: number; durs: number[] }>();
   const get = (a: string) => {
     let x = m.get(a);
@@ -379,7 +377,7 @@ export function agentWorkload(rows: Row[], cfg: Config): AgentStat[] {
   };
   for (const r of rows) {
     for (const a of r.humanAgents) get(a).participated++;
-    if (r.agent && !isBot(r.agent)) {
+    if (r.agent && classifyActor(r.agent, r.actorTypes?.[r.agent]) === "human") {
       const x = get(r.agent);
       x.asFinal++;
       x.messages += r.messagesCount ?? 0;
