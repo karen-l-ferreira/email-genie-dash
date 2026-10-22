@@ -4,6 +4,7 @@
 
 export type AuditInteraction = {
   agent: string | null;
+  agentType: string | null;
   systemInteractions: number | null;
 };
 
@@ -18,6 +19,7 @@ export type Chat = {
   departmentsAll: string[];
   agent: string | null; // final agent
   agentsAll: string[]; // every agent seen on the chat
+  actorTypes: Record<string, string>; // Hyperflow agent.type by displayed name
   classifications: string[];
   labels: string[];
   queuedTime: number | null; // raw value, unit not yet validated
@@ -72,9 +74,11 @@ export const DOCUMENTED_FIELDS = [
   "createdAt",
   "finishedAt",
   "agent.name",
+  "agent.type",
   "department.name",
   "departments.name",
   "interactions.agent.name",
+  "interactions.agent.type",
   "interactions.department.name",
   "interactions.transferAt",
   "interactions.systemInteractions",
@@ -177,6 +181,7 @@ export function normalizeChat(raw: Record<string, any>): Chat | null {
   const interactionAgents = interactions.map((i) => nameOf(i?.agent)).filter((x): x is string => !!x);
   const auditInteractions = interactions.map((i) => ({
     agent: nameOf(i?.agent),
+    agentType: typeof i?.agent?.type === "string" ? i.agent.type : null,
     systemInteractions: toNum(i?.systemInteractions),
   }));
   const testMark = /(^|[^a-zA-Z])(?:teste|testes|test|homologacao|homologação)(?=$|[^a-zA-Z])/i;
@@ -186,6 +191,12 @@ export function normalizeChat(raw: Record<string, any>): Chat | null {
   ].some((value) => value != null && testMark.test(value));
 
   const agent = nameOf(raw.agent);
+  const actorTypes: Record<string, string> = {};
+  if (agent && typeof raw?.agent?.type === "string") actorTypes[agent] = raw.agent.type;
+  for (const i of interactions) {
+    const name = nameOf(i?.agent);
+    if (name && typeof i?.agent?.type === "string") actorTypes[name] = i.agent.type;
+  }
   const department = nameOf(raw.department);
   const departmentsAll = [...new Set([...namesOf(raw.departments), ...(department ? [department] : []), ...interactionDepts])];
   const lastOf = (a: string[]) => (a.length ? a[a.length - 1] : null);
@@ -201,6 +212,7 @@ export function normalizeChat(raw: Record<string, any>): Chat | null {
     departmentsAll,
     agent,
     agentsAll: [...new Set([...(agent ? [agent] : []), ...interactionAgents])],
+    actorTypes,
     classifications: namesOf(raw.classifications),
     labels: namesOf(raw.labels),
     queuedTime: toNum(raw.queuedTime),
