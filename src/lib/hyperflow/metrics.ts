@@ -467,7 +467,7 @@ export function buildInsights(i: InsightInput): Insights {
   if (cur.chats > 0 && i.classifiedShare < 0.7)
     pending.push({ text: `Só ${fmtPct(i.classifiedShare, 0)} dos atendimentos têm classificação.`, evidence: "Os motivos de contato representam apenas a parte classificada." });
   if (i.config.timeUnit == null)
-    pending.push({ text: "A unidade dos campos de tempo (queuedTime e interações) ainda não foi confirmada.", evidence: "Médias desses campos ficam ocultas até a confirmação na aba Eficiência." });
+    pending.push({ text: "A unidade dos campos de tempo (queuedTime e interações) ainda não foi confirmada.", evidence: "Médias desses campos ficam ocultas até a confirmação em análises avançadas." });
   if (i.config.resolvedMarkers.length === 0)
     pending.push({ text: "Não há um rótulo que comprove a resolução pelas IAs.", evidence: "Sem ele, a resolução automatizada não é calculada; só o encerramento sem humano." });
   if (i.stats.undated + i.stats.noDepartment > 0)
