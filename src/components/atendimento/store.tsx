@@ -63,7 +63,7 @@ type Store = {
   granularity: Granularity;
   hasKey: boolean | undefined;
   sync: SyncState;
-  startSync: (start: Date, end: Date) => Promise<void>;
+  startSync: (start: Date, end: Date, fullAudit?: boolean) => Promise<void>;
   importLog: ImportLog[];
   importFiles: (files: File[]) => Promise<void>;
   timeUnitSuggestion: ReturnType<typeof detectTimeUnit>;
@@ -223,7 +223,7 @@ export function AtendimentoProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const startSync = useCallback(
-    async (start: Date, end: Date) => {
+    async (start: Date, end: Date, fullAudit = false) => {
       setSync({ running: true, pages: 0, docs: 0, message: null, failed: false });
       const docs: Record<string, any>[] = [];
       const reasons: string[] = [];
@@ -248,7 +248,7 @@ export function AtendimentoProvider({ children }: { children: ReactNode }) {
         try {
           const mode = MODES[modeIdx];
           const res = await fetchPage({
-            data: { startDate: ymd(start), endDate: ymd(endPlus), page, limit: mode.limit, useFields: mode.useFields, dateFormat: mode.dateFormat },
+            data: { startDate: ymd(start), endDate: ymd(endPlus), page, limit: mode.limit, useFields: fullAudit ? false : mode.useFields, dateFormat: mode.dateFormat },
           });
           docs.push(...res.docs);
           pages++;
@@ -302,7 +302,7 @@ export function AtendimentoProvider({ children }: { children: ReactNode }) {
         message:
           complete === "incomplete"
             ? `${nothingLoaded ? "Nada foi carregado" : "Extração incompleta"}: ${docs.length.toLocaleString("pt-BR")} registros em ${pages} página(s). ${reasons.join(" ")}`
-            : `Extração completa: ${docs.length.toLocaleString("pt-BR")} registros em ${pages} página(s)${how}.`,
+            : `Extração completa: ${docs.length.toLocaleString("pt-BR")} registros em ${pages} página(s)${fullAudit ? " (histórico completo solicitado, sem seleção de campos)" : how}. ${fullAudit && !docs.some((d: any) => Array.isArray(d.interactions) && d.interactions.some((i: any) => i && Object.prototype.hasOwnProperty.call(i, "systemInteractions"))) ? "A API não forneceu contadores systemInteractions nas interações; a auditoria pode continuar sem evidência." : ""}`,
       });
     },
     [fetchPage],
