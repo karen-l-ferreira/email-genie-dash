@@ -1,0 +1,289 @@
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { fetchHyperflowPage, getHyperflowStatus } from "@/lib/hyperflow.functions";
+import { EMPTY_DATASET, ingest, parseFileText, type Completeness, type Dataset } from "@/lib/hyperflow/normalize";
+import {
+  DEFAULT_CONFIG,
+  DEFAULT_DEPARTMENTS,
+  EXCLUDED_BY_DEFAULT,
+  applyFilters,
+  computeKpis,
+  detectTimeUnit,
+  endOfDay,
+  enrich,
+  granularityFor,
+  norm,
+  previousRange,
+  startOfDay,
+  type Config,
+  type Filters,
+  type Granularity,
+  type Kpis,
+  type Row,
+  type ScopeStats,
+} from "@/lib/hyperflow/metrics";
+
+// Everything lives in memory. Customer data is never written to localStorage, the database
+// or the URL; only the non-sensitive analysis settings (Duda's name, resolution marker,
+// confirmed time unit) are remembered in this browser.
+
+export type Preset = "7" | "30" | "90" | "all" | "custom";
+
+export type SyncState = {
+  running: boolean;
+  pages: number;
+  docs: number;
+  message: string | null; // last outcome, success or failure
+  failed: boolean;
+};
+
+export type ImportLog = { name: string; ok: boolean; message: string };
+
+export type DeptOption = { name: string; inDefault: boolean; comercial: boolean };
+
+type Store = {
+  dataset: Dataset;
+  clear: () => void;
+  config: Config;
+  setConfig: (p: Partial<Config>) => void;
+  rows: Row[];
+  filters: Filters;
+  setFilters: (p: Partial<Filters>) => void;
+  preset: Preset;
+  setPreset: (p: Preset) => void;
+  dataMin: Date | null;
+  dataMax: Date | null;
+  deptOptions: DeptOption[];
+  agentOptions: string[];
+  classificationOptions: string[];
+  scoped: { operational: Row[]; campaigns: Row[]; stats: ScopeStats };
+  prev: { range: { start: Date; end: Date }; rows: Row[]; kpis: Kpis; covered: boolean };
+  kpis: Kpis;
+  granularity: Granularity;
+  hasKey: boolean | undefined;
+  sync: SyncState;
+  startSync: (start: Date, end: Date) => Promise<void>;
+  importLog: ImportLog[];
+  importFiles: (files: File[]) => Promise<void>;
+  timeUnitSuggestion: ReturnType<typeof detectTimeUnit>;
+};
+
+const Ctx = createContext<Store | null>(null);
+
+export function useAtendimento(): Store {
+  const v = useContext(Ctx);
+  if (!v) throw new Error("useAtendimento fora do provedor");
+  return v;
+}
+
+const CONFIG_KEY = "fluxi_atendimento_config";
+const MAX_PAGES = 600;
+
+function readConfig(): Config {
+  try {
+    const raw = localStorage.getItem(CONFIG_KEY);
+    if (raw) return { ...DEFAULT_CONFIG, ...JSON.parse(raw) };
+  } catch {
+    /* storage unavailable: defaults apply */
+  }
+  return DEFAULT_CONFIG;
+}
+
+function ymd(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+function friendly(msg: string): string {
+  if (msg.includes("HYPERFLOW_AUTH")) return "chave recusada pela Hyperflow";
+  if (msg.includes("HYPERFLOW_NOT_CONFIGURED")) return "chave não configurada no servidor";
+  if (msg.includes("HYPERFLOW_BAD_REQUEST")) return "requisição recusada pela Hyperflow";
+  const m = msg.match(/HYPERFLOW_FAILED_(\d+)/);
+  if (m) return m[1] === "0" ? "sem resposta da Hyperflow" : `erro ${m[1]} após novas tentativas`;
+  return "erro inesperado";
+}
+
+export function AtendimentoProvider({ children }: { children: ReactNode }) {
+  const fetchStatus = useServerFn(getHyperflowStatus);
+  const fetchPage = useServerFn(fetchHyperflowPage);
+  const statusQ = useQuery({ queryKey: ["hyperflow-status"], queryFn: () => fetchStatus(), staleTime: 10 * 60 * 1000 });
+
+  const [dataset, setDataset] = useState<Dataset>(EMPTY_DATASET);
+  const [config, setConfigState] = useState<Config>(() => readConfig());
+  const [sync, setSync] = useState<SyncState>({ running: false, pages: 0, docs: 0, message: null, failed: false });
+  const [importLog, setImportLog] = useState<ImportLog[]>([]);
+  const [preset, setPresetState] = useState<Preset>("30");
+  const [filters, setFiltersState] = useState<Filters>(() => {
+    const end = endOfDay(new Date());
+    return { start: startOfDay(new Date(end.getTime() - 29 * 86400000)), end, departments: [], agent: null, classification: null, includeCampaigns: false };
+  });
+  const initialized = useRef(false);
+
+  const setConfig = useCallback((p: Partial<Config>) => {
+    setConfigState((prev) => {
+      const next = { ...prev, ...p };
+      try {
+        localStorage.setItem(CONFIG_KEY, JSON.stringify(next));
+      } catch {
+        /* the setting still applies for this visit */
+      }
+      return next;
+    });
+  }, []);
+
+  const setFilters = useCallback((p: Partial<Filters>) => setFiltersState((f) => ({ ...f, ...p })), []);
+
+  const rows = useMemo(() => enrich(dataset.chats, config), [dataset.chats, config]);
+
+  const { dataMin, dataMax } = useMemo(() => {
+    let min: Date | null = null;
+    let max: Date | null = null;
+    for (const c of dataset.chats) {
+      if (!c.createdAt) continue;
+      if (!min || c.createdAt < min) min = c.createdAt;
+      if (!max || c.createdAt > max) max = c.createdAt;
+    }
+    return { dataMin: min, dataMax: max };
+  }, [dataset.chats]);
+
+  const deptOptions = useMemo<DeptOption[]>(() => {
+    const names = [...new Set(rows.map((r) => r.dept).filter((d): d is string => !!d))];
+    const opt = (name: string): DeptOption => ({
+      name,
+      inDefault: DEFAULT_DEPARTMENTS.includes(norm(name)),
+      comercial: norm(name) === EXCLUDED_BY_DEFAULT,
+    });
+    const rank = (o: DeptOption) => (o.inDefault ? 0 : o.comercial ? 1 : 2);
+    return names.map(opt).sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name, "pt-BR"));
+  }, [rows]);
+
+  const setPreset = useCallback(
+    (p: Preset) => {
+      setPresetState(p);
+      if (p === "custom") return;
+      const anchor = dataMax ?? new Date();
+      const end = endOfDay(anchor);
+      const start = p === "all" ? (dataMin ? startOfDay(dataMin) : startOfDay(anchor)) : startOfDay(new Date(end.getTime() - (Number(p) - 1) * 86400000));
+      setFiltersState((f) => ({ ...f, start, end }));
+    },
+    [dataMin, dataMax],
+  );
+
+  // First data load: anchor the period on the newest chat and select the in-scope departments.
+  useEffect(() => {
+    if (dataset.chats.length === 0) {
+      initialized.current = false;
+      return;
+    }
+    if (initialized.current) return;
+    initialized.current = true;
+    setPreset("30");
+    setFiltersState((f) => ({ ...f, departments: deptOptions.filter((d) => d.inDefault).map((d) => d.name) }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataset.chats.length, deptOptions]);
+
+  const scoped = useMemo(() => applyFilters(rows, filters), [rows, filters]);
+  const kpis = useMemo(() => computeKpis(scoped.operational), [scoped.operational]);
+  const granularity = useMemo(() => granularityFor(filters.start, filters.end), [filters.start, filters.end]);
+
+  const prev = useMemo(() => {
+    const range = previousRange(filters.start, filters.end);
+    const r = applyFilters(rows, { ...filters, ...range }).operational;
+    const covered = dataMin != null && dataMin.getTime() <= range.start.getTime() + 86400000;
+    return { range, rows: r, kpis: computeKpis(r), covered };
+  }, [rows, filters, dataMin]);
+
+  const agentOptions = useMemo(
+    () => [...new Set(scoped.operational.flatMap((r) => r.agentsAll))].sort((a, b) => a.localeCompare(b, "pt-BR")),
+    [scoped.operational],
+  );
+  const classificationOptions = useMemo(
+    () => [...new Set(scoped.operational.flatMap((r) => r.classifications))].sort((a, b) => a.localeCompare(b, "pt-BR")),
+    [scoped.operational],
+  );
+
+  const timeUnitSuggestion = useMemo(() => detectTimeUnit(dataset.chats), [dataset.chats]);
+
+  const clear = useCallback(() => {
+    setDataset(EMPTY_DATASET);
+    setImportLog([]);
+    setSync({ running: false, pages: 0, docs: 0, message: null, failed: false });
+  }, []);
+
+  const startSync = useCallback(
+    async (start: Date, end: Date) => {
+      setSync({ running: true, pages: 0, docs: 0, message: null, failed: false });
+      const docs: Record<string, any>[] = [];
+      const reasons: string[] = [];
+      let complete: Completeness = "complete";
+      let page = 1;
+      let pages = 0;
+      let useFields = true;
+      // The API may treat endDate as exclusive: ask for one extra day and re-filter on createdAt later.
+      const endPlus = new Date(end.getTime() + 86400000);
+      for (;;) {
+        try {
+          const res = await fetchPage({ data: { startDate: ymd(start), endDate: ymd(endPlus), page, limit: 100, useFields } });
+          docs.push(...res.docs);
+          pages++;
+          setSync((s) => ({ ...s, pages, docs: docs.length }));
+          if (!res.hasNextPage) break;
+          page = res.nextPage ?? page + 1;
+          if (pages >= MAX_PAGES) {
+            complete = "incomplete";
+            reasons.push(`Limite de ${MAX_PAGES} páginas atingido: há páginas não carregadas.`);
+            break;
+          }
+        } catch (e: any) {
+          const msg = String(e?.message ?? e);
+          if (useFields && page === 1 && msg.includes("HYPERFLOW_BAD_REQUEST")) {
+            useFields = false; // the API did not accept the field list: retry once without it
+            continue;
+          }
+          complete = "incomplete";
+          reasons.push(`A página ${page} não foi carregada (${friendly(msg)}). As páginas a partir dela ficaram de fora.`);
+          break;
+        }
+      }
+      setDataset(ingest(EMPTY_DATASET, docs, { kind: "api", label: `API Hyperflow · ${ymd(start)} a ${ymd(end)}` }, { complete, reasons }));
+      setSync({
+        running: false,
+        pages,
+        docs: docs.length,
+        failed: complete === "incomplete",
+        message:
+          complete === "incomplete"
+            ? `Extração incompleta: ${docs.length.toLocaleString("pt-BR")} registros em ${pages} página(s). ${reasons.join(" ")}`
+            : `Extração completa: ${docs.length.toLocaleString("pt-BR")} registros em ${pages} página(s).`,
+      });
+    },
+    [fetchPage],
+  );
+
+  const importFiles = useCallback(async (files: File[]) => {
+    const log: ImportLog[] = [];
+    for (const file of files) {
+      try {
+        const parsed = parseFileText(file.name, await file.text());
+        const complete: Completeness = parsed.hasNextPage === true ? "incomplete" : "unknown";
+        const reason =
+          parsed.hasNextPage === true
+            ? `O arquivo ${file.name} indica que existem mais páginas (hasNextPage = true) que não foram exportadas.`
+            : `Importação manual de ${file.name}: não há como confirmar que todos os atendimentos do período foram exportados.`;
+        setDataset((d) => ingest(d, parsed.docs, { kind: "file", label: file.name }, { complete, reasons: [reason] }));
+        log.push({ name: file.name, ok: true, message: `${parsed.docs.length.toLocaleString("pt-BR")} registros lidos (${parsed.format.toUpperCase()}).` });
+      } catch (e: any) {
+        log.push({ name: file.name, ok: false, message: e?.message ?? "Não consegui ler o arquivo." });
+      }
+    }
+    setImportLog(log);
+  }, []);
+
+  const value: Store = {
+    dataset, clear, config, setConfig, rows, filters, setFilters, preset, setPreset, dataMin, dataMax,
+    deptOptions, agentOptions, classificationOptions, scoped, prev, kpis, granularity,
+    hasKey: statusQ.data?.configured, sync, startSync, importLog, importFiles, timeUnitSuggestion,
+  };
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+}
