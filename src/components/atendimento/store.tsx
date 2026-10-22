@@ -67,6 +67,7 @@ type Store = {
   hasKey: boolean | undefined;
   sync: SyncState;
   startSync: (start: Date, end: Date, fullAudit?: boolean) => Promise<void>;
+  refreshNow: () => Promise<void>;
   importLog: ImportLog[];
   importFiles: (files: File[]) => Promise<void>;
   timeUnitSuggestion: ReturnType<typeof detectTimeUnit>;
@@ -128,6 +129,8 @@ export function AtendimentoProvider({ children }: { children: ReactNode }) {
     return { start: startOfDay(new Date(end.getTime() - 29 * 86400000)), end, departments: [], agent: null, classification: null, includeCampaigns: false };
   });
   const initialized = useRef(false);
+  const syncBusy = useRef(false);
+  const autoStarted = useRef(false);
 
   const setConfig = useCallback((p: Partial<Config>) => {
     setConfigState((prev) => {
@@ -228,6 +231,9 @@ export function AtendimentoProvider({ children }: { children: ReactNode }) {
 
   const startSync = useCallback(
     async (start: Date, end: Date, fullAudit = false) => {
+      if (syncBusy.current) return;
+      syncBusy.current = true;
+      try {
       setSync({ running: true, pages: 0, docs: 0, message: null, failed: false });
       const docs: Record<string, any>[] = [];
       const reasons: string[] = [];
@@ -308,9 +314,37 @@ export function AtendimentoProvider({ children }: { children: ReactNode }) {
             ? `${nothingLoaded ? "Nada foi carregado" : "Extração incompleta"}: ${docs.length.toLocaleString("pt-BR")} registros em ${pages} página(s). ${reasons.join(" ")}`
             : `Extração completa: ${docs.length.toLocaleString("pt-BR")} registros em ${pages} página(s)${fullAudit ? " (histórico completo solicitado, sem seleção de campos)" : how}. ${fullAudit && !docs.some((d: any) => Array.isArray(d.interactions) && d.interactions.some((i: any) => i && Object.prototype.hasOwnProperty.call(i, "systemInteractions"))) ? "A API não forneceu contadores systemInteractions nas interações; a auditoria pode continuar sem evidência." : ""}`,
       });
+      } catch (cause) {
+        const detail = cause instanceof Error ? cause.message : "Erro inesperado";
+        setSync((old) => ({ ...old, running: false, failed: true, message: "Falha ao sincronizar: " + detail }));
+      } finally {
+        syncBusy.current = false;
+      }
     },
     [fetchPage],
   );
+
+  const refreshNow = useCallback(() => {
+    // 30 full days + 30 preceding days, plus today for future comparisons.
+    const now = new Date();
+    const start = startOfDay(now);
+    start.setDate(start.getDate() - 60);
+    return startSync(start, endOfDay(now), true);
+  }, [startSync]);
+
+  useEffect(() => {
+    if (statusQ.data?.configured !== true || autoStarted.current) return;
+    autoStarted.current = true;
+    void refreshNow();
+  }, [statusQ.data?.configured, refreshNow]);
+
+  useEffect(() => {
+    if (statusQ.data?.configured !== true) return;
+    // While the dashboard is open, refresh every six hours.
+    // Data is not persisted or refreshed when no browser session is running.
+    const interval = window.setInterval(() => { void refreshNow(); }, 6 * 60 * 60 * 1000);
+    return () => window.clearInterval(interval);
+  }, [statusQ.data?.configured, refreshNow]);
 
   const importFiles = useCallback(async (files: File[]) => {
     const log: ImportLog[] = [];
@@ -334,7 +368,7 @@ export function AtendimentoProvider({ children }: { children: ReactNode }) {
   const value: Store = {
     dataset, auditBaseline, setAuditBaseline, clear, config, setConfig, rows, filters, setFilters, preset, setPreset, dataMin, dataMax,
     deptOptions, agentOptions, classificationOptions, scoped, prev, kpis, granularity,
-    hasKey: statusQ.data?.configured, sync, startSync, importLog, importFiles, timeUnitSuggestion,
+    hasKey: statusQ.data?.configured, sync, startSync, refreshNow, importLog, importFiles, timeUnitSuggestion,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

@@ -3,6 +3,7 @@ import { CloudDownload, FileUp, KeyRound, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Notice, Panel, Tag, selectClass } from "@/components/app/ui-kit";
 import { DOCUMENTED_FIELDS } from "@/lib/hyperflow/normalize";
+import { calculateLiveHumanTrend } from "@/lib/hyperflow/live-human-trend";
 import { endOfDay, fmtInt, startOfDay } from "@/lib/hyperflow/metrics";
 import { cn } from "@/lib/utils";
 import { useAtendimento } from "./store";
@@ -18,7 +19,8 @@ function fromYmd(s: string) {
 }
 
 export function SourcePanel({ compact }: { compact?: boolean }) {
-  const { dataset, hasKey, sync, startSync, importFiles, importLog, clear } = useAtendimento();
+  const { dataset, config, hasKey, sync, startSync, refreshNow, importFiles, importLog, clear } = useAtendimento();
+  const trend = calculateLiveHumanTrend(dataset, config.botNames);
   const today = new Date();
   const [from, setFrom] = useState(ymd(new Date(today.getTime() - 59 * 86400000)));
   const [to, setTo] = useState(ymd(today));
@@ -32,6 +34,25 @@ export function SourcePanel({ compact }: { compact?: boolean }) {
 
   return (
     <div className="space-y-4">
+      <Panel title="Qualidade dos dados de atendimento humano" description="A tendência da aba Resultados usa os últimos 30 dias completos comparados aos 30 anteriores. Não usa a auditoria estática de setembro/outubro.">
+        {trend.ready ? (
+          <p className="text-sm text-foreground">Os períodos estão completos e todos os atendimentos elegíveis têm evidência de mensagem. O comparativo é exibido em Resultados.</p>
+        ) : (
+          <div className="space-y-2 text-sm text-muted-foreground">
+            <p className="font-medium text-foreground">{trend.reason}</p>
+            <p>
+              Período anterior: {fmtInt(trend.before.eligible)} receptivos, {fmtInt(trend.before.unknown)} sem evidência;
+              período recente: {fmtInt(trend.current.eligible)} receptivos, {fmtInt(trend.current.unknown)} sem evidência.
+            </p>
+            <p className="text-xs">Não será exibida uma porcentagem de redução na aba Resultados enquanto houver lacunas que impeçam o cálculo confiável.</p>
+          </div>
+        )}
+        {hasKey && (
+          <Button type="button" className="mt-4" size="sm" variant="outline" disabled={sync.running} onClick={() => void refreshNow()}>
+            {sync.running ? "Sincronizando…" : "Atualizar últimos 60 dias"}
+          </Button>
+        )}
+      </Panel>
       <div className="grid gap-4 lg:grid-cols-2">
         <Panel title="Sincronizar com a API da Hyperflow" description="Busca os atendimentos direto da API, página por página, com novas tentativas em caso de limite (429) ou indisponibilidade (502).">
           {hasKey === false ? (
