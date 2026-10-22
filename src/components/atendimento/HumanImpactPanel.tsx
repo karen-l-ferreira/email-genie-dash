@@ -2,7 +2,7 @@ import { useMemo, useState, type ChangeEvent } from "react";
 import { CheckCircle2, FileJson, Info, AlertTriangle } from "lucide-react";
 import { Notice, Panel, Tag } from "@/components/app/ui-kit";
 import { fmtInt } from "@/lib/hyperflow/metrics";
-import { parseAuditBaseline, reconcileAudit, type AuditBaseline } from "@/lib/hyperflow/audit-reconcile";
+import { parseAuditBaseline, reconcileAudit } from "@/lib/hyperflow/audit-reconcile";
 import { useAtendimento } from "./store";
 
 function formatPct(value: number | null): string {
@@ -22,8 +22,7 @@ function AuditStep({ label, ok, value }: { label: string; ok: boolean; value: st
 }
 
 export function HumanImpactPanel() {
-  const { dataset, config } = useAtendimento();
-  const [baseline, setBaseline] = useState<AuditBaseline | null>(null);
+  const { dataset, config, auditBaseline: baseline, setAuditBaseline: setBaseline } = useAtendimento();
   const [error, setError] = useState<string | null>(null);
   const analysis = useMemo(
     () => baseline ? reconcileAudit(baseline, dataset.chats, config.botNames, dataset.completeness === "complete") : null,
