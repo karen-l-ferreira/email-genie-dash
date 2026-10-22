@@ -77,15 +77,28 @@ export function analyzeHistoricalHumanImpact(
 ): ImpactAudit {
   const before = empty();
   const after = empty();
-  const earliest = chats.map((c) => c.createdAt?.getTime()).filter((v): v is number => v != null);
-  const coverageOfWindows = earliest.length > 0
-    && Math.min(...earliest) <= new Date("2026-09-12T23:59:59").getTime()
-    && Math.max(...earliest) >= new Date("2026-10-19T00:00:00").getTime();
+  const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit",
+  });
+  const localDay = (date: Date) => {
+    const parts = dateFormatter.formatToParts(date);
+    const part = (name: string) => parts.find((p) => p.type === name)?.value ?? "";
+    return `${part("year")}-${part("month")}-${part("day")}`;
+  };
+  let minDay = "9999-12-31";
+  let maxDay = "0000-01-01";
+  for (const chat of chats) {
+    if (!chat.createdAt) continue;
+    const day = localDay(chat.createdAt);
+    if (day < minDay) minDay = day;
+    if (day > maxDay) maxDay = day;
+  }
+  const coverageOfWindows = minDay <= HISTORICAL_HUMAN_IMPACT.before.from
+    && maxDay >= HISTORICAL_HUMAN_IMPACT.after.to;
 
   for (const chat of chats) {
     if (!chat.createdAt) continue;
-    // ISO dates in a fixed Brazilian local timezone avoid UTC midnight shifts.
-    const date = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(chat.createdAt);
+    const date = localDay(chat.createdAt);
     const p = date >= HISTORICAL_HUMAN_IMPACT.before.from && date <= HISTORICAL_HUMAN_IMPACT.before.to
       ? before
       : date >= HISTORICAL_HUMAN_IMPACT.after.from && date <= HISTORICAL_HUMAN_IMPACT.after.to ? after : null;
