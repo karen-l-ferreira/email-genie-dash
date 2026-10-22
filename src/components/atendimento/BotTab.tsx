@@ -1,6 +1,5 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Button } from "@/components/ui/button";
 import { Notice, Panel, Tag } from "@/components/app/ui-kit";
 import { fmtInt, fmtPct } from "@/lib/hyperflow/metrics";
 import { cn } from "@/lib/utils";
@@ -11,20 +10,9 @@ const AXIS = { fontSize: 11, fill: "#5f6f8a" };
 const TIP = { borderRadius: 10, border: "1px solid #e1e7f1", fontSize: 12 };
 const MIN_N = 10;
 
-function splitTerms(s: string): string[] {
-  return s.split(/[,;]/).map((x) => x.trim()).filter(Boolean);
-}
-
 export function BotTab() {
-  const { kpis, config, setConfig, scoped, dataset } = useAtendimento();
+  const { kpis, config, scoped } = useAtendimento();
   const d = useDerived();
-  const [bots, setBots] = useState(config.botNames.join(", "));
-  const [markers, setMarkers] = useState(config.resolvedMarkers.join(", "));
-  const agentNames = useMemo(() => [...new Set(dataset.chats.flatMap((chat) => chat.agentsAll))].sort((a, b) => a.localeCompare(b, "pt-BR")), [dataset.chats]);
-  const toggleBot = (name: string, checked: boolean) => setBots((previous) => {
-    const current = splitTerms(previous);
-    return (checked ? [...new Set([...current, name])] : current.filter((x) => x !== name)).join(", ");
-  });
 
   const byDept = useMemo(() => {
     const m = new Map<string, { touched: number; transferred: number }>();
@@ -55,12 +43,12 @@ export function BotTab() {
     <div className="space-y-8">
       {kpis.coverage < 0.8 && (
         <Notice>
-          Só {fmtPct(kpis.coverage, 0)} dos atendimentos trazem agente no histórico. A separação entre IA e humano só é confiável após cadastrar todas as IAs e vale apenas para esses; os outros {fmtInt(kpis.indeterminate)} aparecem como "não identificado".
+          Só {fmtPct(kpis.coverage, 0)} dos atendimentos têm identificação suficiente para separar IA e humano. Os outros {fmtInt(kpis.indeterminate)} ficam como "não identificado" (inclusive IDs sem nome legível).
         </Notice>
       )}
       {touched === 0 && (
         <Notice tone="bad">
-          Nenhuma das IAs cadastradas foi encontrada no histórico. Confira os nomes de agentes abaixo e selecione todos os assistentes virtuais.
+          Nenhuma IA reconhecida automaticamente (Duda ou Ada) foi encontrada nesse período. IDs sem identificação não são tratados como humanos.
         </Notice>
       )}
 
@@ -88,41 +76,7 @@ export function BotTab() {
         </div>
       </section>
 
-      <Panel title="Como as IAs e a resolução são identificadas" description="Configurações de análise, guardadas só neste navegador. Dados de clientes não são guardados.">
-        <div className="grid gap-4 md:grid-cols-2">
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-medium text-muted-foreground">Nomes dos assistentes de IA (separe por vírgula)</span>
-            <input value={bots} onChange={(e) => setBots(e.target.value)} className="h-9 w-full rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
-          </label>
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-medium text-muted-foreground">Rótulo ou classificação que comprova a resolução pela IA</span>
-            <input value={markers} onChange={(e) => setMarkers(e.target.value)} placeholder="Ex.: Resolvido por IA" className="h-9 w-full rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
-          </label>
-        </div>
-        <div className="mt-4 rounded-lg border border-border bg-surface/50 p-4">
-          <p className="mb-1 text-sm font-medium text-foreground">Quais agentes são assistentes de IA?</p>
-          <p className="mb-3 text-xs text-muted-foreground">Marque todos os assistentes virtuais encontrados nos dados. Agentes não cadastrados como IA serão classificados como humanos; isso pode distorcer os indicadores.</p>
-          {agentNames.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Não há nomes de agentes disponíveis no histórico.</p>
-          ) : (
-            <div className="grid max-h-48 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2">
-              {agentNames.map((name) => (
-                <label key={name} className="flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground">
-                  <input type="checkbox" className="h-4 w-4 accent-[#0660FE]" checked={splitTerms(bots).includes(name)} onChange={(e) => toggleBot(name, e.target.checked)} />
-                  <span className="truncate" title={name}>{name}</span>
-                </label>
-              ))}
-            </div>
-          )}
-        </div>
-        <div className="mt-4">
-          <Button size="sm" onClick={() => setConfig({ botNames: splitTerms(bots), resolvedMarkers: splitTerms(markers) })}>
-            Aplicar
-          </Button>
-        </div>
-      </Panel>
-
-      <Panel title="Evolução" description="Barras: atendimentos por quem atendeu. Linha: taxa de transferência das IAs cadastradas.">
+      <Panel title="Evolução" description="Barras: atendimentos por quem atendeu. Linha: taxa de transferência das IAs identificadas.">
         <div className="h-72">
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={chart} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
