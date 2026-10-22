@@ -9,7 +9,7 @@ const BASE_URL = "https://desk-ext.hyperflowapis.global";
 
 const REQUESTED_FIELDS = [
   "_id", "protocol", "status", "createdAt", "finishedAt",
-  "agent.name", "department.name", "departments.name",
+  "agent.name", "agent.type", "department.name", "departments.name",
   "interactions.agent.name", "interactions.department.name", "interactions.transferAt",
   // Historical human-work audit requires confirmed messages, not merely an assigned agent.
   "interactions.systemInteractions", "createdBy.name", "contact.name",
