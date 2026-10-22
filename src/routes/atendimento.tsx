@@ -25,7 +25,7 @@ const TABS = [
 type TabKey = (typeof TABS)[number]["value"];
 
 function AtendimentoPage() {
-  const { dataset, scoped, filters } = useAtendimento();
+  const { dataset, scoped, filters, hasKey, sync, refreshNow } = useAtendimento();
   const [tab, setTab] = useState<TabKey>("resultados");
   const [showFilters, setShowFilters] = useState(false);
   const hasData = dataset.chats.length > 0;
@@ -42,9 +42,14 @@ function AtendimentoPage() {
             <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground">Resultados do atendimento humano, atuação das IAs e oportunidades para reduzir esforço operacional.</p>
           </div>
         </div>
-        {hasData && <button type="button" onClick={() => setTab("dados")} className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-card px-4 text-sm font-medium text-foreground hover:bg-muted"><RefreshCcw className="h-4 w-4" />Atualizar dados</button>}
+        {hasData && <button type="button" disabled={sync.running} onClick={() => hasKey ? void refreshNow() : setTab("dados")} className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-card px-4 text-sm font-medium text-foreground hover:bg-muted disabled:opacity-50"><RefreshCcw className={sync.running ? "h-4 w-4 animate-spin" : "h-4 w-4"} />{sync.running ? "Atualizando…" : "Atualizar dados"}</button>}
       </header>
 
+      {sync.running && (
+        <div role="status" aria-live="polite" className="mb-4 rounded-lg border border-primary/20 bg-primary/5 px-4 py-2 text-xs text-foreground">
+          Sincronizando Hyperflow: {fmtInt(sync.pages)} página(s), {fmtInt(sync.docs)} registros carregados. {sync.message}
+        </div>
+      )}
       {hasData && <div className="mb-5"><DataStrip /></div>}
       {hasData && <CompletenessBanner />}
       {hasData && <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3">
