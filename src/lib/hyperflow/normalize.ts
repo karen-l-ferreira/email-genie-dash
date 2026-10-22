@@ -2,6 +2,11 @@
 // typed chats, without ever dropping a record silently: every rejection or gap is counted
 // and surfaced in the dataset's quality report.
 
+export type AuditInteraction = {
+  agent: string | null;
+  systemInteractions: number | null;
+};
+
 export type Chat = {
   id: string;
   protocol: string | null;
@@ -23,6 +28,10 @@ export type Chat = {
   transfers: number; // interactions carrying a transferAt
   isBroadcast: boolean;
   channel: string | null;
+  channelKind: string | null; // provider channel, without human-readable alias
+  createdByTeam: boolean; // createdBy relation is present: outbound/team-created
+  possibleTest: boolean; // explicit contact/label test markers; audit still required
+  auditInteractions: AuditInteraction[]; // per-interaction evidence, never message content
 };
 
 export type SourceInfo = { kind: "api" | "file"; label: string; records: number; at: Date };
@@ -68,6 +77,9 @@ export const DOCUMENTED_FIELDS = [
   "interactions.agent.name",
   "interactions.department.name",
   "interactions.transferAt",
+  "interactions.systemInteractions",
+  "createdBy.name",
+  "contact.name",
   "classifications.name",
   "labels.name",
   "queuedTime",
@@ -163,6 +175,15 @@ export function normalizeChat(raw: Record<string, any>): Chat | null {
   const interactions: any[] = Array.isArray(raw.interactions) ? raw.interactions : [];
   const interactionDepts = interactions.map((i) => nameOf(i?.department)).filter((x): x is string => !!x);
   const interactionAgents = interactions.map((i) => nameOf(i?.agent)).filter((x): x is string => !!x);
+  const auditInteractions = interactions.map((i) => ({
+    agent: nameOf(i?.agent),
+    systemInteractions: toNum(i?.systemInteractions),
+  }));
+  const testMark = /(^|[^a-zA-Z])(?:teste|testes|test|homologacao|homologação)(?=$|[^a-zA-Z])/i;
+  const possibleTest = [
+    nameOf(raw?.contact),
+    ...namesOf(raw?.labels),
+  ].some((value) => value != null && testMark.test(value));
 
   const agent = nameOf(raw.agent);
   const department = nameOf(raw.department);
@@ -190,6 +211,10 @@ export function normalizeChat(raw: Record<string, any>): Chat | null {
     transfers: interactions.filter((i) => hasValue(i?.transferAt)).length,
     isBroadcast: toBool(raw.isBroadcast),
     channel: nameOf(raw.channelAlias) ?? nameOf(raw.channel),
+    channelKind: nameOf(raw.channel),
+    createdByTeam: raw?.createdBy != null && raw?.createdBy !== "",
+    possibleTest,
+    auditInteractions,
   };
 }
 
@@ -197,7 +222,8 @@ function richness(c: Chat): number {
   return [
     c.status, c.createdAt, c.finishedAt, c.firstInteractionAt, c.department, c.agent, c.queuedTime,
     c.messagesCount, c.channel, c.userInteractionTime, c.systemInteractionTime,
-  ].filter((x) => x != null).length + c.classifications.length + c.agentsAll.length + c.interactionsCount;
+  ].filter((x) => x != null).length + c.classifications.length + c.agentsAll.length + c.interactionsCount
+    + c.auditInteractions.filter((i) => i.systemInteractions != null).length;
 }
 
 // ── ingestion with deduplication and coverage ────────────────────────────────
