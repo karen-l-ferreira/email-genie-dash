@@ -34,7 +34,7 @@ export function ExecutiveTab() {
   const handlingBar = [
     { key: "duda", label: "Somente IA", n: kpis.duda, color: "#0B3A8C", hint: "Apenas assistentes de IA cadastrados aparecem como agentes. Isso não comprova resolução." },
     { key: "trf", label: "IA e humano", n: kpis.transferred, color: "#2F6BE0", hint: "Assistente de IA identificado junto com agente humano." },
-    { key: "hum", label: "Humano direto", n: kpis.humanDirect, color: "#8DB4F0", hint: "Agentes não cadastrados como IA foram tratados como humanos; confira a lista de assistentes na aba de IA." },
+    { key: "hum", label: "Humano direto", n: kpis.humanDirect, color: "#8DB4F0", hint: "Agentes não cadastrados como IA foram tratados como humanos; confira a identificação das IAs em Oportunidades." },
     { key: "ind", label: "Não identificado", n: kpis.indeterminate, color: "#CBD5E1", hint: "O histórico não traz nenhum agente, então não dá para saber." },
   ];
 
@@ -85,7 +85,7 @@ export function ExecutiveTab() {
           />
           <KpiTile
             label="Participação exclusiva de IA"
-            hint="Atendimentos exclusivamente de IAs cadastradas ÷ atendimentos com agente identificável. Confira os nomes de IA na configuração. Não representa resolução."
+            hint="Atendimentos exclusivamente de IAs cadastradas ÷ atendimentos com agente identificável. Confira os nomes de IA em Oportunidades. Não representa resolução."
             value={iaIdentificada ? fmtPct(kpis.automationRate) : "—"}
             deltaText={iaIdentificada ? fmtPp(auto) : undefined}
             tone={auto == null ? "neutral" : auto >= 0 ? "good" : "bad"}
@@ -154,7 +154,7 @@ export function ExecutiveTab() {
       </section>}
 
       <section>
-        <SectionTitle title="Principais movimentos" hint="Só fatos que os números sustentam. Hipóteses e recomendações estão na aba Inteligência." />
+        <SectionTitle title="Principais movimentos" hint="Só fatos que os números sustentam. Hipóteses e recomendações estão em Oportunidades." />
         <Panel>
           <ul className="space-y-3">
             {d.insights.facts.slice(0, 6).map((f, i) => (
