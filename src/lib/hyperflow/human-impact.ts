@@ -6,7 +6,7 @@ import { norm } from "./metrics";
 export const HISTORICAL_HUMAN_IMPACT = {
   extractedAt: "2026-10-20",
   before: { from: "2026-09-12", to: "2026-09-30", eligible: 277, human: 195 },
-  after: { from: "2026-10-01", to: "2026-10-19", eligible: 277, human: 162 },
+  after: { from: "2026-10-01", to: "2026-10-19", eligible: 277, human: 164 },
   openOrPending: 51,
 } as const;
 

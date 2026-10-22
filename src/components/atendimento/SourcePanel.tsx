@@ -23,6 +23,7 @@ export function SourcePanel({ compact }: { compact?: boolean }) {
   const [from, setFrom] = useState(ymd(new Date(today.getTime() - 59 * 86400000)));
   const [to, setTo] = useState(ymd(today));
   const [dragging, setDragging] = useState(false);
+  const [fullAudit, setFullAudit] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const onFiles = (list: FileList | null) => {
@@ -57,14 +58,21 @@ export function SourcePanel({ compact }: { compact?: boolean }) {
                 </label>
                 <Button
                   disabled={sync.running || hasKey === undefined || !from || !to}
-                  onClick={() => void startSync(startOfDay(fromYmd(from)), endOfDay(fromYmd(to)))}
+                  onClick={() => void startSync(startOfDay(fromYmd(from)), endOfDay(fromYmd(to)), fullAudit)}
                   className="h-9"
                 >
                   {sync.running ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CloudDownload className="mr-2 h-4 w-4" />}
                   {sync.running ? "Sincronizando…" : "Sincronizar"}
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">Use pelo menos o dobro do período que pretende analisar: a comparação com o período anterior precisa dos dois.</p>
+              <label className="flex items-start gap-2 rounded-lg border border-border bg-surface/50 p-3 text-xs text-foreground">
+                <input type="checkbox" checked={fullAudit} onChange={(e) => setFullAudit(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 accent-[#0660FE]" disabled={sync.running} />
+                <span><strong>Auditoria detalhada de mensagens humanas</strong>
+                  <span className="mt-1 block text-muted-foreground">Busca os registros sem seleção de campos para tentar obter os contadores de mensagens por interação. Use 12/09/2026 a 19/10/2026 para conferir o estudo. Pode levar mais tempo e a API pode não fornecer esses campos.</span>
+                </span>
+              </label>
+              <p className="text-xs text-muted-foreground">Para comparar períodos automaticamente, carregue um intervalo que cubra ambos.</p>
               {sync.running && (
                 <div role="status" aria-live="polite" className="space-y-1 rounded-lg border border-border bg-surface px-3 py-2 text-xs text-muted-foreground">
                   <p className="tabular-nums">{fmtInt(sync.pages)} página(s) carregada(s) · {fmtInt(sync.docs)} registros</p>
