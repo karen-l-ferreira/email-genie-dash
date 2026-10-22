@@ -4,7 +4,6 @@ import { fmtDelta, fmtInt, fmtPct, pctChange } from "@/lib/hyperflow/metrics";
 import { cn } from "@/lib/utils";
 import { DEPT_COLORS, KpiTile, SectionTitle, useDerived } from "./shared";
 import { useAtendimento } from "./store";
-import { HumanImpactPanel } from "./HumanImpactPanel";
 
 const AXIS = { fontSize: 11, fill: "#5f6f8a" };
 const TIP = { borderRadius: 10, border: "1px solid #e1e7f1", fontSize: 12 };
@@ -41,7 +40,6 @@ export function ExecutiveTab() {
 
   return (
     <div className="space-y-8">
-      <HumanImpactPanel />
       {!iaIdentificada && (
         <Notice tone="warn">Nenhuma IA cadastrada foi identificada no histórico. Configure os nomes de todos os assistentes em “Assistentes de IA” antes de interpretar os indicadores de automação e intervenção humana.</Notice>
       )}
