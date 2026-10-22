@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { fetchHyperflowPage, getHyperflowStatus } from "@/lib/hyperflow.functions";
 import type { AuditBaseline } from "@/lib/hyperflow/audit-reconcile";
+import { KNOWN_ASSISTANTS } from "@/lib/hyperflow/actor-classification";
 import { EMPTY_DATASET, ingest, parseFileText, type Completeness, type Dataset } from "@/lib/hyperflow/normalize";
 import {
   DEFAULT_CONFIG,
@@ -87,7 +88,7 @@ const MAX_PAGES = 600;
 function readConfig(): Config {
   try {
     const raw = localStorage.getItem(CONFIG_KEY);
-    if (raw) return { ...DEFAULT_CONFIG, ...JSON.parse(raw) };
+    if (raw) return { ...DEFAULT_CONFIG, ...JSON.parse(raw), botNames: [...KNOWN_ASSISTANTS] };
   } catch {
     /* storage unavailable: defaults apply */
   }
@@ -134,7 +135,7 @@ export function AtendimentoProvider({ children }: { children: ReactNode }) {
 
   const setConfig = useCallback((p: Partial<Config>) => {
     setConfigState((prev) => {
-      const next = { ...prev, ...p };
+      const next = { ...prev, ...p, botNames: [...KNOWN_ASSISTANTS] };
       try {
         localStorage.setItem(CONFIG_KEY, JSON.stringify(next));
       } catch {
