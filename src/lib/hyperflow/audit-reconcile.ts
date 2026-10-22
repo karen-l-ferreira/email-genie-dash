@@ -38,8 +38,11 @@ export type AuditReconciliation = {
   after: WindowTotals;
   baseMatched: boolean;
   complete: boolean;
-  final: boolean;
-  reductionPercent: number | null;
+  final: boolean; // fully verifiable as of extraction; open cases are allowed
+  reductionPercent: number | null; // only if every eligible protocol has message evidence
+  observedDifferencePercent: number | null; // comparison of *minimum proven counts* (not a full reduction)
+  evidenceCoverage: number;
+  unknownCases: number;
   humanShareBefore: number | null;
   humanShareAfter: number | null;
   deltaParticipationPp: number | null;
@@ -141,16 +144,25 @@ export function reconcileAudit(
   const baseMatched = before.eligible === 277 && after.eligible === 277;
   const complete = extractionComplete && baseMatched &&
     before.absent === 0 && after.absent === 0 && duplicateProtocols === 0;
-  // A result becomes definitive only when every eligible protocol is classified
-  // from actual message evidence AND no conversation remains pending.
-  const final = complete && before.noMessageEvidence === 0 && after.noMessageEvidence === 0 &&
-    before.stillOpen === 0 && after.stillOpen === 0 &&
+  // At a fixed extraction cut-off, open protocols may be analysed as they stand.
+  // They remain a separate, visible maturity caveat, not a reason to hide all data.
+  // A confirmed cohort-wide reduction still REQUIRES every eligible record to
+  // have verifiable message evidence, even when some protocols are open.
+  const unknownCases = before.noMessageEvidence + after.noMessageEvidence;
+  const final = complete && unknownCases === 0 &&
     before.statusUnknown === 0 && after.statusUnknown === 0 && before.humanNow > 0;
   const rateBefore = final ? before.humanNow / before.eligible : null;
   const rateAfter = final ? after.humanNow / after.eligible : null;
+  // Always report the proven message counts, even when evidence coverage is
+  // incomplete. Their difference is NOT a confirmed reduction in total human work.
+  const observedDifferencePercent = complete && before.humanNow > 0
+    ? ((before.humanNow - after.humanNow) / before.humanNow) * 100 : null;
+  const evidenceCoverage = (before.eligible + after.eligible) > 0
+    ? (before.eligible + after.eligible - unknownCases) / (before.eligible + after.eligible)
+    : 0;
   return {
-    before, after, baseMatched, complete, final,
-    reductionPercent: final ? ((before.humanNow - after.humanNow) / before.humanNow) * 100 : null,
+    before, after, baseMatched, complete, final, unknownCases, evidenceCoverage, observedDifferencePercent,
+    reductionPercent: final ? observedDifferencePercent : null,
     humanShareBefore: rateBefore, humanShareAfter: rateAfter,
     deltaParticipationPp: final && rateBefore != null && rateAfter != null ? (rateAfter - rateBefore) * 100 : null,
     unmatchedCurrentProtocols: chats.filter((c) => !!c.protocol && !auditIds.has(c.protocol)).length,

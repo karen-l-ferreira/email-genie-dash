@@ -43,10 +43,10 @@ export function ResultsTab() {
             sub={volumeChange == null ? "Sem período anterior completo para comparação" : "Comparação com período anterior de igual duração"}
           />
           <KpiTile
-            label="Com mensagem humana"
+            label="Mensagens humanas confirmadas"
             hint="Somente contadores positivos de mensagens atribuídas a agente humano. Se faltar qualquer evidência, o total não é conclusivo."
-            value={!complete || observed.unknown > 0 ? "—" : fmtInt(observed.human)}
-            sub={observed.unknown > 0 ? `${fmtInt(observed.unknown)} protocolos sem evidência suficiente` : !complete ? "Extração não verificada" : "Mensagem comprovada; não apenas agente atribuído"}
+            value={observed.unknown > 0 || !complete ? "≥ " + fmtInt(observed.human) : fmtInt(observed.human)}
+            sub={observed.unknown > 0 ? `${fmtInt(observed.unknown)} protocolos sem evidência; número mínimo` : !complete ? "Extração parcial ou não verificada" : "Comprovado por contador de interação"}
           />
           <KpiTile
             label="Com encaminhamento"
@@ -64,7 +64,7 @@ export function ResultsTab() {
       </section>
 
       <p className="text-xs text-muted-foreground">
-        A redução no atendimento humano só é considerada confirmada após a auditoria por protocolo. Encaminhamento e atribuição de agente não comprovam atendimento realizado ou resolução pela IA.
+        A comparação usa uma data de corte. Os atendimentos abertos podem mudar em futuras extrações; campos sem evidência são tratados como desconhecidos, nunca como ausência de mensagem. Encaminhamento não comprova resolução por IA.
       </p>
 
       <details className="rounded-xl border border-border bg-card px-5 py-4">
