@@ -80,14 +80,14 @@ export function ExecutiveTab() {
             label="Com intervenção humana"
             hint="Atendimentos com um agente não cadastrado como IA. Confira todos os nomes de IA antes de interpretar como intervenção humana."
             value={iaIdentificada ? fmtInt(kpis.human) : "—"}
-            deltaText={fmtPp(hum)}
-            sub={kpis.humanShare != null ? `${fmtPct(kpis.humanShare)} dos identificáveis` : "sem histórico de agentes"}
+            deltaText={iaIdentificada ? fmtPp(hum) : undefined}
+            sub={!iaIdentificada ? "Configure os agentes de IA" : kpis.humanShare != null ? `${fmtPct(kpis.humanShare)} dos identificáveis` : "sem histórico de agentes"}
           />
           <KpiTile
-            label="Taxa de automação validada"
+            label="Participação exclusiva de IA"
             hint="Atendimentos exclusivamente de IAs cadastradas ÷ atendimentos com agente identificável. Confira os nomes de IA na configuração. Não representa resolução."
             value={iaIdentificada ? fmtPct(kpis.automationRate) : "—"}
-            deltaText={fmtPp(auto)}
+            deltaText={iaIdentificada ? fmtPp(auto) : undefined}
             tone={auto == null ? "neutral" : auto >= 0 ? "good" : "bad"}
             sub={`base: ${fmtPct(kpis.coverage, 0)} dos atendimentos identificáveis`}
           />
