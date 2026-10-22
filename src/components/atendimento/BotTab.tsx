@@ -55,7 +55,7 @@ export function BotTab() {
     <div className="space-y-8">
       {kpis.coverage < 0.8 && (
         <Notice>
-          Só {fmtPct(kpis.coverage, 0)} dos atendimentos trazem agente no histórico. A separação entre IA e humano depende de cadastrar todos os nomes das IAs e vale só para esses; os outros {fmtInt(kpis.indeterminate)} aparecem como "não identificado".
+          Só {fmtPct(kpis.coverage, 0)} dos atendimentos trazem agente no histórico. A separação entre IA e humano só é confiável após cadastrar todas as IAs e vale apenas para esses; os outros {fmtInt(kpis.indeterminate)} aparecem como "não identificado".
         </Notice>
       )}
       {touched === 0 && (
@@ -67,7 +67,7 @@ export function BotTab() {
       <section>
         <SectionTitle title="Desempenho das IAs" hint="Considera só atendimentos em que o histórico permite saber quem atendeu." />
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <KpiTile label="Somente IA" hint="Histórico com uma IA como único agente. Não é o mesmo que resolvido: o cliente pode ter desistido." value={fmtInt(kpis.duda)} sub={kpis.automationRate != null ? `${fmtPct(kpis.automationRate)} dos identificáveis` : undefined} />
+          <KpiTile label="Somente IA" hint="Histórico com apenas agentes cadastrados como IA. Não é o mesmo que resolvido: o cliente pode ter desistido." value={fmtInt(kpis.duda)} sub={kpis.automationRate != null ? `${fmtPct(kpis.automationRate)} dos identificáveis` : undefined} />
           <KpiTile label="Transferidos para humano" hint="Uma IA participou e um agente humano assumiu o atendimento." value={fmtInt(kpis.transferred)} sub={`de ${fmtInt(touched)} em que uma IA participou`} />
           <KpiTile label="Taxa de transferência" hint="Transferidos ÷ atendimentos em que uma IA participou (somente IA + transferidos)." value={fmtPct(kpis.transferRate)} />
           {config.resolvedMarkers.length > 0 ? (
@@ -88,15 +88,15 @@ export function BotTab() {
         </div>
       </section>
 
-      <Panel title="Como uma IA e a resolução são identificadas" description="Configurações de análise, guardadas só neste navegador. Dados de clientes não são guardados.">
+      <Panel title="Como as IAs e a resolução são identificadas" description="Configurações de análise, guardadas só neste navegador. Dados de clientes não são guardados.">
         <div className="grid gap-4 md:grid-cols-2">
           <label className="block">
-            <span className="mb-1.5 block text-xs font-medium text-muted-foreground">Nome da automação nos agentes (separe por vírgula)</span>
+            <span className="mb-1.5 block text-xs font-medium text-muted-foreground">Nomes dos assistentes de IA (separe por vírgula)</span>
             <input value={bots} onChange={(e) => setBots(e.target.value)} className="h-9 w-full rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-xs font-medium text-muted-foreground">Rótulo ou classificação que prova resolução peluma IA</span>
-            <input value={markers} onChange={(e) => setMarkers(e.target.value)} placeholder="Ex.: Resolvido peluma IA" className="h-9 w-full rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            <span className="mb-1.5 block text-xs font-medium text-muted-foreground">Rótulo ou classificação que comprova a resolução pela IA</span>
+            <input value={markers} onChange={(e) => setMarkers(e.target.value)} placeholder="Ex.: Resolvido por IA" className="h-9 w-full rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
           </label>
         </div>
         <div className="mt-4 rounded-lg border border-border bg-surface/50 p-4">
@@ -122,7 +122,7 @@ export function BotTab() {
         </div>
       </Panel>
 
-      <Panel title="Evolução" description="Barras: atendimentos por quem atendeu. Linha: taxa de transferência das IAs.">
+      <Panel title="Evolução" description="Barras: atendimentos por quem atendeu. Linha: taxa de transferência das IAs cadastradas.">
         <div className="h-72">
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={chart} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
