@@ -20,6 +20,7 @@ export function ResultsTab() {
   }, [scoped.operational, config.botNames]);
   const volumeChange = prev.covered && prev.kpis.chats > 0 ? pctChange(kpis.chats, prev.kpis.chats) : null;
   const transferred = scoped.operational.filter((r) => r.transfers > 0).length;
+  const identifiedIA = scoped.operational.filter((r) => r.botTouched).length;
   const classified = scoped.operational.filter((r) => r.classifications.length > 0).length;
   const complete = dataset.completeness === "complete";
 
@@ -53,8 +54,8 @@ export function ResultsTab() {
           <KpiTile
             label="Com IA identificada"
             hint="Conversas em que Duda ou Ada foram identificadas automaticamente. Participação no histórico não comprova resolução."
-            value={fmtInt(kpis.duda + kpis.transferred)}
-            sub={fmtPct((kpis.duda + kpis.transferred) / kpis.chats) + " dos atendimentos"}
+            value={fmtInt(identifiedIA)}
+            sub={fmtPct(identifiedIA / kpis.chats) + " dos atendimentos"}
           />
           <KpiTile
             label="Com encaminhamento"
