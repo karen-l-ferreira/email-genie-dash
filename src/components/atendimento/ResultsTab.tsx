@@ -51,6 +51,12 @@ export function ResultsTab() {
             />
           )}
           <KpiTile
+            label="Com IA identificada"
+            hint="Conversas em que Duda ou Ada foram identificadas automaticamente. Participação no histórico não comprova resolução."
+            value={fmtInt(kpis.duda + kpis.transferred)}
+            sub={fmtPct((kpis.duda + kpis.transferred) / kpis.chats) + " dos atendimentos"}
+          />
+          <KpiTile
             label="Com encaminhamento"
             hint="Protocolos com pelo menos um transferAt registrado; não significa que houve mensagem humana."
             value={fmtInt(transferred)}
