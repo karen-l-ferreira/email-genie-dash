@@ -40,7 +40,7 @@ export const Route = createFileRoute("/alertas")({
   errorComponent: ({ error }) => (
     <div className="min-h-screen bg-background pl-[220px]">
       <AppHeader />
-      <div className="mx-auto max-w-5xl px-6 py-10 text-sm text-destructive">{error.message}</div>
+      <div className="mx-auto max-w-5xl px-6 py-10 text-sm text-destructive">{(error as Error).message}</div>
     </div>
   ),
   notFoundComponent: () => <div>Não encontrado</div>,
