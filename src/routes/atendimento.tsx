@@ -31,7 +31,7 @@ const TABS = [
 type TabKey = (typeof TABS)[number]["value"];
 
 function AtendimentoPage() {
-  const { dataset, scoped, filters, kpis } = useAtendimento();
+  const { dataset, scoped, filters } = useAtendimento();
   const [tab, setTab] = useState<TabKey>("exec");
   const [showFilters, setShowFilters] = useState(false);
   const hasData = dataset.chats.length > 0;
@@ -50,13 +50,6 @@ function AtendimentoPage() {
         </div>
         {hasData && <button type="button" onClick={() => setTab("dados")} className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-card px-4 text-sm font-medium text-foreground hover:bg-muted"><RefreshCcw className="h-4 w-4" />Atualizar dados</button>}
       </header>
-
-      {hasData && <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-xl border border-border bg-card p-5 shadow-card"><p className="text-xs font-medium text-muted-foreground">Atendimentos no período</p><p className="mt-2 text-3xl font-bold tabular-nums text-foreground">{fmtInt(kpis.chats)}</p><p className="mt-2 text-xs text-muted-foreground">Conversas únicas nos filtros selecionados</p></div>
-        <div className="rounded-xl border border-border bg-card p-5 shadow-card"><p className="text-xs font-medium text-muted-foreground">Com intervenção humana</p><p className="mt-2 text-3xl font-bold tabular-nums text-foreground">{fmtInt(kpis.human)}</p><p className="mt-2 text-xs text-muted-foreground">Atendimentos com agente humano identificado</p></div>
-        <div className="rounded-xl border border-border bg-card p-5 shadow-card"><p className="text-xs font-medium text-muted-foreground">Automação identificada</p><p className="mt-2 text-3xl font-bold tabular-nums text-foreground">{kpis.automationRate == null ? "—" : (kpis.automationRate * 100).toFixed(1).replace(".", ",") + "%"}</p><p className="mt-2 text-xs text-muted-foreground">Participação exclusiva da IA; não significa resolução</p></div>
-        <div className="rounded-xl border border-border bg-card p-5 shadow-card"><p className="text-xs font-medium text-muted-foreground">Encaminhamentos registrados</p><p className="mt-2 text-3xl font-bold tabular-nums text-foreground">{fmtInt(kpis.transfers)}</p><p className="mt-2 text-xs text-muted-foreground">Transferências na jornada de atendimento</p></div>
-      </div>}
 
       {hasData && <div className="mb-5"><DataStrip /></div>}
       {hasData && <CompletenessBanner />}
