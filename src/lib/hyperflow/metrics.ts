@@ -9,7 +9,7 @@ export type TimeUnit = "s" | "ms" | "min";
 export type Handling = "duda_exclusiva" | "transferido" | "humano_direto" | "indeterminado";
 
 export type Config = {
-  botNames: string[]; // names of every configured AI agent, not just Duda
+  botNames: string[]; // automatically recognized assistants; no manual selection
   resolvedMarkers: string[]; // classification/label text that PROVES automated resolution
   timeUnit: TimeUnit | null; // unit of queuedTime / *InteractionTime, null until validated
 };
@@ -461,7 +461,7 @@ export function buildInsights(i: InsightInput): Insights {
   if (i.dataset.completeness === "unknown")
     pending.push({ text: "A completude da base importada não pode ser verificada.", evidence: "Importação manual: não há como confirmar que todos os atendimentos do período foram exportados." });
   if (cur.chats > 0 && cur.coverage < 0.8)
-    pending.push({ text: `Só ${fmtPct(cur.coverage, 0)} dos atendimentos permitem separar IA de humano (conforme os nomes de assistentes cadastrados).`, evidence: `${fmtInt(cur.indeterminate)} atendimentos sem nenhum agente no histórico.` });
+    pending.push({ text: `Só ${fmtPct(cur.coverage, 0)} dos atendimentos permitem separar IA de humano pela identificação automática.`, evidence: `${fmtInt(cur.indeterminate)} atendimentos sem agente identificável ou com IDs opacos.` });
   if (cur.chats > 0 && i.classifiedShare < 0.7)
     pending.push({ text: `Só ${fmtPct(i.classifiedShare, 0)} dos atendimentos têm classificação.`, evidence: "Os motivos de contato representam apenas a parte classificada." });
   if (i.config.timeUnit == null)
@@ -480,12 +480,12 @@ export function buildInsights(i: InsightInput): Insights {
     if (cur.transferRate != null && prev.transferRate != null) {
       const pp = (cur.transferRate - prev.transferRate) * 100;
       if (Math.abs(pp) >= 2)
-        facts.push({ text: `A taxa de transferência das IAs cadastradas ${pp > 0 ? "subiu" : "caiu"} ${Math.abs(pp).toFixed(1).replace(".", ",")} p.p.`, evidence: `${fmtPct(prev.transferRate)} → ${fmtPct(cur.transferRate)}.` });
+        facts.push({ text: `A taxa de transferência das IAs identificadas ${pp > 0 ? "subiu" : "caiu"} ${Math.abs(pp).toFixed(1).replace(".", ",")} p.p.`, evidence: `${fmtPct(prev.transferRate)} → ${fmtPct(cur.transferRate)}.` });
     }
     if (cur.automationRate != null && prev.automationRate != null) {
       const pp = (cur.automationRate - prev.automationRate) * 100;
       if (Math.abs(pp) >= 2)
-        facts.push({ text: `A taxa de automação validada ${pp > 0 ? "subiu" : "caiu"} ${Math.abs(pp).toFixed(1).replace(".", ",")} p.p.`, evidence: `${fmtPct(prev.automationRate)} → ${fmtPct(cur.automationRate)}.` });
+        facts.push({ text: `A participação exclusiva de IA no histórico ${pp > 0 ? "subiu" : "caiu"} ${Math.abs(pp).toFixed(1).replace(".", ",")} p.p.`, evidence: `${fmtPct(prev.automationRate)} → ${fmtPct(cur.automationRate)}.` });
     }
   }
   if (i.deptCur[0]) facts.push({ text: `${i.deptCur[0].dept} concentra a maior demanda.`, evidence: `${fmtInt(i.deptCur[0].n)} atendimentos (${fmtPct(i.deptCur[0].share)} do total).` });
