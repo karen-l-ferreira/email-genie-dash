@@ -84,6 +84,20 @@ export const fetchHyperflowPage = createServerFn({ method: "POST" })
       }
       if (res.status === 401 || res.status === 403) throw new Error("HYPERFLOW_AUTH");
       lastBody = await snippet(res);
+      if (res.status === 429) {
+        // Wait outside the serverless request to avoid exceeding its time limit.
+        const rawRetryAfter = res.headers.get("retry-after");
+        const secondsFromHeader = rawRetryAfter
+          ? (/^\d+(?:\.\d+)?$/.test(rawRetryAfter)
+            ? Number(rawRetryAfter)
+            : (Date.parse(rawRetryAfter) - Date.now()) / 1000)
+          : NaN;
+        const secondsFromBody = Number(lastBody.match(/"retryAfter"\s*:\s*"?([0-9]+)"?/i)?.[1]);
+        const seconds = Number.isFinite(secondsFromHeader) && secondsFromHeader > 0
+          ? secondsFromHeader
+          : secondsFromBody > 0 ? secondsFromBody : 60;
+        throw new Error(`HYPERFLOW_RATE_LIMIT|${Math.ceil(Math.min(300, Math.max(1, seconds)))}`);
+      }
       if (res.status === 400 || res.status === 422) throw new Error(`HYPERFLOW_BAD_REQUEST|${lastBody}`);
       if (!RETRYABLE.has(res.status) || attempt === MAX_ATTEMPTS) break;
       const retryAfter = Number(res.headers.get("retry-after"));
