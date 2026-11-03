@@ -5,6 +5,7 @@ import { AuthGate } from "@/components/app/AuthGate";
 import { Loading, Notice, PageHeader, PageShell, TabBar } from "@/components/app/ui-kit";
 import { SeriesTab } from "@/components/analises/SeriesTab";
 import { AudienceTab } from "@/components/analises/AudienceTab";
+import { NewsletterTab } from "@/components/analises/NewsletterTab";
 import { ContentTab } from "@/components/analises/ContentTab";
 import { TimingTab } from "@/components/analises/TimingTab";
 import { useCampaignHistory } from "@/hooks/use-sent-campaigns";
@@ -21,6 +22,7 @@ export const Route = createFileRoute("/analises")({
 
 const TABS = [
   { value: "series", label: "O que mudou" },
+  { value: "newsletter", label: "Newsletter" },
   { value: "base", label: "Contatos que não abrem" },
   { value: "conteudo", label: "O que dá resultado" },
   { value: "horarios", label: "Melhor dia e hora" },
@@ -59,6 +61,7 @@ function AnalisesPage() {
       ) : (
         <>
           {tab === "series" && <SeriesTab campaigns={campaigns ?? []} />}
+          {tab === "newsletter" && <NewsletterTab campaigns={campaigns ?? []} />}
           {tab === "base" && <AudienceTab campaigns={campaigns ?? []} />}
           {tab === "conteudo" && <ContentTab campaigns={campaigns ?? []} />}
           {tab === "horarios" && <TimingTab campaigns={campaigns ?? []} />}

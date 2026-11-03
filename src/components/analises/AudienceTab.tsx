@@ -16,10 +16,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Advice, EmptyState, Explainer, Notice, Panel, Stat, Tag } from "@/components/app/ui-kit";
 import { cn } from "@/lib/utils";
-import { buildSeries } from "@/lib/analysis/series";
+import { isNoise, parseSendDate, toSendMetrics, type SendMetrics } from "@/lib/analysis/series";
 import { buildCompanyEngagement, dormancyRows, type CompanyRow, type DormancyRow } from "@/lib/analysis/audience";
 
-const WINDOW = 5; // how many of the most recent e-mails define "did not open anything"
+const WINDOW = 10; // most recent e-mails (any send) that define "did not open anything"
 
 type Result = {
   seriesLabel: string;
@@ -41,41 +41,41 @@ export function AudienceTab({ campaigns }: { campaigns: Campaign[] }) {
   const fetchSave = useServerFn(saveSnapshot);
   const fetchSnaps = useServerFn(listSnapshots);
 
-  // Only recurring sends with enough editions make a meaningful window
-  const series = useMemo(() => buildSeries(campaigns, 3), [campaigns]);
-
-  // Always the most recent recurring send that reaches a real audience
-  const seriesKey = useMemo(
-    () => (series.find((s) => s.sends[0].sent >= 500) ?? series[0])?.key ?? "",
-    [series],
+  // The most recent real sends of any kind, so the whole base is judged, not one send.
+  const recent = useMemo(
+    () =>
+      campaigns
+        .map(toSendMetrics)
+        .filter((s): s is SendMetrics => s !== null && !isNoise(s) && s.sent >= 500)
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .slice(0, WINDOW),
+    [campaigns],
   );
-  const n = WINDOW;
+  const idsKey = recent.map((s) => s.id).join(",");
+  const n = recent.length;
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const listId = ""; // whole base: every active contact
 
-  const selected = series.find((s) => s.key === seriesKey) ?? null;
-  // The campaign's own list when AC reports it, otherwise every active contact.
-  const listId = selected?.sends[0].listId ?? "";
-
-  // Runs by itself when the screen opens and whenever an option changes.
+  // Runs by itself when the screen opens.
   useEffect(() => {
-    if (!selected) return;
+    if (recent.length < 3) return;
     let cancelled = false;
     (async () => {
       setRunning(true);
       setError(null);
       try {
-        const ids = selected.sends.slice(0, n).map((s) => s.id);
+        const ids = recent.map((s) => s.id);
         const [{ size }, history, links] = await Promise.all([
-          fetchSize({ data: listId ? { listId } : {} }),
+          fetchSize({ data: {} }),
           fetchHistory({ data: { ids } }),
           fetchLinks(),
         ]);
         if (cancelled) return;
         setResult({
-          seriesLabel: selected.label,
+          seriesLabel: "todos os disparos",
           listId,
           listName: listId ? `Lista ${listId}` : "Todos os contatos ativos",
           listSize: size,
@@ -96,7 +96,7 @@ export function AudienceTab({ campaigns }: { campaigns: Campaign[] }) {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [seriesKey, listId, n]);
+  }, [idsKey]);
 
   const snapEntity = result ? `base-muda:${result.listId || "todos"}` : "";
   const snapsQ = useQuery({
@@ -133,24 +133,28 @@ export function AudienceTab({ campaigns }: { campaigns: Campaign[] }) {
     }
   }
 
+  const oldest = recent[recent.length - 1];
+  const newest = recent[0];
+
   return (
     <div>
       <Explainer>
-        Mostra quantos contatos da sua lista <strong>não abriram nenhum dos últimos e-mails</strong> e quais empresas pararam de abrir. É a parte da base que provavelmente
-        não está vendo o que você manda. A análise começa sozinha com o disparo recorrente mais recente.
+        Mostra quantos contatos da sua base <strong>não abriram nenhum dos últimos e-mails</strong> que você enviou (de qualquer disparo) e quais empresas pararam de abrir. É a parte da base
+        que provavelmente não está vendo o que você manda. A análise começa sozinha.
       </Explainer>
 
-      {series.length === 0 ? (
+      {recent.length < 3 ? (
         <EmptyState
           icon={Users}
-          title="Preciso de um disparo com pelo menos 3 edições"
-          description="A análise olha os últimos e-mails de um disparo recorrente. Ainda não encontrei nenhum."
+          title="Preciso de pelo menos 3 envios para analisar"
+          description="A análise olha os últimos e-mails enviados (com 500 ou mais destinatários). Ainda não encontrei envios suficientes."
         />
       ) : (
         <div className="space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-5 py-4 shadow-card">
             <p className="text-sm text-foreground">
-              Analisando <strong className="font-semibold">{selected?.label}</strong>, considerando os últimos {n} e-mails.
+              Considerando os últimos <strong className="font-semibold">{n} e-mails enviados</strong>, de {format(parseSendDate(oldest.date), "dd/MM")} a {format(parseSendDate(newest.date), "dd/MM")}, de
+              todos os disparos.
             </p>
             {running && (
               <span className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -159,6 +163,11 @@ export function AudienceTab({ campaigns }: { campaigns: Campaign[] }) {
               </span>
             )}
           </div>
+
+          <Notice tone="info">
+            A base é o total de contatos ativos. Como cada envio vai para um público, quem nunca esteve nesses públicos também aparece como "não abriu". Por isso o número é um limite
+            máximo, útil para acompanhar a evolução.
+          </Notice>
 
           {error && <Notice tone="bad">{error}</Notice>}
 
