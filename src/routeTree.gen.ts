@@ -12,7 +12,6 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AlertasRouteImport } from './routes/alertas'
 import { Route as AnalisarRouteImport } from './routes/analisar'
-import { Route as AtendimentoRouteImport } from './routes/atendimento'
 import { Route as AnalisesRouteImport } from './routes/analises'
 import { Route as AutomationsRouteImport } from './routes/automations'
 import { Route as CampanhasRouteImport } from './routes/campanhas'
@@ -36,11 +35,6 @@ const AlertasRoute = AlertasRouteImport.update({
 const AnalisarRoute = AnalisarRouteImport.update({
   id: '/analisar',
   path: '/analisar',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AtendimentoRoute = AtendimentoRouteImport.update({
-  id: '/atendimento',
-  path: '/atendimento',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AnalisesRoute = AnalisesRouteImport.update({
@@ -94,7 +88,6 @@ export interface FileRoutesByFullPath {
   '/alertas': typeof AlertasRoute
   '/analisar': typeof AnalisarRoute
   '/analises': typeof AnalisesRoute
-  '/atendimento': typeof AtendimentoRoute
   '/automations': typeof AutomationsRoute
   '/campanhas': typeof CampanhasRoute
   '/dashboard': typeof DashboardRoute
@@ -109,7 +102,6 @@ export interface FileRoutesByTo {
   '/alertas': typeof AlertasRoute
   '/analisar': typeof AnalisarRoute
   '/analises': typeof AnalisesRoute
-  '/atendimento': typeof AtendimentoRoute
   '/automations': typeof AutomationsRoute
   '/campanhas': typeof CampanhasRoute
   '/dashboard': typeof DashboardRoute
@@ -125,7 +117,6 @@ export interface FileRoutesById {
   '/alertas': typeof AlertasRoute
   '/analisar': typeof AnalisarRoute
   '/analises': typeof AnalisesRoute
-  '/atendimento': typeof AtendimentoRoute
   '/automations': typeof AutomationsRoute
   '/campanhas': typeof CampanhasRoute
   '/dashboard': typeof DashboardRoute
@@ -142,7 +133,6 @@ export interface FileRouteTypes {
     | '/alertas'
     | '/analisar'
     | '/analises'
-    | '/atendimento'
     | '/automations'
     | '/campanhas'
     | '/dashboard'
@@ -157,7 +147,6 @@ export interface FileRouteTypes {
     | '/alertas'
     | '/analisar'
     | '/analises'
-    | '/atendimento'
     | '/automations'
     | '/campanhas'
     | '/dashboard'
@@ -172,7 +161,6 @@ export interface FileRouteTypes {
     | '/alertas'
     | '/analisar'
     | '/analises'
-    | '/atendimento'
     | '/automations'
     | '/campanhas'
     | '/dashboard'
@@ -188,7 +176,6 @@ export interface RootRouteChildren {
   AlertasRoute: typeof AlertasRoute
   AnalisarRoute: typeof AnalisarRoute
   AnalisesRoute: typeof AnalisesRoute
-  AtendimentoRoute: typeof AtendimentoRoute
   AutomationsRoute: typeof AutomationsRoute
   CampanhasRoute: typeof CampanhasRoute
   DashboardRoute: typeof DashboardRoute
@@ -220,13 +207,6 @@ declare module '@tanstack/react-router' {
       path: '/analisar'
       fullPath: '/analisar'
       preLoaderRoute: typeof AnalisarRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/atendimento': {
-      id: '/atendimento'
-      path: '/atendimento'
-      fullPath: '/atendimento'
-      preLoaderRoute: typeof AtendimentoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/analises': {
@@ -300,7 +280,6 @@ const rootRouteChildren: RootRouteChildren = {
   AlertasRoute: AlertasRoute,
   AnalisarRoute: AnalisarRoute,
   AnalisesRoute: AnalisesRoute,
-  AtendimentoRoute: AtendimentoRoute,
   AutomationsRoute: AutomationsRoute,
   CampanhasRoute: CampanhasRoute,
   DashboardRoute: DashboardRoute,
